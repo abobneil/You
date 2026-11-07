@@ -3,7 +3,9 @@ import { profile } from '../state';
 import { setTarget } from '../storage/target';
 import { $ } from './dom';
 import { emit } from './events';
+import { listProfiles } from '../storage/profiles';
 import { importText } from './session';
+import { openSwitcher } from './switcher';
 import { openStoragePicker } from './storagePicker';
 
 const nameInput = $<HTMLInputElement>('#name');
@@ -38,6 +40,11 @@ function submit() {
   document.body.classList.add('done');
   setTimeout(() => emit('named'), 1600);
 }
+
+// When other Yous live in this browser, offer a way back to them.
+const others = $('#other-yous');
+others.hidden = listProfiles().length === 0;
+others.addEventListener('click', openSwitcher);
 
 // "or load your data" opens the storage picker in open mode.
 $('#load').addEventListener('click', () => openStoragePicker('open'));

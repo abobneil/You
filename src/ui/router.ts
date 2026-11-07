@@ -3,6 +3,7 @@ import { AREAS, areaById, type Area } from '../core/areas';
 import { profile } from '../state';
 import { renderArea } from './area';
 import { $, ICON, esc } from './dom';
+import { renderWhoButton } from './switcher';
 
 const overview = $('#overview');
 const detail = $('#detail');
@@ -15,6 +16,7 @@ export function showHome() {
   $('#space').hidden = false;
   $('#you-name').textContent = profile.name;
   $('#back-name').textContent = profile.name || 'Back';
+  renderWhoButton();
   route();
 }
 

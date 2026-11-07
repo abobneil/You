@@ -6,7 +6,8 @@ import { profile, vault } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encode, fileNameFor } from './fileFormat';
 import { idb } from './idb';
-import { KEYS, local } from './local';
+import { local } from './local';
+import { currentId, keyFor } from './profiles';
 
 export type TargetKind = 'browser' | 'file' | 'download';
 
@@ -26,9 +27,13 @@ const w = window as unknown as {
 export const canWriteFiles = typeof w.showSaveFilePicker === 'function';
 const FILE_TYPES = [{ description: 'You data', accept: { 'application/json': ['.json'] } }];
 
+// Each You has its own save location. Keys use the open You's id ('new' before it's first saved).
+const tk = (k: 'target' | 'targetName') => keyFor(currentId() || 'new', k);
+const handleKey = () => `handle.${currentId() || 'new'}`;
+
 export const target = {
-  kind: (local.get(KEYS.target) as TargetKind) || 'browser',
-  name: local.get(KEYS.targetName) || '',
+  kind: (local.get(tk('target')) as TargetKind) || 'browser',
+  name: local.get(tk('targetName')) || '',
 };
 let handle: FileHandle | null = null;
 let dirty = false, saving = false, needsPermission = false, failed = false;
@@ -39,9 +44,9 @@ export const onTargetChange = (fn: () => void) => { changeListeners.push(fn); };
 export function setTarget(kind: TargetKind, name = '') {
   target.kind = kind;
   target.name = name;
-  local.set(KEYS.target, kind);
-  local.set(KEYS.targetName, name);
-  if (kind !== 'file') { handle = null; idb.del('handle'); }
+  local.set(tk('target'), kind);
+  local.set(tk('targetName'), name);
+  if (kind !== 'file') { handle = null; idb.del(handleKey()); }
   dirty = false; failed = false; needsPermission = false;
   renderPill();
   changeListeners.forEach(fn => fn());
@@ -49,8 +54,14 @@ export function setTarget(kind: TargetKind, name = '') {
 
 /** On startup: find the file we were saving to. Browsers ask for permission again after a reload. */
 export async function initTarget() {
+  // Before Yous could be switched, the file handle was stored under one shared key.
+  if (local.get('you.migrateHandle') === currentId()) {
+    const old = await idb.get<FileHandle>('handle');
+    if (old) { await idb.set(handleKey(), old); await idb.del('handle'); }
+    local.remove('you.migrateHandle');
+  }
   if (target.kind === 'file') {
-    handle = canWriteFiles ? (await idb.get<FileHandle>('handle')) ?? null : null;
+    handle = canWriteFiles ? (await idb.get<FileHandle>(handleKey())) ?? null : null;
     if (!handle) setTarget('browser');
     else needsPermission = (await handle.queryPermission({ mode: 'readwrite' })) !== 'granted';
   }
@@ -101,7 +112,7 @@ export async function chooseSaveFile(): Promise<boolean> {
   if (!canWriteFiles) { setTarget('download', fileNameFor(profile.name)); downloadCopy(); return true; }
   try {
     const h = await w.showSaveFilePicker!({ suggestedName: fileNameFor(profile.name), types: FILE_TYPES });
-    await idb.set('handle', h);
+    await idb.set(handleKey(), h);
     setTarget('file', h.name);
     handle = h;
     dirty = true;
@@ -121,7 +132,7 @@ export async function chooseOpenFile(importText: (text: string) => Promise<boole
   try {
     const [h] = await w.showOpenFilePicker!({ types: FILE_TYPES });
     if (!(await importText(await (await h.getFile()).text()))) return false;
-    await idb.set('handle', h);
+    await idb.set(handleKey(), h);
     setTarget('file', h.name);
     handle = h;
     needsPermission = (await h.requestPermission({ mode: 'readwrite' })) !== 'granted';

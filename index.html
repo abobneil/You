@@ -32,6 +32,7 @@
       </button>
     </div>
     <button class="load" id="load" type="button">or load your data</button>
+    <button class="load" id="other-yous" type="button" hidden>or open another You</button>
     <input id="file" type="file" accept=".json,application/json" hidden>
   </main>
 
@@ -56,6 +57,7 @@
       <button class="gate-go" id="gate-go" type="submit"></button>
       <p class="gate-note" id="gate-note"></p>
       <div class="gate-links" id="gate-links"></div>
+      <div class="gate-who" id="gate-who" hidden></div>
     </form>
   </section>
 
@@ -71,10 +73,13 @@
         </g>
         <line x1="166" y1="12" x2="166" y2="62" stroke="#FF5A36" stroke-width="9" stroke-linecap="round"/>
       </svg>
-      <button class="saved" id="saved" type="button" title="Choose where to keep your data">
-        <span class="dot" aria-hidden="true"></span>
-        <span>Only in this browser · <b>Choose where to keep it</b></span>
-      </button>
+      <div class="bar-right">
+        <button class="saved" id="saved" type="button" title="Choose where to keep your data">
+          <span class="dot" aria-hidden="true"></span>
+          <span>Only in this browser · <b>Choose where to keep it</b></span>
+        </button>
+        <button class="who-btn" id="who-btn" type="button" title="Switch or lock" aria-haspopup="dialog"></button>
+      </div>
     </div>
 
     <div id="overview">

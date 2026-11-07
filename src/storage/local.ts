@@ -11,12 +11,16 @@ export const local = {
   },
 };
 
+/**
+ * Settings shared by every You in this browser. Per-You settings (the encrypted copy, where it's
+ * saved, whether we've suggested saving) use keyFor() in profiles.ts.
+ */
 export const KEYS = {
-  /** The encrypted browser copy. */
-  vault: 'you.vault',
+  theme: 'you.theme',
   /** Unencrypted data from before encryption; upgraded and removed on first unlock. */
   profile: 'you.profile',
-  theme: 'you.theme',
+  /** Single-You keys from before Yous could be switched; moved by profiles.ts. */
+  vault: 'you.vault',
   target: 'you.target',
   targetName: 'you.targetName',
   nudged: 'you.nudged',

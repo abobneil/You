@@ -9,6 +9,7 @@ import './ui/nudge';
 import { refresh, showHome } from './ui/router';
 import { lockNewData, start } from './ui/session';
 import { onSheetClose } from './ui/sheet';
+import { renderWhoButton } from './ui/switcher';
 import './ui/theme';
 
 // After every change: show "Saved" briefly, write to the chosen file (if any), and redraw.
@@ -37,6 +38,7 @@ heading.addEventListener('blur', () => {
   if (v === profile.name) return;
   profile.name = v;
   $('#back-name').textContent = v;
+  renderWhoButton();
   save();
 });
 

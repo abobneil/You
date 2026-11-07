@@ -441,4 +441,42 @@
   .gate-links button { font: inherit; font-size: 12px; color: var(--soft); background: none; border: 0; padding: 4px; cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
   .gate-links button:hover { color: var(--ink); text-decoration-color: currentColor; }
 
+  /* ---------- Switching Yous ---------- */
+  .bar-right { display: flex; align-items: center; gap: 8px; }
+  .who-btn {
+    width: 32px; height: 32px; border-radius: 50%; flex: none; cursor: pointer;
+    display: grid; place-items: center; font: inherit; font-size: 14px; font-weight: 600;
+    color: var(--bg); background: var(--ink); border: 0; transition: background-color .2s, transform .2s;
+  }
+  .who-btn:hover, .who-btn:focus-visible { background: var(--accent); color: #fff; outline: none; transform: scale(1.05); }
+
+  .yous { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .yous button {
+    width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer;
+    font: inherit; color: var(--ink); background: none; border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px;
+    transition: border-color .2s;
+  }
+  .yous button:hover { border-color: var(--ink); }
+  .yous button.on { border-color: var(--accent); }
+  .av {
+    width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    font-size: 15px; font-weight: 600; color: var(--bg); background: var(--soft);
+  }
+  .yous button.on .av { background: var(--accent); color: #fff; }
+  .yous .yn b { display: block; font-weight: 500; font-size: 15px; }
+  .yous .yn small { display: block; font-size: 12px; color: var(--soft); }
+  .yous + .menu { margin-top: 14px; }
+
+  .gate-who { margin-top: 28px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; }
+  .gate-who[hidden] { display: none; }
+  .gate-who-label { font-size: 12px; color: var(--soft); margin-right: 2px; }
+  .you-chip {
+    display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 13px; color: var(--ink); cursor: pointer;
+    background: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px 4px 4px; transition: border-color .2s;
+  }
+  .you-chip:hover { border-color: var(--ink); }
+  .you-chip .av { width: 24px; height: 24px; font-size: 12px; }
+  .you-chip.add { padding: 6px 12px; color: var(--soft); border-style: dashed; }
+  .you-chip.add:hover { color: var(--accent); border-color: var(--accent); }
+
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

@@ -43,6 +43,8 @@ export interface Link {
 }
 
 export interface Profile {
+  /** Stable id for this You, so a file loaded later matches the same You in the browser. */
+  id?: string;
   name: string;
   cards: Card[];
   links: Link[];

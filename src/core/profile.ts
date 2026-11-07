@@ -11,6 +11,7 @@ export const emptyProfile = (): Profile => ({ name: '', cards: [], links: [] });
 export function normalize(raw: unknown): Profile {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, any>;
   const p: Profile = {
+    ...(typeof r.id === 'string' && r.id ? { id: r.id } : {}),
     name: typeof r.name === 'string' ? r.name : '',
     cards: Array.isArray(r.cards) ? r.cards.filter(isCard).map(c => ({ ...c, revisions: c.revisions ?? [] })) : [],
     links: Array.isArray(r.links) ? r.links.filter((l: any) => l && l.id && l.a && l.b) : [],

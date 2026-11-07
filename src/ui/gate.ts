@@ -27,7 +27,15 @@ interface Screen {
   note?: string;
   hint?: string;
   links?: { label: string; run: () => void }[];
+  who?: WhoRow;
   submit: (passphrase: string) => Promise<boolean>;
+}
+
+/** The Yous on this browser, shown under the unlock form so you can switch before unlocking. */
+export interface WhoRow {
+  items: { id: string; label: string; current: boolean }[];
+  pick: (id: string) => void;
+  add: () => void;
 }
 let current: Screen | null = null;
 let previous: Screen | null = null;
@@ -56,7 +64,36 @@ function render(s: Screen) {
     b.addEventListener('click', l.run);
     links.append(b);
   }
+  renderWho(s.who);
   pass.focus();
+}
+
+function renderWho(w?: WhoRow) {
+  const row = $('#gate-who');
+  row.innerHTML = '';
+  row.hidden = !w;
+  if (!w) return;
+  const others = w.items.filter(i => !i.current);
+  const label = document.createElement('span');
+  label.className = 'gate-who-label';
+  label.textContent = others.length ? 'Not you?' : 'Someone else?';
+  row.append(label);
+  for (const i of others) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'you-chip';
+    b.innerHTML = '<span class="av"></span><span class="nm"></span>';
+    b.querySelector('.av')!.textContent = (i.label.trim()[0] || '?').toUpperCase();
+    b.querySelector('.nm')!.textContent = i.label || 'Locked You';
+    b.addEventListener('click', () => w.pick(i.id));
+    row.append(b);
+  }
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'you-chip add';
+  add.textContent = '+ New You';
+  add.addEventListener('click', w.add);
+  row.append(add);
 }
 
 export function hideGate() {
@@ -118,17 +155,19 @@ export function askNewPassphrase(name: string, why: 'new' | 'upgrade' | 'import'
  * Resolves true once unlocked, or false if the person cancelled (file mode only).
  */
 export function askPassphrase(mode: 'unlock' | 'file', tryIt: (p: string) => Promise<boolean>,
-  links: { label: string; run: () => void }[] = []): Promise<boolean> {
+  opts: { name?: string; who?: WhoRow; links?: { label: string; run: () => void }[] } = {}): Promise<boolean> {
   return new Promise(resolve => {
     if (mode === 'file') previous = current;
     const back = previous;
     render({
-      title: mode === 'unlock' ? 'Welcome back' : 'This file is locked',
+      title: mode === 'unlock' ? (opts.name ? `Welcome back, ${opts.name}` : 'Welcome back') : 'This file is locked',
+      name: opts.name,
       sub: mode === 'unlock' ? 'Enter your passphrase to unlock your data.' : 'Enter the passphrase you used when you saved it.',
       create: false, button: 'Unlock', busy: 'Unlocking…',
       links: mode === 'file'
         ? [{ label: 'Cancel', run: () => { back ? render(back) : hideGate(); resolve(false); } }]
-        : links,
+        : opts.links,
+      who: mode === 'unlock' ? opts.who : undefined,
       submit: async p => { const ok = await tryIt(p); if (ok) resolve(true); return ok; },
     });
   });
