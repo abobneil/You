@@ -96,3 +96,14 @@ Audible credentials stay in the adapter's Windows-protected vault and are never 
 - **Remove** is only for cards added by mistake. Removing a mistaken replacement restores the card it replaced.
 - **Details**: many kinds have structured details (a Vehicle's Year, Make, Model, VIN, plate…), defined in `src/core/areas.ts`. Details can format as you type, offer quick picks, or be hidden as sensitive. A card's name can build itself from its details until it's typed by hand, and corrected details keep their old value in the card's history.
 - **Links** connect cards, with optional labels read from each side ("through" / "provides"). **At the time** is worked out from overlapping dates and never stored.
+
+## Browsing a big area
+
+Imports can add thousands of cards, so an area stays an index rather than a wall of cards (`src/ui/area.ts`, rules in `src/core/browse.ts`):
+
+- **Search and Add stay pinned** at the top while you scroll. Press `/` to search the area, or the kind you're in.
+- **Each kind folds to one row** once it has more than 6 cards ("Movie or show · 1,203 · 1,200 from Netflix"), with a preview of your own cards or your most played. Smaller kinds show their cards in place.
+- **A kind's own page** (`#interests/Movie%20or%20show`) filters by type, source and year, and sorts by newest, oldest, A–Z or most played.
+- **Your own cards come first**, then each import's history under "From Netflix".
+- **Long lists are one line per card**, drawn 100 at a time as you scroll.
+- **Years fold**, newest open. A closed year draws nothing until it's opened. "Over time" lists your own entries and sums up imported history per year ("Netflix: 200 Movie or show cards"), linking to that kind filtered to the year.

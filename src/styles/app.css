@@ -728,8 +728,10 @@
 
   @media (max-width: 560px) {
     .atools { margin: 16px -16px 0; padding: 8px 16px; }
-    .atools #a-import { display: none; }
+    .atools .btn { padding: 8px 12px; }
     .asearch kbd { display: none; }
+    .kgroup .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .kgroup .tile { min-height: 0; }
     .crow { grid-template-columns: minmax(0, 1fr) auto; }
     .crow .cs { grid-column: 1 / -1; grid-row: 2; }
   }
