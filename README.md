@@ -72,8 +72,19 @@ Each You has its own passphrase, encrypted copy (`you.vault.<id>`), save locatio
 | Vehicle | VIN typed or read from a barcode photo, then looked up with NHTSA vPIC. **The only network request; it asks first.** | `vin.ts` |
 | Health records | C-CDA (XML) or FHIR (JSON/NDJSON) from a patient portal | `health.ts` |
 | Books & movies | Goodreads, Letterboxd or IMDb CSV (Letterboxd zip too) | `media.ts` |
+| Streaming | Netflix viewing activity, Spotify data (account or extended history), Apple Media Services zip, YouTube Music via Google Takeout (JSON). Plays roll up into one card per show, movie, artist or podcast; a newer export refreshes the counts | `streaming.ts` |
+| Audible | `audible.you-import.json` from the local You Audible adapter | `audible.ts` |
 
 The barcode reader (zxing, WebAssembly) and the importers load only when used. Nothing here needs an app registration.
+
+Audible exports are produced by the separate local adapter at `../aapi` (see its README).
+Use **Bring in your data → Audible**, or **Interests → Import…**. Audible's reading status,
+ownership and saved position appear as separate Book details; an existing Goodreads/manual
+Status is preserved. Reimporting a newer snapshot refreshes unchanged imported details by
+stable marketplace/ASIN identity, keeps manual edits and records revisions. Older snapshots
+are ignored, and missing titles never delete cards. Ownership is provisional until the
+account's purchase evidence is verified: **Likely owned** is distinct from **Subscription**.
+Audible credentials stay in the adapter's Windows-protected vault and are never imported here.
 
 ## Card rules
 

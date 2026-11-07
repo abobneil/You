@@ -1,5 +1,5 @@
 // Matching imported cards against what's already there, and adding them.
-// Same card already present → fill in only the details it's missing (never overwrite).
+// Ordinary imports fill missing details. Explicit source snapshots can refresh unchanged imported fields.
 import { addCard, setField } from '../cards';
 import type { Card, Profile } from '../types';
 import type { Proposal } from './types';
@@ -17,39 +17,75 @@ export function matchKey(p: { area: string; kind: string; value: string }): stri
 }
 
 export function findMatch(profile: Profile, p: Proposal): Card | undefined {
+  if (p.sync) {
+    const { source, id } = p.sync;
+    const exact = profile.cards.find(c => c.area === p.area && c.kind === p.kind && c.imports?.[source]?.id === id);
+    if (exact) return exact;
+    const title = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const candidates = profile.cards.filter(c => c.area === p.area && c.kind === p.kind && title(c.value) === title(p.value)
+      && !c.imports?.[source]
+      && (!c.fields?.author || !p.fields?.author || c.fields.author.toLowerCase() === p.fields.author.toLowerCase()));
+    return candidates.length === 1 ? candidates[0] : undefined;
+  }
   const key = matchKey(p);
   return profile.cards.find(c => (c.area === p.area || p.area === 'people') && matchKey(c) === key);
 }
 
-export type Plan = 'new' | 'fill' | 'have';
+export type Plan = 'new' | 'fill' | 'update' | 'have';
+
+function fieldChanges(m: Card, p: Proposal): [string, string][] {
+  const previous = p.sync ? m.imports?.[p.sync.source] : undefined;
+  if (previous && p.sync!.at <= previous.at) return [];
+  return Object.entries(p.fields ?? {}).filter(([k, v]) => {
+    const current = m.fields?.[k] ?? '';
+    if (previous && Object.hasOwn(previous.fields, k)) {
+      // A changed or deliberately cleared field belongs to the person now.
+      return current === previous.fields[k] && current !== v;
+    }
+    return !!v && !current;
+  });
+}
 
 /** What adding this proposal would do. */
 export function planFor(profile: Profile, p: Proposal): Plan {
   const m = findMatch(profile, p);
   if (!m) return 'new';
-  const missing = Object.entries(p.fields ?? {}).some(([k, v]) => v && !m.fields?.[k])
+  const previous = p.sync ? m.imports?.[p.sync.source] : undefined;
+  if (previous && p.sync!.at <= previous.at) return 'have';
+  const changes = fieldChanges(m, p);
+  if (changes.some(([k]) => m.fields?.[k]) || (previous && p.sync!.at > previous.at)) return 'update';
+  const missing = changes.length > 0 || (!!p.sync && !previous)
     || (!!p.since && !m.since) || (!!p.tag && !m.tag);
   return missing ? 'fill' : 'have';
 }
 
 /** Adds or fills in cards. Returns counts for the summary. */
 export function applyProposals(profile: Profile, proposals: Proposal[], from: string, now = new Date().toISOString()) {
-  let added = 0, filled = 0;
+  let added = 0, filled = 0, updated = 0;
   for (const p of proposals) {
     const m = findMatch(profile, p);
     if (m) {
+      const plan = planFor(profile, p);
+      if (plan === 'have') continue;
       let changed = false;
-      for (const [k, v] of Object.entries(p.fields ?? {})) if (v && !m.fields?.[k]) changed = setField(profile, m.id, k, v, now) || changed;
+      for (const [k, v] of fieldChanges(m, p)) changed = setField(profile, m.id, k, v, now) || changed;
       if (p.since && !m.since) { m.since = p.since; changed = true; }
       if (p.tag && !m.tag) { m.tag = p.tag; changed = true; }
-      if (changed) filled++;
+      if (p.sync) { rememberSync(m, p); changed = true; }
+      if (changed) { if (plan === 'update') updated++; else filled++; }
       continue;
     }
     if (!p.value.trim()) continue;
     const c = addCard(profile, { area: p.area, kind: p.kind, value: p.value, since: p.since ?? '', tag: p.tag, fields: p.fields }, undefined, now);
     if (p.past) { c.status = 'past'; c.until = p.until ?? ''; }
     c.source = { from, at: now };
+    if (p.sync) rememberSync(c, p);
     added++;
   }
-  return { added, filled };
+  return { added, filled, updated };
+}
+
+function rememberSync(c: Card, p: Proposal) {
+  if (!p.sync) return;
+  c.imports = { ...c.imports, [p.sync.source]: { id: p.sync.id, at: p.sync.at, fields: { ...p.fields } } };
 }

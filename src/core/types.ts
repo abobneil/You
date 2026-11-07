@@ -37,6 +37,8 @@ export interface Card {
   replacedBy?: string;
   /** Where the card came from when it was imported ("LinkedIn"), and when. */
   source?: { from: string; at: string };
+  /** Last accepted source snapshot; lets reimports preserve details edited by hand. */
+  imports?: Record<string, { id: string; at: string; fields: Record<string, string> }>;
   /** Earlier wording, kept when a typo is corrected. */
   revisions: Revision[];
 }

@@ -5,6 +5,9 @@ import { isAamva, licenseRows, parseAamva } from '../../core/import/aamva';
 import { healthRows, parseHealth } from '../../core/import/health';
 import { linkedinRows, unzipCsvs, type Files } from '../../core/import/linkedin';
 import { mediaRows } from '../../core/import/media';
+import { audibleRows } from '../../core/import/audible';
+import { streamingRows, streamingZip } from '../../core/import/streaming';
+import { profile } from '../../state';
 import type { ImportResult } from '../../core/import/types';
 import { contactRows, parseVcf, type Contact } from '../../core/import/vcard';
 import { esc } from '../dom';
@@ -118,6 +121,20 @@ async function importMedia(files: File[]) {
   }
 }
 
+/** Streaming history: loose files, or the zips the services send. */
+async function importStreaming(files: File[]) {
+  const texts: Record<string, string> = {};
+  try {
+    for (const f of files) {
+      if (/\.zip$/i.test(f.name)) Object.assign(texts, streamingZip(new Uint8Array(await f.arrayBuffer())));
+      else texts[f.name] = await f.text();
+    }
+  } catch { return failed('Streaming', 'That file couldn’t be opened. Choose the zip or the history file the service sent you.'); }
+  if (!Object.keys(texts).length) return failed('Streaming', 'No viewing or listening history was found in that zip. Check that you chose the export from Netflix, Spotify, Apple or Google Takeout.');
+  const r = streamingRows(texts, profile.name);
+  show(r.source || 'Streaming', r);
+}
+
 // ---------- the screen ----------
 const ICONS = {
   contacts: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M17 8h4M19 6v4"/>',
@@ -125,6 +142,7 @@ const ICONS = {
   license: '<rect x="2.5" y="5" width="19" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M5 16a3 3 0 0 1 6 0M14 10h4M14 13h4"/>',
   vehicle: '<path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v2H3z"/><circle cx="7.5" cy="13.5" r=".8"/><circle cx="16.5" cy="13.5" r=".8"/>',
   health: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/><path d="M12 9v5M9.5 11.5h5"/>',
+  streaming: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M10 8.5v5l4-2.5z"/><path d="M8 20h8"/>',
   media: '<path d="M4 5h6a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4z"/><path d="M20 5h-6a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h6z"/>',
 };
 
@@ -147,9 +165,22 @@ function sources(): Source[] {
     { id: 'health', title: 'Health records', desc: 'Allergies, medications, conditions and immunizations from your patient portal.', icon: ICONS.health,
       how: 'In MyChart or your portal, look for <b>Download my record</b>, <b>Health Summary</b> or <b>Share my record</b>, and save the C-CDA (XML) or FHIR file. US providers are required to offer one.',
       actions: [{ label: 'Choose XML or JSON file', primary: true, run: () => pick('.xml,.json,.ndjson,.zip,text/xml,application/json', true, importHealth) }] },
+    { id: 'streaming', title: 'Streaming', desc: 'The shows, movies, music and podcasts you’ve played, with when you started and how much.', icon: ICONS.streaming,
+      how: '<b>Netflix:</b> Account → Profiles → pick yours → Viewing activity → <b>Download all</b>. For every profile at once: Account → Security → Download your personal information (the zip arrives within 30 days). '
+        + '<b>Spotify:</b> Account → Privacy settings → Download your data. “Account data” covers the past year and takes about 5 days; “Extended streaming history” covers everything and takes up to 30. Choose the zip. '
+        + '<b>Apple Music:</b> privacy.apple.com → Request a copy of your data → <b>Apple Media Services information</b>. Choose the zip. '
+        + '<b>YouTube Music:</b> takeout.google.com → select only YouTube and YouTube Music → change the history format to <b>JSON</b>. Choose the zip. '
+        + 'Prime Video, Disney+, Hulu and Max don’t offer a history download yet; add those by hand.',
+      actions: [{ label: 'Choose zip, CSV or JSON', primary: true, run: () => pick('.zip,.csv,.json,text/csv,application/json,application/zip', true, importStreaming) }] },
     { id: 'media', title: 'Books & movies', desc: 'What you’ve read and watched, with ratings and dates.', icon: ICONS.media,
       how: '<b>Goodreads:</b> My Books → Import and export → Export library. <b>Letterboxd:</b> Settings → Data → Export your data (choose the zip). <b>IMDb:</b> Your ratings → ⋯ → Export.',
       actions: [{ label: 'Choose CSV or zip', primary: true, run: () => pick('.csv,.zip', true, importMedia) }] },
+    { id: 'audible', title: 'Audible', desc: 'Your library, listening status and ownership, from an Audible export.', icon: ICONS.media,
+      how: 'Use the You Audible adapter on your computer to sign in to Audible US and export your library. Choose its <b>audible.you-import.json</b> file here. Export and import again to refresh your Audible details. Your Audible password is never needed here.',
+      actions: [{ label: 'Choose Audible JSON', primary: true, run: () => pick('.json,application/json', false, async files => {
+        try { show('Audible', audibleRows(await files[0].text())); }
+        catch { failed('Audible', 'That file could not be read. Choose your Audible library export.'); }
+      }) }] },
   ];
 }
 

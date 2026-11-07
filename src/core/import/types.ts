@@ -13,6 +13,8 @@ export interface Proposal {
   past?: boolean;
   tag?: string;
   fields?: Record<string, string>;
+  /** Stable source identity and snapshot time for a reviewed, repeatable sync. */
+  sync?: { source: string; id: string; at: string };
 }
 
 /** One line in the review list. A contact is one row even if it becomes several cards. */
@@ -26,6 +28,8 @@ export interface ImportRow {
   /** Alternatives the person can pick between, like which kind of person a contact is. */
   options?: { id: string; label: string }[];
   choice?: string;
+  /** Starts unticked when false (an artist you rarely played). New rows are ticked by default. */
+  on?: boolean;
   build: (choice?: string) => Proposal[];
 }
 

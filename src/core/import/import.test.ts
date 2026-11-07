@@ -209,11 +209,11 @@ describe('matching and adding', () => {
     ];
     expect(planFor(p, proposals[0])).toBe('fill');
     expect(planFor(p, proposals[1])).toBe('new');
-    expect(applyProposals(p, proposals, 'LinkedIn', NOW)).toEqual({ added: 1, filled: 1 });
+    expect(applyProposals(p, proposals, 'LinkedIn', NOW)).toEqual({ added: 1, filled: 1, updated: 0 });
     expect(phone.tag).toBe('cell');
     const job = p.cards.find(c => c.kind === 'Job')!;
     expect(job).toMatchObject({ status: 'past', since: '2018-06', until: '2018-08', source: { from: 'LinkedIn', at: NOW } });
     expect(planFor(p, proposals[0])).toBe('have');
-    expect(applyProposals(p, proposals, 'LinkedIn', NOW)).toEqual({ added: 0, filled: 0 });
+    expect(applyProposals(p, proposals, 'LinkedIn', NOW)).toEqual({ added: 0, filled: 0, updated: 0 });
   });
 });
