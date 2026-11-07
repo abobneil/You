@@ -1,5 +1,5 @@
 // One card, opened: correct it, link it, replace it, end it, or (rarely) remove it.
-import { areaById, kindOf } from '../core/areas';
+import { areaById, kindLabel, kindOf } from '../core/areas';
 import { atTheTime, byId, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink } from '../core/cards';
 import { fmtDate, fmtISO, thisMonth } from '../core/dates';
 import { profile, save } from '../state';
@@ -9,6 +9,7 @@ import { openComposer } from './composer';
 import { openLinkPicker } from './linkPicker';
 import { attachValueField, valueFieldHtml } from './valueField';
 import { isSensitive, shownValue } from './sensitive';
+import { tagRowHtml } from './tags';
 import { maskValue } from '../core/formats';
 import { closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
 
@@ -30,20 +31,21 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     next ? `Replaced by ${cardChip(next.id, esc(shownValue(next)))}` : '',
   ].filter(Boolean).join(' ');
 
-  openSheet(`${sheetTop(`${esc(a.title)} · ${esc(c.kind)} <span class="status ${on ? 'on' : ''}">${on ? 'Active' : 'History'}</span>`)}
+  openSheet(`${sheetTop(`${esc(a.title)} · ${esc(kindLabel(c))} <span class="status ${on ? 'on' : ''}">${on ? 'Active' : 'History'}</span>`)}
     ${isDate
       ? `<div class="fx"><span class="lab">${esc(c.kind)}</span>${dateInputs(c.since, 'vdate')}</div>`
       : `<div class="fx"><label for="v-value">Value</label>${valueFieldHtml('v-value', c.value, kind)}</div>`}
+    ${tagRowHtml(kind, c.tag)}
     ${!isDate && (kind.dated || c.since) ? `<div class="fx"><span class="lab">${kind.dated ? 'Since' : 'Changed'}</span>${dateInputs(c.since, 'since')}</div>` : ''}
     ${on ? '' : `<div class="fx"><span class="lab">Until</span>${dateInputs(c.until, 'until')}</div>`}
     <div class="fx"><span class="lab">Recorded</span><span class="hint">${esc(fmtISO(c.recordedAt))}${story ? ' · ' : ''}${story}</span></div>
     ${c.revisions.length ? `<div class="block"><h5>Earlier wording</h5><ul class="revs">${[...c.revisions].reverse()
       .map(r => `<li>“${esc(isSensitive(c) ? maskValue(r.value) : r.value)}” · changed ${esc(fmtISO(r.at))}</li>`).join('')}</ul></div>` : ''}
     <div class="block"><h5>Linked</h5><div class="chips">${links.map(x =>
-      `<button class="chip" type="button" data-act="open" data-id="${x.other.id}">${linkText(x.label, x.other.kind, shownValue(x.other))}<span class="x" data-act="unlink" data-link="${x.link.id}" title="Remove link">×</span></button>`).join('')}
+      `<button class="chip" type="button" data-act="open" data-id="${x.other.id}">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}<span class="x" data-act="unlink" data-link="${x.link.id}" title="Remove link">×</span></button>`).join('')}
       <button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
     ${near.length ? `<div class="block"><h5>At the time</h5><div class="chips">${near.map(o =>
-      cardChip(o.id, linkText('', o.kind, shownValue(o)))).join('')}</div></div>` : ''}
+      cardChip(o.id, linkText('', kindLabel(o), shownValue(o)))).join('')}</div></div>` : ''}
     ${opts.ending
       ? `<div class="block"><h5>When did it end?</h5>${dateInputs(thisMonth(), 'end')}
           <div class="btns"><button class="btn quiet" type="button" data-act="end-cancel">Cancel</button><button class="btn primary" type="button" data-act="end-confirm">Mark as ended</button></div></div>`
@@ -54,6 +56,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
         </div>`}`,
   {
     open: b => openCard(b.dataset.id!),
+    tag: b => { c.tag = b.dataset.tag!; save(); openCard(id); },
     unlink: (b, e) => { e.stopPropagation(); removeLink(profile, b.dataset.link!); save(); openCard(id); },
     'add-link': () => openLinkPicker({
       self: { area: c.area, kind: c.kind, label: shownValue(c) },

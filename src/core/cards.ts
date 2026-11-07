@@ -46,6 +46,7 @@ export interface NewCard {
   kind: string;
   value: string;
   since: FuzzyDate;
+  tag?: string;
 }
 
 /** Adds a card. If `replaceId` is given, that card moves to history and ends when this one starts. */
@@ -53,6 +54,7 @@ export function addCard(p: Profile, input: NewCard, replaceId?: string, now = ne
   const c: Card = {
     id: newId(), area: input.area, kind: input.kind.trim(), value: input.value.trim(),
     since: input.since, status: 'active', recordedAt: now, revisions: [],
+    ...(input.tag ? { tag: input.tag } : {}),
   };
   const old = byId(p, replaceId);
   if (old && old.status === 'active') {

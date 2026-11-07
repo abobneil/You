@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   activeOf, addCard, addLink, atTheTime, byId, correctValue, defaultMode, endCard, linksOf, rangeText, removeCard, reopenCard,
 } from './cards';
-import { kindOf } from './areas';
+import { kindLabel, kindOf, tagOf } from './areas';
 import { emptyProfile } from './profile';
 import type { Profile } from './types';
 
@@ -149,5 +149,19 @@ describe('dated and undated kinds', () => {
   it('ordinary and invented kinds stay dated', () => {
     expect(kindOf('health', 'Doctor').dated).toBe(true);
     expect(kindOf('about', 'Favorite color')).toMatchObject({ dated: true, many: true, value: 'text' });
+  });
+});
+
+describe('tags', () => {
+  it('phones carry a type shown with the kind', () => {
+    const p = seed();
+    const c = addCard(p, { area: 'about', kind: 'Phone', value: '(919) 449-8524', since: '', tag: 'workcell' });
+    expect(c.tag).toBe('workcell');
+    expect(kindLabel(c)).toBe('Phone · Work cell');
+    expect(tagOf(c)?.label).toBe('Work cell');
+  });
+  it('kinds without tags, and unknown tags, show just the kind', () => {
+    expect(kindLabel({ area: 'about', kind: 'Email' })).toBe('Email');
+    expect(kindLabel({ area: 'about', kind: 'Phone', tag: 'nope' })).toBe('Phone');
   });
 });

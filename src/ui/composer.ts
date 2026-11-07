@@ -1,5 +1,5 @@
 // "Add a card": kind, value, since-date, replace-or-alongside, and links.
-import { areaById, kindOf } from '../core/areas';
+import { areaById, kindLabel, kindOf, tagOf } from '../core/areas';
 import { activeOf, addCard, addLink, byId, defaultMode } from '../core/cards';
 import { fmtDate } from '../core/dates';
 import type { AreaId, FuzzyDate } from '../core/types';
@@ -10,6 +10,7 @@ import { emit } from './events';
 import { openLinkPicker } from './linkPicker';
 import { attachValueField, valueFieldHtml } from './valueField';
 import { shownValue } from './sensitive';
+import { tagRowHtml } from './tags';
 import { maskValue } from '../core/formats';
 import { act, closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
 
@@ -23,6 +24,8 @@ interface Draft {
   /** For kinds whose value is a date (Birthday). */
   valueDate: FuzzyDate;
   since: FuzzyDate;
+  /** Sub-type for kinds with tags (a phone's Cell, Home…). */
+  tag?: string;
   mode: string | null;
   replaceId?: string;
   links: { id: string; fwd: string; back: string }[];
@@ -57,6 +60,7 @@ function render(focus = false) {
   if (draft.mode && draft.mode !== 'add' && !actives.some(c => 'r:' + c.id === draft.mode)) draft.mode = null;
   if (!draft.mode) draft.mode = custom ? 'add' : defaultMode(profile, draft.area, draft.kind, draft.replaceId);
   const replacing = draft.mode.startsWith('r:');
+  if (!kind.tags?.some(t => t.id === draft.tag)) draft.tag = kind.tags?.[0]?.id;
   const isDate = kind.value === 'date';
   // Facts (Full name) have no start date, but replacing one is a change worth dating.
   const showSince = !isDate && (kind.dated || replacing);
@@ -69,10 +73,10 @@ function render(focus = false) {
 
   const modeRow = actives.length ? `<div class="fx"><span class="lab">Current ${esc(draft.kind.toLowerCase())}</span>
     <div class="seg">${actives.map(c =>
-      `<button type="button" data-act="mode" data-mode="r:${c.id}" class="${draft.mode === 'r:' + c.id ? 'on' : ''}">Replaces ${esc(shownValue(c))}</button>`).join('')}
+      `<button type="button" data-act="mode" data-mode="r:${c.id}" class="${draft.mode === 'r:' + c.id ? 'on' : ''}">Replaces ${(t => (t ? esc(t.label) + ' ' : ''))(tagOf(c))}${esc(shownValue(c))}</button>`).join('')}
       <button type="button" data-act="mode" data-mode="add" class="${draft.mode === 'add' ? 'on' : ''}">Add alongside</button></div></div>` : '';
   const linkChips = draft.links.map((l, i) =>
-    `<span class="chip">${(() => { const o = byId(profile, l.id); return linkText(l.fwd, o?.kind ?? '', o ? shownValue(o) : ''); })()}<span class="x" data-act="drop-link" data-i="${i}" role="button" title="Remove">×</span></span>`).join('');
+    `<span class="chip">${(() => { const o = byId(profile, l.id); return linkText(l.fwd, o ? kindLabel(o) : '', o ? shownValue(o) : ''); })()}<span class="x" data-act="drop-link" data-i="${i}" role="button" title="Remove">×</span></span>`).join('');
 
   const valueRow = isDate
     ? `<div class="fx"><span class="lab">${esc(kind.name)}</span>${dateInputs(draft.valueDate, 'vdate')}</div>`
@@ -87,6 +91,7 @@ function render(focus = false) {
     <div class="fx kinds-row"><span class="lab">Card</span><div class="kinds">${kindChips}</div></div>
     ${custom ? `<div class="fx"><label for="c-custom">Name it</label><input id="c-custom" value="${esc(draft.custom)}" placeholder="e.g. Eye doctor"></div>` : ''}
     ${valueRow}
+    ${tagRowHtml(kind, draft.tag)}
     ${modeRow}
     ${sinceRow}
     <div class="fx"><span class="lab">Linked to</span><div class="chips">${linkChips}<button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
@@ -101,6 +106,7 @@ function render(focus = false) {
       (sheetBody.querySelector<HTMLElement>(draft.kind === OTHER ? '#c-custom' : '#c-value, [data-date="vdate"] .mbtn'))?.focus();
     },
     mode: b => { read(); draft.mode = b.dataset.mode!; render(); },
+    tag: b => { read(); draft.tag = b.dataset.tag; render(); },
     'drop-link': b => { read(); draft.links.splice(+b.dataset.i!, 1); render(); },
     'add-link': () => {
       read();
@@ -128,7 +134,7 @@ function render(focus = false) {
       }
       if (!value) return $<HTMLInputElement>('#c-value', sheetBody).focus();
       const replaceId = replacing ? draft.mode!.slice(2) : undefined;
-      const c = addCard(profile, { area: draft.area, kind: name, value, since }, replaceId);
+      const c = addCard(profile, { area: draft.area, kind: name, value, since, tag: draft.tag }, replaceId);
       for (const l of draft.links) addLink(profile, c.id, l.id, l.fwd, l.back);
       save();
       closeSheet();

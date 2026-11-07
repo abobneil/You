@@ -1,5 +1,5 @@
 // One area of life: active cards under "Now", empty kinds as suggestions, and "Over time".
-import type { Area } from '../core/areas';
+import { kindLabel, tagOf, type Area } from '../core/areas';
 import { byId, byStartDesc, cardStart, linksOf, rangeText } from '../core/cards';
 import { fmtDate, fmtISO } from '../core/dates';
 import { profile } from '../state';
@@ -7,6 +7,7 @@ import { openCard } from './cardView';
 import { openComposer } from './composer';
 import { $, ICON, esc, linkText } from './dom';
 import { shownValue, valueHtml } from './sensitive';
+import { tagIcon } from './tags';
 
 const detail = $('#detail');
 let shown: Area | undefined;
@@ -24,10 +25,10 @@ export function renderArea(a: Area) {
   $('#now-count').textContent = active.length ? `${active.length} active` : '';
   $('#now').innerHTML = active.map(c => {
     const ls = linksOf(profile, c.id).slice(0, 3);
-    const chips = ls.map(x => `<span class="chip">${linkText(x.label, x.other.kind, shownValue(x.other))}</span>`).join('');
+    const chips = ls.map(x => `<span class="chip">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}</span>`).join('');
     return `<div class="tile" role="button" tabindex="0" data-act="card" data-id="${c.id}">
-      <span class="k"><i></i>${esc(c.kind)}</span>
-      <span class="v">${valueHtml(c)}</span>
+      <span class="k"><i></i>${esc(kindLabel(c))}</span>
+      <span class="v">${(t => (t ? tagIcon(t) : ''))(tagOf(c))}${valueHtml(c)}</span>
       <span class="d">${esc(rangeText(c))}</span>
       ${chips ? `<span class="chips">${chips}</span>` : ''}
     </div>`;
@@ -46,7 +47,7 @@ export function renderArea(a: Area) {
     const when = c.status === 'active' ? (fmtDate(c.since) || `Added ${fmtISO(c.recordedAt)}`) : rangeText(c);
     return `<li class="ev ${c.status === 'active' ? 'on' : 'past'}"><button type="button" data-act="card" data-id="${c.id}">
       <div class="when">${esc(when)}</div>
-      <div class="what">${esc(c.kind)}: ${esc(shownValue(c))} <span class="note">· ${note}</span></div>
+      <div class="what">${esc(kindLabel(c))}: ${esc(shownValue(c))} <span class="note">· ${note}</span></div>
     </button></li>`;
   }).join('') : `<li class="ev"><p class="empty">Your cards will show up here, in order, as you add them.</p></li>`;
 }

@@ -547,4 +547,16 @@
   div.tile { user-select: none; }
   div.tile:focus-visible { border-color: color-mix(in srgb, var(--ink) 40%, var(--line)); outline: none; }
 
+  /* Card tags (a phone's Cell, Home, Work…) */
+  .tile .v { display: flex; align-items: center; gap: 7px; }
+  .tag-ic { width: 17px; height: 17px; flex: none; fill: none; stroke: var(--soft); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tags button {
+    display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 13px; padding: 5px 11px 5px 9px;
+    border-radius: 999px; cursor: pointer; background: none; border: 1px solid var(--line); color: var(--ink);
+  }
+  .tags button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .tags button:hover { border-color: var(--ink); }
+  .tags button.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

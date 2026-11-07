@@ -18,6 +18,8 @@ export interface Card {
   area: AreaId;
   kind: string;
   value: string;
+  /** A sub-type picked from the kind's tags, e.g. a phone's "cell", "home" or "work". */
+  tag?: string;
   /** When this became true in the person's life. */
   since: FuzzyDate;
   /** When it stopped being true. Only set once the card is in history. */
