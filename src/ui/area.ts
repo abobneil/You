@@ -5,7 +5,7 @@ import { fmtDate, fmtISO } from '../core/dates';
 import { profile } from '../state';
 import { openCard } from './cardView';
 import { openComposer } from './composer';
-import { $, ICON, esc } from './dom';
+import { $, ICON, esc, linkText } from './dom';
 
 const detail = $('#detail');
 let shown: Area | undefined;
@@ -23,7 +23,7 @@ export function renderArea(a: Area) {
   $('#now-count').textContent = active.length ? `${active.length} active` : '';
   $('#now').innerHTML = active.map(c => {
     const ls = linksOf(profile, c.id).slice(0, 3);
-    const chips = ls.map(x => `<span class="chip">${x.label ? `<em>${esc(x.label)}</em> ` : ''}${esc(x.other.value)}</span>`).join('');
+    const chips = ls.map(x => `<span class="chip">${linkText(x.label, x.other.kind, x.other.value)}</span>`).join('');
     return `<button class="tile" type="button" data-act="card" data-id="${c.id}">
       <span class="k"><i></i>${esc(c.kind)}</span>
       <span class="v">${esc(c.value)}</span>

@@ -4,7 +4,7 @@ import { atTheTime, byId, correctValue, endCard, linksOf, removeCard, removeLink
 import { fmtDate, fmtISO, thisMonth } from '../core/dates';
 import { profile, save } from '../state';
 import { dateInputs, readDate } from './dateInput';
-import { esc } from './dom';
+import { esc, linkText } from './dom';
 import { openComposer } from './composer';
 import { openLinkPicker } from './linkPicker';
 import { closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
@@ -37,10 +37,10 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     ${c.revisions.length ? `<div class="block"><h5>Earlier wording</h5><ul class="revs">${[...c.revisions].reverse()
       .map(r => `<li>“${esc(r.value)}” · changed ${esc(fmtISO(r.at))}</li>`).join('')}</ul></div>` : ''}
     <div class="block"><h5>Linked</h5><div class="chips">${links.map(x =>
-      `<button class="chip" type="button" data-act="open" data-id="${x.other.id}">${x.label ? `<em>${esc(x.label)}</em> ` : ''}${esc(x.other.value)}<span class="x" data-act="unlink" data-link="${x.link.id}" title="Remove link">×</span></button>`).join('')}
+      `<button class="chip" type="button" data-act="open" data-id="${x.other.id}">${linkText(x.label, x.other.kind, x.other.value)}<span class="x" data-act="unlink" data-link="${x.link.id}" title="Remove link">×</span></button>`).join('')}
       <button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
     ${near.length ? `<div class="block"><h5>At the time</h5><div class="chips">${near.map(o =>
-      cardChip(o.id, `<em>${esc(o.kind)}</em> ${esc(o.value)}`)).join('')}</div></div>` : ''}
+      cardChip(o.id, linkText('', o.kind, o.value))).join('')}</div></div>` : ''}
     ${opts.ending
       ? `<div class="block"><h5>When did it end?</h5>${dateInputs(thisMonth(), 'end')}
           <div class="btns"><button class="btn quiet" type="button" data-act="end-cancel">Cancel</button><button class="btn primary" type="button" data-act="end-confirm">Mark as ended</button></div></div>`
@@ -53,7 +53,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     open: b => openCard(b.dataset.id!),
     unlink: (b, e) => { e.stopPropagation(); removeLink(profile, b.dataset.link!); save(); openCard(id); },
     'add-link': () => openLinkPicker({
-      selfLabel: c.value,
+      self: { area: c.area, kind: c.kind, label: c.value },
       exclude: [c.id, ...links.map(x => x.other.id)],
       onPick: (other, fwd, back) => { addLink(profile, c.id, other, fwd, back); save(); openCard(id); },
       onBack: () => openCard(id),

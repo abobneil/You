@@ -5,7 +5,7 @@ import { fmtDate } from '../core/dates';
 import type { AreaId, FuzzyDate } from '../core/types';
 import { profile, save } from '../state';
 import { dateInputs, readDate } from './dateInput';
-import { $, esc } from './dom';
+import { $, esc, linkText } from './dom';
 import { emit } from './events';
 import { openLinkPicker } from './linkPicker';
 import { act, closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
@@ -69,7 +69,7 @@ function render(focus = false) {
       `<button type="button" data-act="mode" data-mode="r:${c.id}" class="${draft.mode === 'r:' + c.id ? 'on' : ''}">Replaces ${esc(c.value)}</button>`).join('')}
       <button type="button" data-act="mode" data-mode="add" class="${draft.mode === 'add' ? 'on' : ''}">Add alongside</button></div></div>` : '';
   const linkChips = draft.links.map((l, i) =>
-    `<span class="chip">${l.fwd ? `<em>${esc(l.fwd)}</em> ` : ''}${esc(byId(profile, l.id)?.value)}<span class="x" data-act="drop-link" data-i="${i}" role="button" title="Remove">×</span></span>`).join('');
+    `<span class="chip">${linkText(l.fwd, byId(profile, l.id)?.kind ?? '', byId(profile, l.id)?.value ?? '')}<span class="x" data-act="drop-link" data-i="${i}" role="button" title="Remove">×</span></span>`).join('');
 
   const valueRow = isDate
     ? `<div class="fx"><span class="lab">${esc(kind.name)}</span>${dateInputs(draft.valueDate, 'vdate')}</div>`
@@ -102,7 +102,11 @@ function render(focus = false) {
     'add-link': () => {
       read();
       openLinkPicker({
-        selfLabel: (isDate ? fmtDate(draft.valueDate) : draft.value.trim()) || 'This card',
+        self: {
+          area: draft.area,
+          kind: custom ? (draft.custom || 'Note') : draft.kind,
+          label: (isDate ? fmtDate(draft.valueDate) : draft.value.trim()) || 'This card',
+        },
         exclude: draft.links.map(l => l.id),
         onPick: (id, fwd, back) => { draft.links.push({ id, fwd, back }); render(); },
         onBack: () => render(),

@@ -6,6 +6,10 @@ export const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ESC[
 export const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) =>
   root.querySelector(sel) as T;
 
+/** How a link reads on a card: "provided through · Job · Acme Corp". The kind makes unlabeled links clear too. */
+export const linkText = (label: string, kind: string, value: string) =>
+  `${label ? `<em>${esc(label)}</em> ` : ''}<i class="lk">${esc(kind)}</i> ${esc(value)}`;
+
 export const ICON = {
   plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',

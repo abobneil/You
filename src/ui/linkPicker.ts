@@ -1,13 +1,15 @@
 // "Link a card": search all cards, pick one, then optionally choose how they're connected.
-import { AREAS, LINK_LABELS } from '../core/areas';
+import { AREAS } from '../core/areas';
 import { byId, rangeText } from '../core/cards';
+import { pointlessLink, suggestLabels } from '../core/relations';
+import type { AreaId } from '../core/types';
 import { profile } from '../state';
 import { $, esc } from './dom';
 import { act, openSheet, sheetBody, sheetTop } from './sheet';
 
 interface Options {
-  /** How the card being linked from is described, e.g. its value. */
-  selfLabel: string;
+  /** The card being linked from: its area, kind and how to describe it (its value). */
+  self: { area: AreaId; kind: string; label: string };
   exclude: string[];
   onPick: (id: string, fwd: string, back: string) => void;
   onBack: () => void;
@@ -15,15 +17,20 @@ interface Options {
 
 export function openLinkPicker(o: Options) {
   const pool = profile.cards.filter(c => !o.exclude.includes(c.id));
+  // Facts about you are already connected through you, so they go last when linking from About.
+  const order = AREAS.filter(a => !pointlessLink(o.self.area, a.id)).concat(AREAS.filter(a => pointlessLink(o.self.area, a.id)));
+
   const list = (q: string) => {
     const t = q.trim().toLowerCase();
     const hits = pool.filter(c => !t || `${c.value} ${c.kind}`.toLowerCase().includes(t));
     if (!hits.length) return `<li class="grp">${pool.length ? 'No matches' : 'No other cards yet. Add some first.'}</li>`;
-    return AREAS.map(a => {
+    return order.map(a => {
       const cs = hits.filter(c => c.area === a.id);
       if (!cs.length) return '';
-      return `<li class="grp">${esc(a.title)}</li>` + cs.map(c => `<li><button type="button" data-act="pick" data-id="${c.id}">
-        <span>${esc(c.value)}</span><span class="meta">${esc(c.kind)} · ${esc(c.status === 'active' ? 'now' : rangeText(c))}</span></button></li>`).join('');
+      const late = pointlessLink(o.self.area, a.id);
+      return `<li class="grp">${esc(a.title)}${late ? '<span class="grp-note"> · already connected through you, so linking these isn’t needed</span>' : ''}</li>`
+        + cs.map(c => `<li${late ? ' class="late"' : ''}><button type="button" data-act="pick" data-id="${c.id}">
+          <span><i class="lk">${esc(c.kind)}</i> ${esc(c.value)}</span><span class="meta">${esc(c.status === 'active' ? 'now' : rangeText(c))}</span></button></li>`).join('');
     }).join('');
   };
 
@@ -41,17 +48,19 @@ export function openLinkPicker(o: Options) {
 
   function labelStep(otherId: string) {
     const other = byId(profile, otherId)!;
+    const labels = suggestLabels(o.self.area, o.self.kind, other.area, other.kind);
+    const sentence = (fwd: string) =>
+      `<span>${esc(o.self.label)}</span> <b>${esc(fwd)}</b> <span><i class="lk">${esc(other.kind)}</i> ${esc(other.value)}</span>`;
     openSheet(`${sheetTop('How are they connected?')}
-      <p class="hint">Optional. Pick one that reads right, write your own, or skip it.</p>
-      <div class="labels">${LINK_LABELS.map(([fwd], i) => `<button type="button" data-act="label" data-i="${i}">
-        <span>${esc(o.selfLabel)}</span> <b>${esc(fwd)}</b> <span>${esc(other.value)}</span></button>`).join('')}</div>
+      <p class="hint">Optional. Pick the one that reads right, write your own, or skip it.</p>
+      <div class="labels">${labels.map(([fwd], i) => `<button type="button" data-act="label" data-i="${i}">${sentence(fwd)}</button>`).join('')}</div>
       <div class="fx"><label for="p-own">Your own</label><input id="p-own" placeholder="e.g. recommended by"></div>
       <div class="btns"><button class="btn quiet" type="button" data-act="back">Back</button><span class="spacer"></span>
         <button class="btn" type="button" data-act="none">Link without a label</button>
         <button class="btn primary" type="button" data-act="own">Link</button></div>`,
     {
       back: () => openLinkPicker(o),
-      label: b => { const [fwd, back] = LINK_LABELS[+b.dataset.i!]; o.onPick(otherId, fwd, back); },
+      label: b => { const [fwd, back] = labels[+b.dataset.i!]; o.onPick(otherId, fwd, back); },
       none: () => o.onPick(otherId, '', ''),
       own: () => { const t = $<HTMLInputElement>('#p-own', sheetBody).value.trim(); o.onPick(otherId, t, t); },
     });

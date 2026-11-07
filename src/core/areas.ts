@@ -66,12 +66,3 @@ export function kindOf(area: AreaId, kind: string): Required<Kind> {
 }
 
 export const isMany = (area: AreaId, kind: string) => kindOf(area, kind).many;
-
-/**
- * Suggested link labels, phrased from each side:
- * "Aetna PPO through Acme Corp" / "Acme Corp provides Aetna PPO".
- */
-export const LINK_LABELS: [fwd: string, back: string][] = [
-  ['through', 'provides'], ['covers', 'covered by'], ['with', 'with'],
-  ['at', 'location of'], ['part of', 'includes'], ['for', 'has'],
-];

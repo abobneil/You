@@ -509,4 +509,9 @@
   .kinds button.has { color: var(--soft); }
   .kinds button.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 
+  /* Link chips name the other card's kind, so links read clearly with or without a label */
+  .chip .lk, .pick .lk, .labels .lk { font-style: normal; color: color-mix(in srgb, var(--accent) 85%, var(--ink)); }
+  .pick .grp-note { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .pick li.late button { opacity: .6; }
+
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
