@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { fileNameFor, parse, serialize } from '../storage/fileFormat';
+import { decode, encode, fileNameFor, readText } from '../storage/fileFormat';
+import { createVault } from './crypto';
 import { addCard, addLink } from './cards';
 import { emptyProfile, normalize } from './profile';
 
@@ -21,22 +22,33 @@ describe('profile', () => {
 });
 
 describe('file format', () => {
-  it('round-trips through a file', () => {
+  it('round-trips through an encrypted file', async () => {
     const p = emptyProfile();
     p.name = 'Alex';
     const a = addCard(p, { area: 'health', kind: 'Doctor', value: 'Dr. Lee', since: '2021' });
     const b = addCard(p, { area: 'work', kind: 'Job', value: 'Acme', since: '2022' });
     addLink(p, a.id, b.id, 'through', 'provides');
-    const back = parse(serialize(p));
-    expect(back.name).toBe('Alex');
-    expect(back.cards).toEqual(p.cards);
-    expect(back.links).toEqual(p.links);
+    const text = await encode(await createVault('a long passphrase', 1000), p);
+    expect(text).not.toContain('Dr. Lee');
+    const r = readText(text);
+    expect(r.kind).toBe('locked');
+    if (r.kind !== 'locked') return;
+    const back = await decode('a long passphrase', r.env);
+    expect(back.profile.name).toBe('Alex');
+    expect(back.profile.cards).toEqual(p.cards);
+    expect(back.profile.links).toEqual(p.links);
   });
 
-  it('accepts a bare profile and rejects other JSON', () => {
-    expect(parse(JSON.stringify({ name: 'Bo', cards: [], links: [] })).name).toBe('Bo');
-    expect(() => parse('{"hello":"world"}')).toThrow();
-    expect(() => parse('not json')).toThrow();
+  it('still reads unencrypted version 1 files and bare profiles', () => {
+    const v1 = readText(JSON.stringify({ app: 'you', version: 1, profile: { name: 'Alex', cards: [], links: [] } }));
+    expect(v1.kind === 'plain' && v1.profile.name).toBe('Alex');
+    const bare = readText(JSON.stringify({ name: 'Bo', cards: [], links: [] }));
+    expect(bare.kind === 'plain' && bare.profile.name).toBe('Bo');
+  });
+
+  it('rejects other JSON', () => {
+    expect(() => readText('{"hello":"world"}')).toThrow();
+    expect(() => readText('not json')).toThrow();
   });
 
   it('names files after the person', () => {

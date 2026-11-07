@@ -40,6 +40,15 @@ brand/                logo files
 prototype/            the original single-file design prototype, kept for reference
 ```
 
+## Encryption
+
+Everything is encrypted with the person's passphrase before it's written anywhere, including the copy kept in the browser. Nothing is stored until a passphrase exists.
+
+- The key comes from PBKDF2-SHA-256 with 600,000 rounds and a random salt, and is used for AES-256-GCM with a fresh random IV on every save. All of it uses the browser's built-in Web Crypto, with no extra libraries.
+- The key lives only in memory. Every visit starts at the unlock screen.
+- A wrong passphrase fails AES-GCM's integrity check. There is **no recovery**. "Forgot it?" offers to erase this browser's copy and start over; saved files are untouched.
+- Files and the browser copy share one format (`version: 2`, see `src/core/crypto.ts`). Unencrypted `version: 1` files and data from before encryption are locked with a new passphrase when opened.
+
 ## Card rules
 
 - Every piece of information is a **card** in one of eight areas, with a **since** date (when it became true) and a **recorded** date (when it was added).

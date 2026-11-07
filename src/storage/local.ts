@@ -12,6 +12,9 @@ export const local = {
 };
 
 export const KEYS = {
+  /** The encrypted browser copy. */
+  vault: 'you.vault',
+  /** Unencrypted data from before encryption; upgraded and removed on first unlock. */
   profile: 'you.profile',
   theme: 'you.theme',
   target: 'you.target',

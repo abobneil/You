@@ -1,9 +1,9 @@
 // "What is your name?" — the first screen.
-import { profile, save } from '../state';
-import { loadText, setTarget } from '../storage/target';
+import { profile } from '../state';
+import { setTarget } from '../storage/target';
 import { $ } from './dom';
 import { emit } from './events';
-import { showHome } from './router';
+import { importText } from './session';
 import { openStoragePicker } from './storagePicker';
 
 const nameInput = $<HTMLInputElement>('#name');
@@ -13,7 +13,8 @@ const hello = $('.hello');
 // Keep focus on the field so the person can just start typing.
 nameInput.focus();
 document.addEventListener('keydown', e => {
-  if (document.body.classList.contains('home') || document.querySelector('dialog[open]')) return;
+  const b = document.body.classList;
+  if (b.contains('home') || b.contains('gated') || document.querySelector('dialog[open]')) return;
   if (document.activeElement !== nameInput && e.key.length === 1 && !e.metaKey && !e.ctrlKey) nameInput.focus();
 });
 
@@ -31,12 +32,11 @@ function submit() {
   enterBtn.classList.remove('pressed');
   const v = nameInput.value.trim();
   if (!v) return;
-  profile.name = v;
-  save();
+  profile.name = v; // kept in memory only until a passphrase exists
   hello.innerHTML = 'Nice to meet you, <span></span>.';
   hello.querySelector('span')!.textContent = v;
   document.body.classList.add('done');
-  setTimeout(showHome, 1600);
+  setTimeout(() => emit('named'), 1600);
 }
 
 // "or load your data" opens the storage picker in open mode.
@@ -47,5 +47,5 @@ $<HTMLInputElement>('#file').addEventListener('change', async e => {
   const input = e.target as HTMLInputElement;
   const f = input.files?.[0];
   input.value = '';
-  if (f && loadText(await f.text())) { setTarget('browser'); emit('data-loaded'); }
+  if (f && (await importText(await f.text()))) { setTarget('browser'); emit('data-loaded'); }
 });

@@ -1,19 +1,28 @@
-// The .you.json file. Version 1 is plain JSON; encryption will be version 2.
+// The .you.json file and the browser copy share one format: an encrypted envelope (version 2).
+// Version 1 files (plain JSON from before encryption) can still be loaded; they're encrypted on the next save.
+import { isEnvelope, seal, unlock, type Envelope, type Vault } from '../core/crypto';
 import { normalize } from '../core/profile';
 import type { Profile } from '../core/types';
 
 export const FILE_EXT = '.you.json';
 
-export function serialize(p: Profile, now = new Date().toISOString()): string {
-  return JSON.stringify({ app: 'you', version: 1, savedAt: now, profile: p }, null, 2);
-}
+export const encode = (vault: Vault, p: Profile) => seal(vault, JSON.stringify(p));
 
-/** Reads our file format, or a bare profile object. Throws if it isn't You data. */
-export function parse(text: string): Profile {
+export type ReadResult = { kind: 'locked'; env: Envelope } | { kind: 'plain'; profile: Profile };
+
+/** Works out what a file contains. Throws if it isn't You data at all. */
+export function readText(text: string): ReadResult {
   const data = JSON.parse(text);
+  if (isEnvelope(data)) return { kind: 'locked', env: data };
   const raw = data && data.app === 'you' ? data.profile : data;
   if (!raw || typeof raw.name !== 'string' || !raw.name) throw new Error('Not You data');
-  return normalize(raw);
+  return { kind: 'plain', profile: normalize(raw) };
+}
+
+/** Unlocks an envelope. Throws WrongPassphrase if the passphrase doesn't fit. */
+export async function decode(passphrase: string, env: Envelope): Promise<{ profile: Profile; vault: Vault }> {
+  const { plaintext, vault } = await unlock(passphrase, env);
+  return { profile: normalize(JSON.parse(plaintext)), vault };
 }
 
 /** "Alex Kim" → "alex-kim.you.json" */

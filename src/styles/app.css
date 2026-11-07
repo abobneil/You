@@ -401,4 +401,44 @@
   .nudge .btn { font-size: 13px; padding: 6px 14px; }
   @media (max-width: 560px) { .nudge { right: 16px; left: 16px; bottom: 16px; width: auto; } }
 
+  /* ---------- Passphrase screens ---------- */
+  body.gated main, body.gated footer, body.gated .hello { display: none; }
+  .gate { width: 100%; max-width: 480px; text-align: center; margin-top: -4vh; animation: rise .45s ease both; }
+  .gate[hidden] { display: none; }
+  body.home .gate { display: none; }
+  .gate-icon { width: 30px; height: 30px; fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; margin-bottom: 14px; }
+  .gate h1 { margin: 0 0 10px; }
+  .gate-sub { margin: 0 auto 26px; max-width: 40ch; color: var(--soft); font-size: 15px; line-height: 1.5; }
+  .vh { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+  .gate-field { position: relative; margin-top: 10px; }
+  .gate-field[hidden] { display: none; }
+  .gate-field input {
+    width: 100%; font: inherit; font-size: 24px; font-weight: 500; text-align: center; color: var(--ink);
+    caret-color: var(--accent); background: transparent; border: 0; border-bottom: 2px solid var(--line); border-radius: 0;
+    padding: 6px 44px 10px; outline: none; transition: border-color .25s;
+  }
+  .gate-field input:focus { border-bottom-color: var(--ink); }
+  .gate-field input::placeholder { color: var(--soft); opacity: .6; font-size: 18px; font-weight: 400; }
+  .gate-field input[aria-invalid="true"] { border-bottom-color: var(--accent); }
+  .peek { position: absolute; right: 0; bottom: 10px; width: 36px; height: 32px; display: grid; place-items: center; border: 0; background: none; color: var(--soft); cursor: pointer; border-radius: 8px; }
+  .peek:hover, .peek[aria-pressed="true"] { color: var(--ink); }
+  .peek svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .gate-msg { min-height: 20px; margin: 12px 0 0; font-size: 13px; color: var(--accent); }
+  .gate-msg.hint { color: var(--soft); }
+  .gate-go {
+    margin-top: 10px; font: inherit; font-size: 15px; font-weight: 500; padding: 11px 26px; border-radius: 999px; cursor: pointer;
+    background: var(--accent); color: #fff; border: 0; transition: filter .2s, opacity .2s;
+  }
+  .gate-go:hover { filter: brightness(1.05); }
+  .gate-go:disabled { opacity: .6; cursor: progress; }
+  .gate-note {
+    margin: 26px auto 0; max-width: 42ch; font-size: 13px; line-height: 1.5; color: var(--soft);
+    border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; text-align: left;
+  }
+  .gate-note:empty { display: none; }
+  .gate-note b { color: var(--ink); font-weight: 500; }
+  .gate-links { margin-top: 18px; display: flex; justify-content: center; gap: 18px; }
+  .gate-links button { font: inherit; font-size: 12px; color: var(--soft); background: none; border: 0; padding: 4px; cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+  .gate-links button:hover { color: var(--ink); text-decoration-color: currentColor; }
+
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

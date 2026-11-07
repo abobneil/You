@@ -2,9 +2,9 @@
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { profile, replaceProfile } from '../state';
+import { profile, vault } from '../state';
 import { $, ICON, esc } from '../ui/dom';
-import { fileNameFor, parse, serialize } from './fileFormat';
+import { encode, fileNameFor } from './fileFormat';
 import { idb } from './idb';
 import { KEYS, local } from './local';
 
@@ -69,11 +69,11 @@ export function scheduleWrite() {
 }
 
 export async function writeFile() {
-  if (!handle) return;
+  if (!handle || !vault) return;
   saving = true; failed = false; renderPill();
   try {
     const out = await handle.createWritable();
-    await out.write(serialize(profile));
+    await out.write(await encode(vault, profile));
     await out.close();
     dirty = false;
   } catch (e) {
@@ -84,9 +84,10 @@ export async function writeFile() {
   renderPill();
 }
 
-export function downloadCopy() {
+export async function downloadCopy() {
+  if (!vault) return;
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([serialize(profile)], { type: 'application/json' }));
+  a.href = URL.createObjectURL(new Blob([await encode(vault, profile)], { type: 'application/json' }));
   a.download = target.kind === 'download' && target.name ? target.name : fileNameFor(profile.name);
   document.body.append(a);
   a.click();
@@ -112,11 +113,14 @@ export async function chooseSaveFile(): Promise<boolean> {
   }
 }
 
-/** Asks for an existing file, loads it, and keeps saving back into it. Returns false if cancelled. */
-export async function chooseOpenFile(): Promise<boolean> {
+/**
+ * Asks for an existing file and hands its text to `importText` (which may ask for the passphrase).
+ * If that succeeds, keeps saving back into the same file. Returns false if cancelled.
+ */
+export async function chooseOpenFile(importText: (text: string) => Promise<boolean>): Promise<boolean> {
   try {
     const [h] = await w.showOpenFilePicker!({ types: FILE_TYPES });
-    if (!loadText(await (await h.getFile()).text())) return false;
+    if (!(await importText(await (await h.getFile()).text()))) return false;
     await idb.set('handle', h);
     setTarget('file', h.name);
     handle = h;
@@ -125,17 +129,6 @@ export async function chooseOpenFile(): Promise<boolean> {
     return true;
   } catch (e) {
     if ((e as Error)?.name !== 'AbortError') alert('That file could not be opened.');
-    return false;
-  }
-}
-
-/** Loads file contents into the app. Shows a message and returns false if it isn't You data. */
-export function loadText(text: string): boolean {
-  try {
-    replaceProfile(parse(text));
-    return true;
-  } catch {
-    alert('That file doesn’t look like your You data.');
     return false;
   }
 }

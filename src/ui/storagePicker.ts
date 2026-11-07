@@ -2,6 +2,7 @@
 import { canWriteFiles, chooseOpenFile, chooseSaveFile, downloadCopy, pillClick, setTarget, target, writeFile } from '../storage/target';
 import { $, esc } from './dom';
 import { emit } from './events';
+import { importText } from './session';
 import { closeSheet, openSheet, sheetTop } from './sheet';
 
 interface Store { id: string; title: string; desc: string; icon: string; soon?: boolean }
@@ -39,7 +40,8 @@ export function openStoragePicker(mode: 'save' | 'open') {
     device: async () => {
       if (!open) { if (await chooseSaveFile()) closeSheet(); return; }
       if (!canWriteFiles) { closeSheet(); $<HTMLInputElement>('#file').click(); return; }
-      if (await chooseOpenFile()) { closeSheet(); emit('data-loaded'); }
+      closeSheet();
+      if (await chooseOpenFile(importText)) emit('data-loaded');
     },
   });
 }
@@ -58,7 +60,7 @@ function openStorageMenu() {
     </div>`,
   {
     now: () => { writeFile(); closeSheet(); },
-    dl: () => { downloadCopy(); closeSheet(); },
+    dl: async () => { await downloadCopy(); closeSheet(); },
     change: () => openStoragePicker('save'),
     forget: () => {
       if (!confirm(`Stop saving to ${target.name}?\n\nThe file stays where it is. Your data stays in this browser.`)) return;

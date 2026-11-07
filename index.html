@@ -35,6 +35,30 @@
     <input id="file" type="file" accept=".json,application/json" hidden>
   </main>
 
+  <!-- Passphrase screens: create one (new data) or unlock (returning, or a locked file). -->
+  <section class="gate" id="gate" hidden>
+    <form id="gate-form" autocomplete="on" novalidate>
+      <svg class="gate-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>
+      <h1 id="gate-title"></h1>
+      <p class="gate-sub" id="gate-sub"></p>
+      <!-- Lets password managers file the passphrase under the person's name. -->
+      <input class="vh" id="gate-user" name="username" type="text" autocomplete="username" tabindex="-1" aria-hidden="true">
+      <div class="gate-field">
+        <input id="gate-pass" name="password" type="password" spellcheck="false" autocapitalize="off" aria-labelledby="gate-title">
+        <button class="peek" id="gate-peek" type="button" aria-label="Show passphrase" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <div class="gate-field" id="gate-again-row">
+        <input id="gate-again" name="password-again" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="Type it again" aria-label="Type the passphrase again">
+      </div>
+      <p class="gate-msg" id="gate-msg" role="alert"></p>
+      <button class="gate-go" id="gate-go" type="submit"></button>
+      <p class="gate-note" id="gate-note"></p>
+      <div class="gate-links" id="gate-links"></div>
+    </form>
+  </section>
+
   <div class="hello" aria-live="polite"></div>
 
   <footer>Nothing leaves your device until you choose where to keep it.</footer>

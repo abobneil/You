@@ -1,28 +1,55 @@
-// The one copy of the person's data in memory, plus "something changed" notifications.
-import { normalize } from './core/profile';
+// The person's data in memory, the unlocked key, and "something changed" notifications.
+// Nothing is written anywhere until there is a key: the browser copy is encrypted too.
+import type { Vault } from './core/crypto';
+import { emptyProfile, normalize } from './core/profile';
 import type { Profile } from './core/types';
+import { encode } from './storage/fileFormat';
 import { KEYS, local } from './storage/local';
 
-function loadLocal(): Profile {
-  try { return normalize(JSON.parse(local.get(KEYS.profile) || 'null')); } catch { return normalize(null); }
-}
-
-export let profile: Profile = loadLocal();
+export let profile: Profile = emptyProfile();
+export let vault: Vault | null = null;
 
 const listeners: (() => void)[] = [];
-/** Runs after every save: flashes "Saved", writes the chosen file, etc. */
+/** Runs after every save: flashes "Saved", writes the chosen file, redraws. */
 export const onSave = (fn: () => void) => { listeners.push(fn); };
 
-/** Saves to browser storage (always, as a working copy) and tells listeners. */
+let chain: Promise<void> = Promise.resolve();
+/** Encrypts and stores the browser copy. Writes run in order so an older copy never wins. */
+export function persist(): Promise<void> {
+  chain = chain.then(async () => {
+    if (!vault) return;
+    local.set(KEYS.vault, await encode(vault, profile));
+    local.remove(KEYS.profile); // never leave an unencrypted copy behind
+  }).catch(() => {});
+  return chain;
+}
+
 export function save() {
   profile.updatedAt = new Date().toISOString();
-  local.set(KEYS.profile, JSON.stringify(profile));
+  persist();
   listeners.forEach(fn => fn());
 }
 
-/** Replaces everything, e.g. after loading a file. Does not notify listeners. */
-export function replaceProfile(p: Profile) {
+/** Starts a session: the data and the key that protects it. */
+export function setSession(p: Profile, v: Vault | null) {
   profile = p;
   profile.updatedAt = profile.updatedAt || new Date().toISOString();
-  local.set(KEYS.profile, JSON.stringify(profile));
+  if (v) vault = v;
+  return persist();
+}
+
+/** The encrypted browser copy, if there is one. */
+export const storedEnvelope = () => local.get(KEYS.vault);
+
+/** Data saved by earlier, unencrypted versions of You, waiting to be protected. */
+export function legacyProfile(): Profile | null {
+  try {
+    const p = normalize(JSON.parse(local.get(KEYS.profile) || 'null'));
+    return p.name ? p : null;
+  } catch { return null; }
+}
+
+/** "Start over": removes everything You keeps in this browser. Saved files elsewhere are untouched. */
+export function eraseBrowserCopy() {
+  for (const k of Object.values(KEYS)) if (k !== KEYS.theme) local.remove(k);
 }

@@ -3,13 +3,15 @@ import { onSave, profile, save } from './state';
 import { initTarget, scheduleWrite } from './storage/target';
 import { $ } from './ui/dom';
 import { on } from './ui/events';
+import { hideGate } from './ui/gate';
 import './ui/landing';
 import './ui/nudge';
 import { refresh, showHome } from './ui/router';
+import { lockNewData, start } from './ui/session';
 import { onSheetClose } from './ui/sheet';
 import './ui/theme';
 
-// After every change: show "Saved" briefly and write to the chosen file, if any.
+// After every change: show "Saved" briefly, write to the chosen file (if any), and redraw.
 let savedTimer: ReturnType<typeof setTimeout> | undefined;
 onSave(() => {
   const mark = $('#d-saved');
@@ -17,11 +19,14 @@ onSave(() => {
   clearTimeout(savedTimer);
   savedTimer = setTimeout(() => mark.classList.remove('show'), 1400);
   scheduleWrite();
-  refresh(); // redraw the page behind any open dialog right away
+  refresh();
 });
-
 onSheetClose(refresh);
-on('data-loaded', showHome);
+
+// New visitor: name → passphrase → home.
+on('named', async () => { await lockNewData(); showHome(); });
+// A file was loaded (and unlocked) from the name screen, the unlock screen, or the storage picker.
+on('data-loaded', () => { hideGate(); showHome(); });
 
 // Click your name on the home screen to edit it.
 const heading = $('#you-name');
@@ -36,6 +41,4 @@ heading.addEventListener('blur', () => {
 });
 
 initTarget();
-
-// Returning visitor: go straight to their space. Add ?new to the URL to see the name screen again.
-if (profile.name && !new URLSearchParams(location.search).has('new')) showHome();
+start().then(where => { if (where === 'home') showHome(); });
