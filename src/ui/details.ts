@@ -7,6 +7,8 @@ import type { Card } from '../core/types';
 import { dateInputs, readDate } from './dateInput';
 import { esc } from './dom';
 import { attachValueField, valueFieldHtml } from './valueField';
+import { lookupVin, VIN_SERVICE } from '../core/import/vin';
+import { local } from '../storage/local';
 
 /** Lets a Field reuse the value-field behaviour (formatting, quick picks, hiding). */
 const asKind = (f: Field): KindInfo =>
@@ -29,11 +31,82 @@ export function detailsHtml(kind: KindInfo, values: Record<string, string> = {},
         ? dateInputs(values[f.id], key(prefix, f))
         : valueFieldHtml(key(prefix, f), values[f.id] ?? '', asKind(f),
             saved ? 'Add' : f.placeholder ?? (f.choices ? 'Pick one, or type your own' : ''))}
+      ${f.lookup === 'vin' ? `<span></span><div class="lookup">
+        <button type="button" class="chip" data-vin-lookup="${key(prefix, f)}">Look up details</button>
+        <button type="button" class="link-btn" data-vin-photo="${key(prefix, f)}">Use a photo of the VIN barcode</button>
+        <span class="hint" data-vin-status="${key(prefix, f)}"></span></div>` : ''}
     </div>`).join('');
   const more = collapse
     ? `<button type="button" class="link-btn more-details" data-more>Show all ${kind.fields.length} details</button>` : '';
   return `<div class="details"><h5>Details</h5>${rows}${more}</div>`;
 }
+
+// ---------- VIN: look up details (asks first, since it uses the network), or read a barcode photo ----------
+const VIN_OK = 'you.vinConsent';
+/** Vehicle details the lookup can fill (same names as the Vehicle fields). */
+const VIN_FILL = ['year', 'make', 'model', 'trim', 'fuel'] as const;
+
+async function vinLookup(input: HTMLInputElement, prefix: string, status: HTMLElement) {
+  const vin = input.value.trim().toUpperCase();
+  if (vin.length !== 17) { status.textContent = 'Enter all 17 characters of the VIN first.'; return; }
+  if (!local.get(VIN_OK)) {
+    if (!confirm(`Look up this VIN with ${VIN_SERVICE}?\n\nOnly the VIN is sent, to the US government’s free vehicle database. Nothing else about you leaves this device.`)) return;
+    local.set(VIN_OK, '1');
+  }
+  status.textContent = 'Looking it up…';
+  try {
+    const info = await lookupVin(vin);
+    if (!info) { status.textContent = 'No details were found for that VIN. Check it for typos.'; return; }
+    let filled = 0;
+    const scope = input.closest('.details') ?? document;
+    for (const field of VIN_FILL) {
+      const el = scope.querySelector<HTMLInputElement>(`#${prefix}-${field}`);
+      const v = info[field];
+      if (!el || !v || el.value.trim()) continue;
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.closest<HTMLElement>('[data-empty]')?.removeAttribute('hidden');
+      filled++;
+    }
+    status.textContent = filled ? `Filled in ${filled} detail${filled === 1 ? '' : 's'} from NHTSA.` : 'Those details are already filled in.';
+  } catch {
+    status.textContent = 'The lookup didn’t work. Check your connection and try again.';
+  }
+}
+
+document.addEventListener('click', async e => {
+  const t = e.target as HTMLElement;
+  const look = t.closest<HTMLElement>('[data-vin-lookup]');
+  const photo = t.closest<HTMLElement>('[data-vin-photo]');
+  const id = look?.dataset.vinLookup ?? photo?.dataset.vinPhoto;
+  if (!id) return;
+  const input = document.getElementById(id) as HTMLInputElement | null;
+  const status = document.querySelector<HTMLElement>(`[data-vin-status="${id}"]`);
+  if (!input || !status) return;
+  const prefix = id.replace(/-vin$/, '');
+  if (look) return vinLookup(input, prefix, status);
+  const pickFile = document.createElement('input');
+  pickFile.type = 'file';
+  pickFile.accept = 'image/*';
+  pickFile.addEventListener('change', async () => {
+    const f = pickFile.files?.[0];
+    if (!f) return;
+    status.textContent = 'Reading the barcode…';
+    try {
+      const { readPhoto } = await import('./import/scan');
+      const texts = await readPhoto(f, ['Code39', 'Code128', 'DataMatrix', 'QRCode', 'PDF417']);
+      const vin = texts.map(x => x.trim().toUpperCase().replace(/^I(?=[A-HJ-NPR-Z0-9]{17}$)/, '')).find(x => /^[A-HJ-NPR-Z0-9]{17}$/.test(x));
+      if (!vin) { status.textContent = 'No VIN barcode was found in that photo.'; return; }
+      input.value = vin;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      status.textContent = 'VIN read from the barcode.';
+      vinLookup(input, prefix, status);
+    } catch { status.textContent = 'That photo couldn’t be read.'; }
+  });
+  pickFile.click();
+});
 
 // "Show all details" reveals the empty rows on a saved card.
 document.addEventListener('click', e => {

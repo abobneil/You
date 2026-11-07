@@ -60,6 +60,21 @@ Everything is encrypted with the person's passphrase before it's written anywher
 
 Each You has its own passphrase, encrypted copy (`you.vault.<id>`), save location and settings. The list of Yous (`you.index`) keeps only an id and the person's name, so the unlock screen can say "Welcome back, Sam" and offer the others. That name is the only thing stored unencrypted. Switching, adding and locking reload the page, so the previous You's data and key leave memory. A file that belongs to a You already on this browser asks before replacing it. See `src/storage/profiles.ts`.
 
+## Importing
+
+**Bring in your data** (home screen, or **Import…** inside an area) reads exports people already have. Files are parsed in the browser and never uploaded; every import ends in a review list, matches existing cards (filling in missing details instead of duplicating), and tags new cards with their source.
+
+| Source | File | Code |
+|---|---|---|
+| Contacts | `.vcf` from Google or iCloud, or Android's contact picker; one contact can be marked "This is me" | `src/core/import/vcard.ts` |
+| LinkedIn | The "Get a copy of your data" zip, or its CSVs | `linkedin.ts` |
+| Driver's license | The PDF417 barcode on the back, from the camera or a photo (AAMVA) | `aamva.ts`, `src/ui/import/scan.ts` |
+| Vehicle | VIN typed or read from a barcode photo, then looked up with NHTSA vPIC. **The only network request; it asks first.** | `vin.ts` |
+| Health records | C-CDA (XML) or FHIR (JSON/NDJSON) from a patient portal | `health.ts` |
+| Books & movies | Goodreads, Letterboxd or IMDb CSV (Letterboxd zip too) | `media.ts` |
+
+The barcode reader (zxing, WebAssembly) and the importers load only when used. Nothing here needs an app registration.
+
 ## Card rules
 
 - Every piece of information is a **card** in one of eight areas, with a **since** date (when it became true) and a **recorded** date (when it was added).

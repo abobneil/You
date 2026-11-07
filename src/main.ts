@@ -12,6 +12,7 @@ import { onSheetClose } from './ui/sheet';
 import { renderWhoButton } from './ui/switcher';
 import './ui/sensitive';
 import './ui/theme';
+import { openImport } from './ui/import/sources';
 
 // After every change: show "Saved" briefly, write to the chosen file (if any), and redraw.
 let savedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -29,6 +30,8 @@ onSheetClose(refresh);
 on('named', async () => { await lockNewData(); showHome(); });
 // A file was loaded (and unlocked) from the name screen, the unlock screen, or the storage picker.
 on('data-loaded', () => { hideGate(); showHome(); });
+
+$('#import-open').addEventListener('click', () => openImport());
 
 // Click your name on the home screen to edit it.
 const heading = $('#you-name');

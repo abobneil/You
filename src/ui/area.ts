@@ -9,6 +9,7 @@ import { $, ICON, esc, linkText } from './dom';
 import { shownValue, valueHtml } from './sensitive';
 import { tagIcon } from './tags';
 import { summaryText } from './details';
+import { openImport, SOURCES_FOR_AREA } from './import/sources';
 
 const detail = $('#detail');
 let shown: Area | undefined;
@@ -37,7 +38,8 @@ export function renderArea(a: Area) {
   }).join('') + `<button class="tile new" type="button" data-act="new">${ICON.plus}New card</button>`;
 
   $('#ghosts').innerHTML = a.kinds.filter(k => !active.some(c => c.kind === k.name))
-    .map(k => `<button class="ghost" type="button" data-act="new" data-kind="${esc(k.name)}">+ ${esc(k.name)}</button>`).join('');
+    .map(k => `<button class="ghost" type="button" data-act="new" data-kind="${esc(k.name)}">+ ${esc(k.name)}</button>`).join('')
+    + (SOURCES_FOR_AREA[a.id]?.length ? `<button class="ghost import" type="button" data-act="import">Import…</button>` : '');
 
   const timeline = [...cards].sort(byStartDesc);
   $('#timeline').innerHTML = timeline.length ? timeline.map(c => {
@@ -65,4 +67,5 @@ detail.addEventListener('click', e => {
   if (!b || !shown) return;
   if (b.dataset.act === 'card') openCard(b.dataset.id!);
   if (b.dataset.act === 'new') openComposer(shown.id, { kind: b.dataset.kind });
+  if (b.dataset.act === 'import') openImport(SOURCES_FOR_AREA[shown.id]);
 });

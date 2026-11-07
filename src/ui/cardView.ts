@@ -40,7 +40,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     ${detailsHtml(kind, c.fields, 'vf', true)}
     ${!isDate && (kind.dated || c.since) ? `<div class="fx"><span class="lab">${kind.dated ? 'Since' : 'Changed'}</span>${dateInputs(c.since, 'since')}</div>` : ''}
     ${on ? '' : `<div class="fx"><span class="lab">Until</span>${dateInputs(c.until, 'until')}</div>`}
-    <div class="fx"><span class="lab">Recorded</span><span class="hint">${esc(fmtISO(c.recordedAt))}${story ? ' · ' : ''}${story}</span></div>
+    <div class="fx"><span class="lab">Recorded</span><span class="hint">${esc(fmtISO(c.recordedAt))}${c.source ? ` · from ${esc(c.source.from)}` : ''}${story ? ' · ' : ''}${story}</span></div>
     ${c.revisions.length ? `<div class="block"><h5>Earlier wording</h5><ul class="revs">${[...c.revisions].reverse()
       .map(r => { const fd = r.field ? kind.fields?.find(x => x.id === r.field) : undefined;
         const hide = fd ? fd.sensitive : isSensitive(c);

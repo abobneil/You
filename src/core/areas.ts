@@ -50,6 +50,8 @@ export interface Field {
   choices?: string[];
   sensitive?: boolean;
   placeholder?: string;
+  /** Offers a "Look up" button that fills in other details (a VIN fills year, make, model…). */
+  lookup?: 'vin';
 }
 
 export interface Tag {
@@ -127,6 +129,7 @@ export const AREAS: Area[] = [
       k('Medication', true, { fields: [f('dose', 'Dose', { placeholder: '10 mg' }), f('often', 'How often', { choices: ['Daily', 'Twice a day', 'Weekly', 'As needed'] }),
         f('for', 'Taken for'), f('prescriber', 'Prescribed by'), f('pharmacy', 'Pharmacy'), f('rx', 'Rx number', { format: 'upper' })],
         summary: ['dose', 'often'] }),
+      k('Immunization', true, { hint: 'Date it with when you got it.', fields: [f('dose', 'Dose', { placeholder: 'Dose 2' }), f('givenAt', 'Given at')], summary: ['dose'] }),
       k('Condition', true, { fields: [f('treatedBy', 'Treated by'), f('notes', 'Notes')], summary: ['treatedBy'] }),
       k('Health insurance', false, { fields: [f('insurer', 'Insurer', { placeholder: 'Aetna' }), f('plan', 'Plan', { placeholder: 'PPO' }),
           f('through', 'Through', { choices: ['Employer', 'Marketplace', 'Medicare', 'Medicaid', 'Private'] }),
@@ -214,7 +217,7 @@ export const AREAS: Area[] = [
         fields: [f('year', 'Year', { format: 'year' }), f('make', 'Make', { placeholder: 'Kia' }), f('model', 'Model', { placeholder: 'Niro' }),
           f('trim', 'Trim', { placeholder: 'PHEV' }), f('color', 'Color'),
           f('fuel', 'Fuel', { choices: ['Gas', 'Hybrid', 'Plug-in hybrid', 'Electric', 'Diesel'] }),
-          f('vin', 'VIN', { format: 'vin', sensitive: true }), f('plate', 'License plate', { format: 'upper' }),
+          f('vin', 'VIN', { format: 'vin', sensitive: true, lookup: 'vin' }), f('plate', 'License plate', { format: 'upper' }),
           f('plateState', 'Plate state', { format: 'upper', placeholder: 'NC' }), date('registration', 'Registration expires'),
           money('price', 'Purchase price'), f('mileage', 'Mileage at purchase', { format: 'number' })],
         titleFrom: x => join(x.year, x.color, x.make, x.model, x.trim), summary: ['plate'] })] },

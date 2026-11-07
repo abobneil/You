@@ -35,6 +35,8 @@ export interface Card {
   replaces?: string;
   /** The card that took over from this one. */
   replacedBy?: string;
+  /** Where the card came from when it was imported ("LinkedIn"), and when. */
+  source?: { from: string; at: string };
   /** Earlier wording, kept when a typo is corrected. */
   revisions: Revision[];
 }
