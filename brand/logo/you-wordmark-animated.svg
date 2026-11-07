@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="7 7 164 84" width="328" height="168" role="img" aria-label="you">
+  <style>.caret{animation:b 1.1s steps(1) infinite}@keyframes b{50%{opacity:0}}g{stroke:#141414}@media (prefers-color-scheme:dark){g{stroke:#F5F5F5}}@media (prefers-reduced-motion:reduce){.caret{animation:none}}</style>
+  <g fill="none" stroke="#141414" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V38 A16 16 0 0 0 44 38 M44 20 V70 A16 16 0 0 1 12 70"/><circle cx="78" cy="37" r="17"/><path d="M112 20 V38 A16 16 0 0 0 144 38 M144 20 V54"/></g>
+  <line class="caret" x1="166" y1="12" x2="166" y2="62" stroke="#FF5A36" stroke-width="9" stroke-linecap="round"/>
+</svg>

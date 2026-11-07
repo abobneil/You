@@ -1,0 +1,20 @@
+{
+  "name": "you",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A place to keep everything about yourself. Your data stays on your devices.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  }
+}

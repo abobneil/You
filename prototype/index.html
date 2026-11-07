@@ -1,0 +1,1227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>you</title>
+<link rel="icon" type="image/svg+xml" href="../brand/logo/favicon.svg">
+<script>
+  // Apply the saved theme before first paint so the page never flashes the wrong mode.
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('you.theme'); } catch (e) {}
+    var root = document.documentElement;
+    if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
+    var sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.mode = saved || (sysDark ? 'dark' : 'light');
+  })();
+</script>
+<style>
+  :root {
+    --bg: #FAFAF8;
+    --ink: #141414;
+    --soft: #9A9A96;
+    --line: #D9D9D4;
+    --accent: #FF5A36;
+    --font: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #141414; --ink: #F5F5F5; --soft: #77776F; --line: #33332F; }
+  }
+  :root[data-theme="dark"] { --bg: #141414; --ink: #F5F5F5; --soft: #77776F; --line: #33332F; }
+  body { transition: background-color .3s ease, color .3s ease; }
+
+  /* Theme toggle: shows the moon in light mode and the sun in dark mode */
+  .theme {
+    position: fixed; top: 16px; right: 16px;
+    width: 40px; height: 40px; padding: 0;
+    display: grid; place-items: center;
+    background: none; border: 0; border-radius: 50%;
+    color: var(--soft); cursor: pointer;
+    transition: color .2s ease, background-color .2s ease;
+  }
+  .theme:hover, .theme:focus-visible { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); outline: none; }
+  .theme svg {
+    grid-area: 1 / 1; width: 20px; height: 20px;
+    fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+    transition: opacity .3s ease, transform .4s ease;
+  }
+  .theme .sun { opacity: 0; transform: rotate(-90deg) scale(.6); }
+  :root[data-mode="dark"] .theme .sun { opacity: 1; transform: none; }
+  :root[data-mode="dark"] .theme .moon { opacity: 0; transform: rotate(90deg) scale(.6); }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    display: grid;
+    place-items: center;
+    padding: 0 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  main { width: 100%; max-width: 560px; text-align: center; margin-top: -6vh; }
+
+  h1 {
+    font-weight: 500;
+    font-size: clamp(22px, 4vw, 28px);
+    letter-spacing: -0.01em;
+    margin: 0 0 28px;
+    color: var(--ink);
+  }
+
+  .field { position: relative; }
+  #name {
+    width: 100%;
+    font: inherit;
+    font-size: clamp(32px, 7vw, 48px);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    text-align: center;
+    color: var(--ink);
+    caret-color: var(--accent);
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid var(--line);
+    border-radius: 0;
+    padding: 4px 0 10px;
+    outline: none;
+    transition: border-color .25s ease;
+  }
+  #name.filled { border-bottom-color: var(--ink); }
+
+  /* Keep the name centered and clear of the return key on the right */
+  #name { padding-left: 52px; padding-right: 52px; }
+
+  /* Return key: appears once there is a name, and can be clicked or tapped too */
+  .enter {
+    position: absolute; right: 0; bottom: 14px;
+    width: 40px; height: 34px; padding: 0;
+    display: grid; place-items: center;
+    color: var(--soft);
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    opacity: 0; transform: translateY(4px) scale(.92);
+    transition: opacity .25s ease, transform .25s ease, border-color .2s ease, color .2s ease;
+    pointer-events: none;
+  }
+  .enter svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  #name.filled + .enter { opacity: 1; transform: none; pointer-events: auto; }
+  .enter:hover, .enter:focus-visible { color: var(--accent); outline: none; }
+  #name.filled + .enter:active, #name.filled + .enter.pressed { color: var(--accent); transform: translateX(-3px); }
+
+  .load {
+    display: inline-block;
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--soft);
+    background: none; border: 0; padding: 4px 6px; cursor: pointer;
+    font-family: inherit;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 3px;
+    transition: color .2s, text-decoration-color .2s;
+  }
+  .load:hover, .load:focus-visible { color: var(--ink); text-decoration-color: currentColor; outline: none; }
+
+  footer {
+    position: fixed; left: 0; right: 0; bottom: 20px;
+    text-align: center; font-size: 11px; color: var(--soft); letter-spacing: .02em;
+  }
+
+  /* After Enter */
+  main, .hello { transition: opacity .4s ease, transform .4s ease; }
+  body.done main { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+  .hello {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    font-size: clamp(26px, 5vw, 36px); font-weight: 500; letter-spacing: -0.01em;
+    opacity: 0; transform: translateY(8px); pointer-events: none;
+  }
+  body.done .hello { opacity: 1; transform: none; }
+  .hello span { color: var(--accent); }
+
+  /* ---------- Home: the "you" space ---------- */
+  :root { --card: #FFFFFF; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --card: #1B1B19; } }
+  :root[data-theme="dark"] { --card: #1B1B19; }
+
+  body.home { display: block; place-items: normal; padding: 0; }
+  body.home main, body.home .hello, body.home footer { display: none; }
+  .space[hidden] { display: none; }
+  .space {
+    max-width: 920px; margin: 0 auto; padding: 18px 24px 64px;
+    animation: rise .5s ease both;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 40px; padding-right: 52px; }
+  .bar .logo { height: 22px; display: block; }
+  .logo .ink { stroke: var(--ink); }
+
+  .saved {
+    display: inline-flex; align-items: center; gap: 8px;
+    font: inherit; font-size: 12px; color: var(--soft);
+    background: none; border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 12px; cursor: pointer;
+    transition: color .2s, border-color .2s;
+  }
+  .saved:hover, .saved:focus-visible { color: var(--ink); border-color: var(--ink); outline: none; }
+  .saved .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  .saved b { font-weight: 500; color: var(--ink); }
+
+  .who { margin: 72px 0 40px; }
+  .who h2 {
+    margin: 0; font-size: clamp(40px, 8vw, 64px); font-weight: 500; letter-spacing: -0.03em; line-height: 1.05;
+    outline: none; border-radius: 6px;
+  }
+  .who h2:focus { box-shadow: 0 2px 0 var(--accent); caret-color: var(--accent); }
+  .who p { margin: 10px 0 0; color: var(--soft); font-size: 16px; }
+
+  .areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .area {
+    position: relative; text-align: left; font: inherit; color: var(--ink);
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 18px 18px 16px; min-height: 132px; cursor: pointer;
+    display: flex; flex-direction: column; justify-content: space-between;
+    transition: border-color .2s, transform .2s;
+  }
+  .area:hover, .area:focus-visible { border-color: color-mix(in srgb, var(--ink) 40%, var(--line)); transform: translateY(-2px); outline: none; }
+  .area svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .area .ic { color: var(--soft); transition: color .2s; }
+  .area:hover .ic { color: var(--accent); }
+  .area h3 { margin: 0; font-size: 17px; font-weight: 500; }
+  .area small { display: block; margin-top: 3px; font-size: 12px; color: var(--soft); }
+  .area .add { position: absolute; top: 16px; right: 16px; width: 18px; height: 18px; color: var(--soft); opacity: 0; transition: opacity .2s, color .2s; }
+  .area:hover .add, .area:focus-visible .add { opacity: 1; color: var(--accent); }
+  a.area { text-decoration: none; }
+  .area .count { color: var(--ink); }
+  .area .count::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: 6px; vertical-align: 1px; }
+  #overview[hidden], #detail[hidden] { display: none; }
+  #overview, #detail { animation: rise .35s ease both; }
+
+  /* ---------- Area detail ---------- */
+  .back {
+    display: inline-flex; align-items: center; gap: 4px; margin: 36px 0 0 -6px; padding: 4px 8px 4px 2px;
+    font-size: 14px; color: var(--soft); text-decoration: none; border-radius: 8px; transition: color .2s;
+  }
+  .back:hover, .back:focus-visible { color: var(--ink); outline: none; }
+  .back svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  .dhead { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
+  .dhead > svg { width: 30px; height: 30px; fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .dhead h2 { margin: 0; font-size: clamp(34px, 6vw, 48px); font-weight: 500; letter-spacing: -0.03em; }
+  .dsaved {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--soft);
+    opacity: 0; transition: opacity .3s;
+  }
+  .dsaved.show { opacity: 1; }
+  .dsaved svg { width: 14px; height: 14px; fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .sec { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 36px 0 12px; }
+  .sec h4 { margin: 0; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); font-weight: 600; }
+  .sec span { font-size: 12px; color: var(--soft); }
+
+  /* Cards */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .tile {
+    font: inherit; text-align: left; color: var(--ink); cursor: pointer;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 14px 12px;
+    display: flex; flex-direction: column; gap: 2px; min-height: 104px;
+    transition: border-color .2s, transform .2s;
+  }
+  .tile:hover, .tile:focus-visible { border-color: color-mix(in srgb, var(--ink) 40%, var(--line)); transform: translateY(-2px); outline: none; }
+  .tile .k { font-size: 11px; color: var(--soft); display: flex; align-items: center; gap: 6px; }
+  .tile .k i, .dot-on { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; flex: none; }
+  .tile .v { font-size: 17px; font-weight: 500; letter-spacing: -0.01em; margin-top: 4px; overflow-wrap: anywhere; }
+  .tile .d { font-size: 11px; color: var(--soft); }
+  .tile .chips { margin-top: 8px; }
+  .tile .chip { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sh-close:focus { outline: none; }
+  .sh-close:focus-visible { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  .tile.new {
+    background: transparent; border-style: dashed; color: var(--soft);
+    align-items: center; justify-content: center; flex-direction: row; gap: 6px; font-size: 14px;
+  }
+  .tile.new:hover { color: var(--accent); border-color: var(--accent); }
+  .tile.new svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+
+  .ghosts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .ghost {
+    font: inherit; font-size: 13px; color: var(--soft); cursor: pointer;
+    background: none; border: 1px dashed var(--line); border-radius: 999px; padding: 7px 13px;
+    transition: color .2s, border-color .2s;
+  }
+  .ghost:hover, .ghost:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+    font: inherit; font-size: 12px; color: var(--ink); text-align: left;
+    padding: 3px 9px; border-radius: 999px; border: 0;
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+  }
+  button.chip { cursor: pointer; }
+  button.chip:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .chip em { font-style: normal; color: var(--soft); }
+  .chip .x { margin-left: 2px; color: var(--soft); }
+
+  .empty { color: var(--soft); font-size: 14px; margin: 0; }
+
+  /* Over time */
+  .tl { list-style: none; margin: 0 0 0 5px; padding: 0 0 0 22px; border-left: 1.5px solid var(--line); }
+  .ev { position: relative; padding: 0 0 16px; }
+  .ev:last-child { padding-bottom: 0; }
+  .ev::before {
+    content: ""; position: absolute; left: -28.5px; top: 4px; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--bg); border: 1.5px solid var(--soft);
+  }
+  .ev.on::before { background: var(--accent); border-color: var(--accent); }
+  .ev button { font: inherit; color: inherit; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; }
+  .ev button:hover .what { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); }
+  .ev .when { font-size: 11px; color: var(--soft); }
+  .ev .what { font-size: 14px; margin-top: 2px; }
+  .ev.past .what { color: var(--soft); }
+  .note { color: var(--soft); font-size: 12px; }
+
+  /* ---------- Sheet (dialog) ---------- */
+  dialog#sheet {
+    width: min(560px, calc(100vw - 24px)); max-height: calc(100vh - 48px); overflow: auto;
+    border: 1px solid var(--line); border-radius: 20px; padding: 22px 22px 18px;
+    background: var(--card); color: var(--ink); font-family: var(--font);
+    box-shadow: 0 24px 60px rgba(0,0,0,.18);
+  }
+  dialog#sheet[open] { animation: rise .25s ease both; }
+  dialog#sheet::backdrop { background: rgba(10,10,10,.35); backdrop-filter: blur(2px); }
+  .sh-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .sh-kicker { font-size: 12px; color: var(--soft); display: flex; align-items: center; gap: 6px; }
+  .sh-close { width: 32px; height: 32px; display: grid; place-items: center; border: 0; background: none; color: var(--soft); border-radius: 50%; cursor: pointer; }
+  .sh-close:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  .sh-close svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  .sh-title { margin: 2px 0 14px; font-size: 26px; font-weight: 500; letter-spacing: -0.02em; }
+
+  .fx { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .fx:last-of-type { border-bottom: 0; }
+  .fx > label, .fx > .lab { font-size: 12px; color: var(--soft); }
+  .fx input, .fx select {
+    font: inherit; font-size: 15px; color: var(--ink); caret-color: var(--accent);
+    background: transparent; border: 0; border-bottom: 1px solid transparent; border-radius: 0;
+    padding: 4px 0; outline: none; min-width: 0; width: 100%;
+  }
+  .fx input:focus, .fx select:focus { border-bottom-color: var(--ink); }
+  .fx input::placeholder { color: var(--soft); opacity: .7; }
+  .fx select { cursor: pointer; }
+  .fx select option { background: var(--card); color: var(--ink); }
+  .fx .big { font-size: 20px; font-weight: 500; }
+  .date { display: flex; gap: 10px; align-items: center; }
+  .date select { width: auto; }
+  .date input[data-d="d"] { width: 3.2em; }
+  .date input[data-d="y"] { width: 4.2em; }
+  .hint { font-size: 12px; color: var(--soft); }
+
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button {
+    font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+    background: none; border: 1px solid var(--line); color: var(--soft);
+  }
+  .seg button.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+
+  .btns { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 16px; }
+  .btn {
+    font: inherit; font-size: 14px; padding: 8px 16px; border-radius: 999px; cursor: pointer;
+    background: none; border: 1px solid var(--line); color: var(--ink);
+  }
+  .btn:hover { border-color: var(--ink); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.05); }
+  .btn.quiet { border-color: transparent; color: var(--soft); }
+  .btn.quiet:hover { color: var(--ink); }
+  .btns .spacer { flex: 1; }
+  .link-btn { font: inherit; font-size: 12px; color: var(--soft); background: none; border: 0; padding: 4px 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: transparent; }
+  .link-btn:hover { color: var(--ink); text-decoration-color: currentColor; }
+
+  .block { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .block:last-of-type { border-bottom: 0; }
+  .block h5 { margin: 0 0 8px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); font-weight: 600; }
+  .status { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--soft); }
+  .status.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+  .revs { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--soft); }
+
+  /* Link picker */
+  .search { width: 100%; font: inherit; font-size: 15px; color: var(--ink); background: transparent; border: 0; border-bottom: 1px solid var(--line); padding: 8px 0; outline: none; caret-color: var(--accent); }
+  .search:focus { border-bottom-color: var(--ink); }
+  .pick { list-style: none; margin: 8px 0 0; padding: 0; max-height: 46vh; overflow: auto; }
+  .pick button {
+    width: 100%; display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
+    font: inherit; text-align: left; color: var(--ink); background: none; border: 0; border-radius: 10px;
+    padding: 9px 10px; cursor: pointer;
+  }
+  .pick button:hover, .pick button:focus-visible { background: color-mix(in srgb, var(--ink) 6%, transparent); outline: none; }
+  .pick .meta { font-size: 12px; color: var(--soft); white-space: nowrap; }
+  .pick .grp { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); padding: 10px 10px 2px; }
+  .labels { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+  .labels button {
+    font: inherit; font-size: 14px; text-align: left; color: var(--soft); cursor: pointer;
+    background: none; border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px;
+  }
+  .labels button b { color: var(--accent); font-weight: 500; }
+  .labels button span { color: var(--ink); }
+  .labels button:hover { border-color: var(--ink); }
+
+  @media (max-width: 560px) {
+    .fx { grid-template-columns: 1fr; gap: 4px; }
+    .saved > span:last-child { display: none; }
+  }
+
+  /* Storage status pill states */
+  .saved .ok { width: 14px; height: 14px; fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .saved.ok b { font-weight: 500; }
+  .saved .spin { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Storage picker (draw.io-style "Save to…") */
+  .stores { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 16px 0 4px; }
+  .store {
+    font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+    display: flex; flex-direction: column; gap: 14px; min-height: 120px;
+    background: none; border: 1px solid var(--line); border-radius: 14px; padding: 14px;
+    transition: border-color .2s, transform .2s;
+  }
+  .store:hover:not(.soon), .store:focus-visible { border-color: var(--ink); transform: translateY(-2px); outline: none; }
+  .store svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; color: var(--soft); transition: color .2s; }
+  .store:hover:not(.soon) svg { color: var(--accent); }
+  .store b { display: block; font-weight: 500; font-size: 15px; }
+  .store small { display: block; margin-top: 3px; font-size: 12px; color: var(--soft); line-height: 1.35; }
+  .store.on { border-color: var(--accent); }
+  .store.on svg { color: var(--accent); }
+  .store.soon { cursor: default; opacity: .5; }
+
+  .menu { display: flex; flex-direction: column; margin-top: 12px; border-top: 1px solid var(--line); }
+  .menu button { font: inherit; font-size: 15px; text-align: left; color: var(--ink); background: none; border: 0; border-bottom: 1px solid var(--line); padding: 13px 2px; cursor: pointer; }
+  .menu button:hover { color: var(--accent); }
+  .menu button.soft { color: var(--soft); }
+
+  /* One-time suggestion to pick a storage place, after the first few cards */
+  .nudge {
+    position: fixed; right: 24px; bottom: 24px; z-index: 20; width: min(380px, calc(100vw - 32px));
+    display: flex; gap: 12px; align-items: flex-start;
+    background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 16px;
+    padding: 16px 16px 12px; box-shadow: 0 18px 50px rgba(0,0,0,.16);
+    animation: rise .35s ease both;
+  }
+  .nudge[hidden] { display: none; }
+  .nudge > svg { width: 22px; height: 22px; flex: none; margin-top: 1px; fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .nudge p { margin: 0; font-size: 14px; line-height: 1.45; color: var(--soft); }
+  .nudge p b { color: var(--ink); font-weight: 500; }
+  .nudge-btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+  .nudge .btn { font-size: 13px; padding: 6px 14px; }
+  @media (max-width: 560px) { .nudge { right: 16px; left: 16px; bottom: 16px; width: auto; } }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+  <button class="theme" id="theme" type="button" aria-label="Switch to dark mode">
+    <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/></svg>
+    <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>
+  </button>
+
+  <main>
+    <h1 id="q">What is your name?</h1>
+    <div class="field">
+      <input id="name" type="text" aria-labelledby="q" autocomplete="given-name" autocapitalize="words" spellcheck="false" autofocus>
+      <button class="enter" id="enter" type="button" aria-label="Continue (Enter)" title="Press Enter">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v7a3 3 0 0 1-3 3H5"/><path d="M9 11l-4 4 4 4"/></svg>
+      </button>
+    </div>
+    <button class="load" id="load" type="button">or load your data</button>
+    <input id="file" type="file" accept=".json,application/json" hidden>
+  </main>
+
+  <div class="hello" aria-live="polite"></div>
+
+  <footer>Nothing leaves your device until you choose where to keep it.</footer>
+
+  <section class="space" id="space" hidden>
+    <div class="bar">
+      <svg class="logo" viewBox="7 7 164 84" role="img" aria-label="you">
+        <g class="ink" fill="none" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20 V38 A16 16 0 0 0 44 38 M44 20 V70 A16 16 0 0 1 12 70"/><circle cx="78" cy="37" r="17"/><path d="M112 20 V38 A16 16 0 0 0 144 38 M144 20 V54"/>
+        </g>
+        <line x1="166" y1="12" x2="166" y2="62" stroke="#FF5A36" stroke-width="9" stroke-linecap="round"/>
+      </svg>
+      <button class="saved" id="saved" type="button" title="Choose where to keep your data">
+        <span class="dot" aria-hidden="true"></span>
+        <span>Only in this browser · <b>Choose where to keep it</b></span>
+      </button>
+    </div>
+
+    <div id="overview">
+      <div class="who">
+        <h2 id="you-name" contenteditable="plaintext-only" spellcheck="false" aria-label="Your name"></h2>
+        <p>Everything about you, in one place. Start anywhere.</p>
+      </div>
+      <div class="areas" id="areas"></div>
+    </div>
+
+    <div id="detail" hidden>
+      <a class="back" href="#">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        <span id="back-name">Back</span>
+      </a>
+      <div class="dhead">
+        <svg id="d-icon" viewBox="0 0 24 24" aria-hidden="true"></svg>
+        <h2 id="d-title"></h2>
+        <span class="dsaved" id="d-saved" aria-live="polite">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Saved
+        </span>
+      </div>
+
+      <div class="sec"><h4>Now</h4><span id="now-count"></span></div>
+      <div class="tiles" id="now"></div>
+      <div class="ghosts" id="ghosts"></div>
+
+      <div class="sec"><h4>Over time</h4><span>Nothing is ever lost</span></div>
+      <ol class="tl" id="timeline"></ol>
+    </div>
+  </section>
+
+  <dialog id="sheet" aria-label="Card"><div id="sheet-body"></div></dialog>
+
+  <div class="nudge" id="nudge" role="status" aria-live="polite" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+    <div>
+      <p><b>Nice start<span id="nudge-name"></span>.</b> Right now this only lives in this browser, and clearing its data would erase it.</p>
+      <div class="nudge-btns">
+        <button class="btn quiet" type="button" data-n="later">Not now</button>
+        <button class="btn primary" type="button" data-n="choose">Keep it safe</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const name = document.getElementById('name');
+  const hello = document.querySelector('.hello');
+
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+  };
+
+  // Keep focus on the field so the visitor can just start typing.
+  name.focus();
+  document.addEventListener('keydown', e => {
+    if (document.body.classList.contains('home')) return;
+    if (document.activeElement !== name && e.key.length === 1 && !e.metaKey && !e.ctrlKey) name.focus();
+  });
+
+  name.addEventListener('input', () => name.classList.toggle('filled', name.value.trim().length > 0));
+
+  const enterBtn = document.getElementById('enter');
+  enterBtn.addEventListener('mousedown', e => e.preventDefault()); // keep the cursor in the field
+  enterBtn.addEventListener('click', submit);
+  name.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    enterBtn.classList.add('pressed'); // the key visibly presses down
+    setTimeout(submit, 120);
+  });
+
+  function submit() {
+    enterBtn.classList.remove('pressed');
+    const v = name.value.trim();
+    if (!v) return;
+    profile.name = v; save();
+    hello.innerHTML = 'Nice to meet you, <span></span>.';
+    hello.querySelector('span').textContent = v;
+    document.body.classList.add('done');
+    setTimeout(showHome, 1600);
+  }
+
+  // ---------- Areas of life ----------
+  // Each kind is [name, many]. "many" kinds (Allergy, Friend…) are added alongside by default;
+  // the rest (Doctor, Address…) replace the current card by default.
+  const AREAS = [
+    { id: 'about',     title: 'About',     hint: 'Birthday, contact, IDs',
+      icon: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+      kinds: [['Full name'], ['Preferred name'], ['Birthday'], ['Birthplace'], ['Phone', 1], ['Email', 1], ["Driver's license"], ['Passport']] },
+    { id: 'health',    title: 'Health',    hint: 'Doctors, meds, records',
+      icon: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>',
+      kinds: [['Doctor'], ['Dentist'], ['Blood type'], ['Allergy', 1], ['Medication', 1], ['Condition', 1], ['Health insurance'], ['Emergency contact']] },
+    { id: 'work',      title: 'Work',      hint: 'Jobs, skills, résumé',
+      icon: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 12h18"/>',
+      kinds: [['Job'], ['Skill', 1], ['Education', 1], ['Certification', 1], ['Award', 1], ['Profile link', 1]] },
+    { id: 'money',     title: 'Money',     hint: 'Accounts, bills, taxes',
+      icon: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/>',
+      kinds: [['Bank account', 1], ['Credit card', 1], ['Bill', 1], ['Retirement account', 1], ['Investment', 1], ['Insurance policy', 1], ['Tax preparer'], ['Saving for', 1]] },
+    { id: 'home',      title: 'Home',      hint: 'Addresses, lease, utilities',
+      icon: '<path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-5h4v5"/>',
+      kinds: [['Address'], ['Lease or mortgage'], ['Utility', 1], ['Internet'], ['Home insurance'], ['Vehicle', 1]] },
+    { id: 'people',    title: 'People',    hint: 'Family, friends, contacts',
+      icon: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.4A5 5 0 0 1 21 19"/>',
+      kinds: [['Partner'], ['Family member', 1], ['Child', 1], ['Friend', 1], ['Pet', 1], ['Mentor', 1]] },
+    { id: 'interests', title: 'Interests', hint: 'Books, music, places',
+      icon: '<path d="M12 4l2.5 5 5.5.8-4 3.9.9 5.5L12 16.6l-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/>',
+      kinds: [['Book', 1], ['Music', 1], ['Movie or show', 1], ['Food', 1], ['Hobby', 1], ['Sport', 1], ['Place visited', 1], ['Place to go', 1]] },
+    { id: 'goals',     title: 'Goals',     hint: 'Plans, habits, someday',
+      icon: '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/>',
+      kinds: [['Goal', 1], ['Habit', 1], ['Learning', 1], ['Someday', 1], ['Bucket list', 1], ['Value', 1]] },
+  ];
+  const AREA = id => AREAS.find(a => a.id === id);
+  const isMany = (areaId, kind) => { const k = AREA(areaId).kinds.find(k => k[0] === kind); return k ? !!k[1] : true; };
+
+  // Suggested link labels, phrased from each side: "Aetna PPO through Acme Corp" / "Acme Corp provides Aetna PPO".
+  const LABELS = [['through', 'provides'], ['covers', 'covered by'], ['with', 'with'], ['at', 'location of'], ['part of', 'includes'], ['for', 'has']];
+
+  const ICON = {
+    plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+    close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  };
+  const PLUS = '<svg class="add" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const uid = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const nowISO = () => new Date().toISOString();
+
+  // ---------- Dates: "2009", "2021-03" or "2021-03-14" ----------
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function fmtDate(d) {
+    if (!d) return '';
+    const [y, m, day] = d.split('-');
+    if (!m) return y;
+    if (!day) return `${MONTHS[+m - 1]} ${y}`;
+    return `${MONTHS[+m - 1]} ${+day}, ${y}`;
+  }
+  // Recorded times are stored in UTC but shown and compared in the visitor's local date.
+  const localDay = iso => { const t = new Date(iso); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
+  const fmtISO = iso => fmtDate(localDay(iso));
+  const thisMonth = () => localDay(nowISO()).slice(0, 7);
+  const startKey = d => (d + '-01-01').slice(0, 10);
+  const endKey = d => d.length === 4 ? d + '-12-31' : d.length === 7 ? d + '-31' : d;
+  const cardStart = c => c.since ? startKey(c.since) : localDay(c.recordedAt);
+  const cardEnd = c => c.status === 'active' ? '9999-12-31' : (c.until ? endKey(c.until) : cardStart(c));
+  function rangeText(c) {
+    if (c.status === 'active') return c.since ? `Since ${fmtDate(c.since)}` : `Added ${fmtISO(c.recordedAt)}`;
+    return `${fmtDate(c.since) || '?'} – ${fmtDate(c.until) || '?'}`;
+  }
+
+  function dateInputs(value, key) {
+    const [y = '', m = '', d = ''] = (value || '').split('-');
+    return `<span class="date" data-date="${key}">
+      <select data-d="m" aria-label="Month"><option value="">Month</option>${MONTHS.map((n, i) =>
+        `<option value="${String(i + 1).padStart(2, '0')}"${m === String(i + 1).padStart(2, '0') ? ' selected' : ''}>${n}</option>`).join('')}</select>
+      <input data-d="d" inputmode="numeric" maxlength="2" placeholder="Day" value="${esc(d ? +d : '')}" aria-label="Day">
+      <input data-d="y" inputmode="numeric" maxlength="4" placeholder="Year" value="${esc(y)}" aria-label="Year">
+    </span>`;
+  }
+  function readDate(root, key) {
+    const el = root.querySelector(`[data-date="${key}"]`); if (!el) return '';
+    const y = el.querySelector('[data-d="y"]').value.trim();
+    const m = el.querySelector('[data-d="m"]').value;
+    const d = el.querySelector('[data-d="d"]').value.trim();
+    if (!/^\d{4}$/.test(y)) return '';
+    if (!m) return y;
+    if (!/^\d{1,2}$/.test(d) || +d < 1 || +d > 31) return `${y}-${m}`;
+    return `${y}-${m}-${d.padStart(2, '0')}`;
+  }
+
+  // ---------- Profile (kept in browser storage until the visitor picks somewhere else) ----------
+  // card: { id, area, kind, value, since, until, status: 'active'|'past', recordedAt,
+  //         replaces, replacedBy, revisions: [{ value, at }] }
+  // link: { id, a, b, fwd, back }  — fwd reads from card a, back reads from card b.
+  let profile = (() => { try { return JSON.parse(store.get('you.profile')) || {}; } catch { return {}; } })();
+  function normalize() {
+    profile.cards = profile.cards || [];
+    profile.links = profile.links || [];
+    // Earlier prototype stored simple fields per area; turn any filled ones into cards.
+    if (profile.areas) {
+      for (const [area, rows] of Object.entries(profile.areas)) {
+        for (const r of rows) if (r.value && r.value.trim() && AREA(area)) profile.cards.push({
+          id: uid(), area, kind: r.label || 'Note', value: r.value.trim(), since: '', status: 'active',
+          recordedAt: profile.updatedAt || nowISO(), revisions: [] });
+      }
+      delete profile.areas;
+    }
+  }
+  normalize();
+  function save() { profile.updatedAt = nowISO(); store.set('you.profile', JSON.stringify(profile)); flashSaved(); scheduleWrite(); }
+
+  const byId = id => profile.cards.find(c => c.id === id);
+  const activeOf = (area, kind) => profile.cards.filter(c => c.area === area && c.kind === kind && c.status === 'active');
+  const linksOf = id => profile.links
+    .filter(l => l.a === id || l.b === id)
+    .map(l => ({ link: l, other: byId(l.a === id ? l.b : l.a), label: l.a === id ? l.fwd : l.back }))
+    .filter(x => x.other);
+
+  // Cards whose time overlapped this one's, worked out from dates (not stored).
+  function atTheTime(c) {
+    const s = cardStart(c), e = cardEnd(c);
+    const linked = new Set(linksOf(c.id).map(x => x.other.id));
+    return profile.cards
+      .filter(o => o.id !== c.id && !linked.has(o.id) && o.id !== c.replaces && o.id !== c.replacedBy)
+      .filter(o => cardStart(o) <= e && s <= cardEnd(o))
+      .sort((x, y) => (isMany(x.area, x.kind) - isMany(y.area, y.kind)) || (x.area === c.area) - (y.area === c.area))
+      .slice(0, 6);
+  }
+
+  const overview = document.getElementById('overview');
+  const detail = document.getElementById('detail');
+
+  function showHome() {
+    document.body.classList.add('home');
+    document.getElementById('space').hidden = false;
+    document.getElementById('you-name').textContent = profile.name || '';
+    document.getElementById('back-name').textContent = profile.name || 'Back';
+    route();
+  }
+
+  function renderOverview() {
+    document.getElementById('areas').innerHTML = AREAS.map(a => {
+      const n = profile.cards.filter(c => c.area === a.id && c.status === 'active').length;
+      const meta = n ? `<small class="count">${n} active</small>` : `<small>${a.hint}</small>`;
+      return `<a class="area" href="#${a.id}">${PLUS}
+         <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${a.icon}</svg>
+         <span><h3>${a.title}</h3>${meta}</span>
+       </a>`;
+    }).join('');
+  }
+
+  const chip = (x, removable) =>
+    `<button class="chip" type="button" data-act="open" data-id="${x.other.id}">${x.label ? `<em>${esc(x.label)}</em> ` : ''}${esc(x.other.value)}${
+      removable ? `<span class="x" data-act="unlink" data-link="${x.link.id}" title="Remove link">×</span>` : ''}</button>`;
+
+  function renderDetail(a) {
+    document.getElementById('d-icon').innerHTML = a.icon;
+    document.getElementById('d-title').textContent = a.title;
+    const cards = profile.cards.filter(c => c.area === a.id);
+    const order = k => { const i = a.kinds.findIndex(x => x[0] === k); return i < 0 ? 99 : i; };
+    const active = cards.filter(c => c.status === 'active')
+      .sort((x, y) => order(x.kind) - order(y.kind) || cardStart(y).localeCompare(cardStart(x)));
+
+    document.getElementById('now-count').textContent = active.length ? `${active.length} active` : '';
+    document.getElementById('now').innerHTML = active.map(c => {
+      const ls = linksOf(c.id).slice(0, 3);
+      return `<button class="tile" type="button" data-act="card" data-id="${c.id}">
+        <span class="k"><i></i>${esc(c.kind)}</span>
+        <span class="v">${esc(c.value)}</span>
+        <span class="d">${rangeText(c)}</span>
+        ${ls.length ? `<span class="chips">${ls.map(x => `<span class="chip">${x.label ? `<em>${esc(x.label)}</em> ` : ''}${esc(x.other.value)}</span>`).join('')}</span>` : ''}
+      </button>`;
+    }).join('') + `<button class="tile new" type="button" data-act="new">${ICON.plus}New card</button>`;
+
+    const missing = a.kinds.filter(([k]) => !active.some(c => c.kind === k));
+    document.getElementById('ghosts').innerHTML = missing.map(([k]) =>
+      `<button class="ghost" type="button" data-act="new" data-kind="${esc(k)}">+ ${esc(k)}</button>`).join('');
+
+    const tl = [...cards].sort((x, y) => cardStart(y).localeCompare(cardStart(x)) || y.recordedAt.localeCompare(x.recordedAt));
+    document.getElementById('timeline').innerHTML = tl.length ? tl.map(c => {
+      const prev = c.replaces && byId(c.replaces);
+      const note = c.status === 'active'
+        ? (prev ? `replaced ${esc(prev.value)}` : 'added')
+        : (c.replacedBy ? `replaced by ${esc(byId(c.replacedBy)?.value || '')}` : 'ended');
+      const when = c.status === 'active' ? (fmtDate(c.since) || `Added ${fmtISO(c.recordedAt)}`) : rangeText(c);
+      return `<li class="ev ${c.status === 'active' ? 'on' : 'past'}"><button type="button" data-act="card" data-id="${c.id}">
+        <div class="when">${when}</div>
+        <div class="what">${esc(c.kind)}: ${esc(c.value)} <span class="note">· ${note}</span></div>
+      </button></li>`;
+    }).join('') : `<li class="ev"><p class="empty">Your cards will show up here, in order, as you add them.</p></li>`;
+  }
+
+  // Clicks inside an area page
+  detail.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const a = currentArea(); if (!a) return;
+    if (b.dataset.act === 'card') cardView(b.dataset.id);
+    if (b.dataset.act === 'new') composer(a.id, { kind: b.dataset.kind });
+  });
+
+  let savedTimer;
+  function flashSaved() {
+    const m = document.getElementById('d-saved'); if (!m) return;
+    m.classList.add('show');
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => m.classList.remove('show'), 1400);
+  }
+
+  // ---------- Sheet: one dialog that shows the composer, a card, or the link picker ----------
+  const sheet = document.getElementById('sheet');
+  const sheetBody = document.getElementById('sheet-body');
+  let acts = {};
+  function openSheet(html, handlers) {
+    sheetBody.innerHTML = html;
+    acts = handlers || {};
+    if (!sheet.open) sheet.showModal();
+  }
+  const closeSheet = () => { if (sheet.open) sheet.close(); };
+  sheet.addEventListener('click', e => {
+    if (e.target === sheet) return closeSheet(); // click on the backdrop
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    if (b.dataset.act === 'close') return closeSheet();
+    acts[b.dataset.act] && acts[b.dataset.act](b, e);
+  });
+  sheet.addEventListener('close', () => { const a = currentArea(); a ? renderDetail(a) : renderOverview(); });
+  const sheetTop = (kicker) => `<div class="sh-top"><span class="sh-kicker">${kicker}</span>
+    <button class="sh-close" type="button" data-act="close" aria-label="Close">${ICON.close}</button></div>`;
+
+  // Open another card, switching areas if needed.
+  function openCard(id) {
+    const c = byId(id); if (!c) return;
+    if ('#' + c.area !== location.hash) location.hash = '#' + c.area;
+    cardView(id);
+  }
+
+  // ----- Composer: add a card -----
+  let draft = null;
+  function composer(areaId, preset = {}) {
+    const a = AREA(areaId);
+    draft = { area: areaId, kind: preset.kind || a.kinds[0][0], custom: '', value: '', since: '', mode: null,
+              replaceId: preset.replaceId || null, links: [] };
+    renderComposer(true);
+  }
+  function readComposer() {
+    const r = sheetBody;
+    draft.kind = r.querySelector('#c-kind').value;
+    draft.custom = r.querySelector('#c-custom')?.value.trim() || '';
+    draft.value = r.querySelector('#c-value').value;
+    draft.since = readDate(r, 'since');
+  }
+  function renderComposer(focus) {
+    const a = AREA(draft.area);
+    const custom = draft.kind === '__other';
+    const actives = custom ? [] : activeOf(draft.area, draft.kind);
+    if (draft.mode && draft.mode !== 'add' && !actives.some(c => 'r:' + c.id === draft.mode)) draft.mode = null;
+    if (!draft.mode) draft.mode = draft.replaceId && actives.some(c => c.id === draft.replaceId) ? 'r:' + draft.replaceId
+      : (actives.length && !isMany(draft.area, draft.kind) ? 'r:' + actives[0].id : 'add');
+
+    const kindOpts = a.kinds.map(([k]) => `<option${k === draft.kind ? ' selected' : ''}>${esc(k)}</option>`).join('')
+      + `<option value="__other"${custom ? ' selected' : ''}>Something else…</option>`;
+    const modeRow = actives.length ? `<div class="fx"><span class="lab">Current ${esc(draft.kind.toLowerCase())}</span>
+      <div class="seg">${actives.map(c => `<button type="button" data-act="mode" data-mode="r:${c.id}" class="${draft.mode === 'r:' + c.id ? 'on' : ''}">Replaces ${esc(c.value)}</button>`).join('')}
+        <button type="button" data-act="mode" data-mode="add" class="${draft.mode === 'add' ? 'on' : ''}">Add alongside</button></div></div>` : '';
+    const linkChips = draft.links.map((l, i) => `<span class="chip">${l.fwd ? `<em>${esc(l.fwd)}</em> ` : ''}${esc(byId(l.id)?.value)}<span class="x" data-act="drop-link" data-i="${i}" role="button" title="Remove">×</span></span>`).join('');
+
+    openSheet(`${sheetTop(`${esc(a.title)} · new card`)}
+      <h3 class="sh-title">Add a card</h3>
+      <div class="fx"><label for="c-kind">Card</label><select id="c-kind">${kindOpts}</select></div>
+      ${custom ? `<div class="fx"><label for="c-custom">Name it</label><input id="c-custom" value="${esc(draft.custom)}" placeholder="e.g. Eye doctor"></div>` : ''}
+      <div class="fx"><label for="c-value">Value</label><input id="c-value" class="big" value="${esc(draft.value)}" placeholder="${custom ? '' : 'e.g. ' + esc(example(draft.kind))}" autocomplete="off"></div>
+      <div class="fx"><span class="lab">Since</span><div>${dateInputs(draft.since, 'since')}<div class="hint">When this became true. A year is enough.</div></div></div>
+      ${modeRow}
+      <div class="fx"><span class="lab">Linked to</span><div class="chips">${linkChips}<button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
+      <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="save">Add card</button></div>`,
+    {
+      mode: b => { readComposer(); draft.mode = b.dataset.mode; renderComposer(); },
+      'drop-link': b => { readComposer(); draft.links.splice(+b.dataset.i, 1); renderComposer(); },
+      'add-link': () => {
+        readComposer();
+        picker({ selfLabel: draft.value || 'This card', exclude: draft.links.map(l => l.id),
+          onPick: (id, fwd, back) => { draft.links.push({ id, fwd, back }); renderComposer(); },
+          onBack: () => renderComposer() });
+      },
+      save: () => {
+        readComposer();
+        const kind = draft.kind === '__other' ? draft.custom : draft.kind;
+        const value = draft.value.trim();
+        if (!kind) return sheetBody.querySelector('#c-custom')?.focus();
+        if (!value) return sheetBody.querySelector('#c-value').focus();
+        const c = { id: uid(), area: draft.area, kind, value, since: draft.since, status: 'active', recordedAt: nowISO(), revisions: [] };
+        if (draft.mode.startsWith('r:')) {
+          const old = byId(draft.mode.slice(2));
+          if (old) { old.status = 'past'; old.until = draft.since || thisMonth(); old.replacedBy = c.id; c.replaces = old.id; }
+        }
+        profile.cards.push(c);
+        for (const l of draft.links) profile.links.push({ id: uid(), a: c.id, b: l.id, fwd: l.fwd, back: l.back });
+        save(); closeSheet(); maybeNudge();
+      },
+    });
+    const kindSel = sheetBody.querySelector('#c-kind');
+    kindSel.addEventListener('change', () => { readComposer(); draft.mode = null; renderComposer(); sheetBody.querySelector(draft.kind === '__other' ? '#c-custom' : '#c-value').focus(); });
+    sheetBody.querySelector('#c-value').addEventListener('keydown', e => { if (e.key === 'Enter') acts.save(); });
+    if (focus) sheetBody.querySelector('#c-value').focus();
+  }
+  function example(kind) {
+    const ex = { Doctor: 'Dr. Maya Lee', Allergy: 'Penicillin', Address: '12 Elm St, Springfield', Job: 'Designer at Acme Corp',
+      'Health insurance': 'Aetna PPO', Book: 'East of Eden', Friend: 'Sam Rivera', Goal: 'Run a marathon', Phone: '(555) 123-4567' };
+    return ex[kind] || kind;
+  }
+
+  // ----- Card view: read, correct, link, replace or end -----
+  function cardView(id, opts = {}) {
+    const c = byId(id); if (!c) return;
+    const a = AREA(c.area);
+    const on = c.status === 'active';
+    const ls = linksOf(c.id);
+    const near = atTheTime(c);
+    const prev = c.replaces && byId(c.replaces), next = c.replacedBy && byId(c.replacedBy);
+    const story = [
+      prev ? `Replaced <button class="chip" type="button" data-act="open" data-id="${prev.id}">${esc(prev.value)}</button>` : '',
+      next ? `Replaced by <button class="chip" type="button" data-act="open" data-id="${next.id}">${esc(next.value)}</button>` : '',
+    ].filter(Boolean).join(' ');
+
+    openSheet(`${sheetTop(`${esc(a.title)} · ${esc(c.kind)} <span class="status ${on ? 'on' : ''}">${on ? 'Active' : 'History'}</span>`)}
+      <div class="fx"><label for="v-value">Value</label><input id="v-value" class="big" value="${esc(c.value)}"></div>
+      <div class="fx"><span class="lab">Since</span>${dateInputs(c.since, 'since')}</div>
+      ${on ? '' : `<div class="fx"><span class="lab">Until</span>${dateInputs(c.until, 'until')}</div>`}
+      <div class="fx"><span class="lab">Recorded</span><span class="hint">${fmtISO(c.recordedAt)}${story ? ' · ' : ''}${story}</span></div>
+      ${c.revisions?.length ? `<div class="block"><h5>Earlier wording</h5><ul class="revs">${c.revisions.slice().reverse().map(r =>
+        `<li>“${esc(r.value)}” · changed ${fmtISO(r.at)}</li>`).join('')}</ul></div>` : ''}
+      <div class="block"><h5>Linked</h5><div class="chips">${ls.map(x => chip(x, true)).join('')}<button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
+      ${near.length ? `<div class="block"><h5>At the time</h5><div class="chips">${near.map(o =>
+        `<button class="chip" type="button" data-act="open" data-id="${o.id}"><em>${esc(o.kind)}</em> ${esc(o.value)}</button>`).join('')}</div></div>` : ''}
+      ${opts.ending ? `<div class="block"><h5>When did it end?</h5>${dateInputs(thisMonth(), 'end')}
+        <div class="btns"><button class="btn quiet" type="button" data-act="end-cancel">Cancel</button><button class="btn primary" type="button" data-act="end-confirm">Mark as ended</button></div></div>`
+      : `<div class="btns">
+          <button class="link-btn" type="button" data-act="remove">Remove (added by mistake)</button><span class="spacer"></span>
+          ${on ? `<button class="btn" type="button" data-act="end">This ended</button><button class="btn primary" type="button" data-act="replace">Replace</button>`
+               : (!c.replacedBy ? `<button class="btn" type="button" data-act="reopen">It's still true</button>` : '')}
+        </div>`}`,
+    {
+      open: b => { if (!b.closest('[data-act="unlink"]')) openCard(b.dataset.id); },
+      unlink: (b, e) => { e.stopPropagation(); profile.links = profile.links.filter(l => l.id !== b.dataset.link); save(); cardView(id); },
+      'add-link': () => picker({ selfLabel: c.value, exclude: [c.id, ...ls.map(x => x.other.id)],
+        onPick: (other, fwd, back) => { profile.links.push({ id: uid(), a: c.id, b: other, fwd, back }); save(); cardView(id); },
+        onBack: () => cardView(id) }),
+      replace: () => composer(c.area, { kind: c.kind, replaceId: c.id }),
+      end: () => cardView(id, { ending: true }),
+      'end-cancel': () => cardView(id),
+      'end-confirm': () => { c.status = 'past'; c.until = readDate(sheetBody, 'end') || thisMonth(); save(); cardView(id); },
+      reopen: () => { c.status = 'active'; delete c.until; save(); cardView(id); },
+      remove: () => {
+        if (!confirm('Remove this card?\n\nOnly do this for a card added by mistake. To record a real change, use Replace or This ended so it stays in your history.')) return;
+        const p = c.replaces && byId(c.replaces);
+        if (p && p.replacedBy === c.id) { p.status = 'active'; delete p.until; delete p.replacedBy; }
+        const n = c.replacedBy && byId(c.replacedBy); if (n) delete n.replaces;
+        profile.cards = profile.cards.filter(x => x.id !== c.id);
+        profile.links = profile.links.filter(l => l.a !== c.id && l.b !== c.id);
+        save(); closeSheet();
+      },
+    });
+
+    // Corrections save in place; the old wording is kept quietly.
+    const val = sheetBody.querySelector('#v-value');
+    val.addEventListener('change', () => {
+      const v = val.value.trim();
+      if (!v) { val.value = c.value; return; }
+      if (v === c.value) return;
+      (c.revisions = c.revisions || []).push({ value: c.value, at: nowISO() });
+      c.value = v; save(); cardView(id);
+    });
+    val.addEventListener('keydown', e => { if (e.key === 'Enter') val.blur(); });
+    sheetBody.querySelectorAll('[data-date="since"], [data-date="until"]').forEach(el =>
+      el.addEventListener('change', () => { c[el.dataset.date] = readDate(sheetBody, el.dataset.date); save(); }));
+  }
+
+  // ----- Link picker: choose a card, then (optionally) a label -----
+  function picker({ selfLabel, exclude, onPick, onBack }) {
+    const pool = profile.cards.filter(c => !exclude.includes(c.id));
+    const list = q => {
+      const t = q.trim().toLowerCase();
+      const hits = pool.filter(c => !t || (c.value + ' ' + c.kind).toLowerCase().includes(t));
+      if (!hits.length) return `<li class="grp">${pool.length ? 'No matches' : 'No other cards yet. Add some first.'}</li>`;
+      return AREAS.map(a => {
+        const cs = hits.filter(c => c.area === a.id); if (!cs.length) return '';
+        return `<li class="grp">${a.title}</li>` + cs.map(c => `<li><button type="button" data-act="pick" data-id="${c.id}">
+          <span>${esc(c.value)}</span><span class="meta">${esc(c.kind)} · ${c.status === 'active' ? 'now' : rangeText(c)}</span></button></li>`).join('');
+      }).join('');
+    };
+    openSheet(`${sheetTop('Link a card')}
+      <input class="search" id="p-q" placeholder="Search your cards" autocomplete="off">
+      <ul class="pick" id="p-list">${list('')}</ul>
+      <div class="btns"><button class="btn quiet" type="button" data-act="back">Back</button></div>`,
+    {
+      back: onBack,
+      pick: b => labelStep(b.dataset.id),
+    });
+    const q = sheetBody.querySelector('#p-q');
+    q.addEventListener('input', () => { sheetBody.querySelector('#p-list').innerHTML = list(q.value); });
+    q.focus();
+
+    function labelStep(otherId) {
+      const o = byId(otherId);
+      openSheet(`${sheetTop('How are they connected?')}
+        <p class="hint">Optional. Pick one that reads right, write your own, or skip it.</p>
+        <div class="labels">${LABELS.map(([f], i) => `<button type="button" data-act="lab" data-i="${i}">
+          <span>${esc(selfLabel)}</span> <b>${esc(f)}</b> <span>${esc(o.value)}</span></button>`).join('')}</div>
+        <div class="fx"><label for="p-own">Your own</label><input id="p-own" placeholder="e.g. recommended by"></div>
+        <div class="btns"><button class="btn quiet" type="button" data-act="back">Back</button><span class="spacer"></span>
+          <button class="btn" type="button" data-act="none">Link without a label</button>
+          <button class="btn primary" type="button" data-act="own">Link</button></div>`,
+      {
+        back: () => picker({ selfLabel, exclude, onPick, onBack }),
+        lab: b => { const [f, bk] = LABELS[+b.dataset.i]; onPick(otherId, f, bk); },
+        none: () => onPick(otherId, '', ''),
+        own: () => { const t = sheetBody.querySelector('#p-own').value.trim(); onPick(otherId, t, t); },
+      });
+      sheetBody.querySelector('#p-own').addEventListener('keydown', e => { if (e.key === 'Enter') acts.own(); });
+    }
+  }
+
+  // ---------- Where your data is kept (modeled on draw.io's "Save to…") ----------
+  // Targets: 'browser' (default), 'file' (a real file on this device that we keep saving into),
+  // 'download' (browsers without file access: we download a copy when asked).
+  // Cloud targets are shown in the picker but not connected yet.
+  const FS_OK = 'showSaveFilePicker' in window;
+  const STORES = [
+    { id: 'device',   title: 'This device',  desc: 'A file on your computer or phone. Works offline.',
+      icon: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>' },
+    { id: 'gdrive',   title: 'Google Drive', desc: 'Soon', soon: true,
+      icon: '<path d="M8 4h8l5 9-4 7H7l-4-7z"/><path d="M8 4l4 7M16 4l-4 7M3 13h18"/>' },
+    { id: 'onedrive', title: 'OneDrive',     desc: 'Soon', soon: true,
+      icon: '<path d="M7 18h11a4 4 0 0 0 .5-8 6 6 0 0 0-11.3-1.5A4.5 4.5 0 0 0 7 18z"/>' },
+    { id: 'dropbox',  title: 'Dropbox',      desc: 'Soon', soon: true,
+      icon: '<path d="M7 4l5 3-5 3-5-3zM17 4l5 3-5 3-5-3zM7 10l5 3-5 3-5-3zM17 10l5 3-5 3-5-3zM7 17.5l5 3 5-3"/>' },
+    { id: 'browser',  title: 'Browser only', desc: 'Stays in this browser. Clearing site data erases it.',
+      icon: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/>' },
+  ];
+
+  // The file handle lives in IndexedDB so we can keep saving to the same file after a reload.
+  const idb = (() => {
+    const open = () => new Promise((res, rej) => {
+      const r = indexedDB.open('you', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+    const run = (mode, fn) => open().then(db => new Promise((res, rej) => {
+      const t = db.transaction('kv', mode); const r = fn(t.objectStore('kv'));
+      t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error);
+    }));
+    return {
+      get: k => run('readonly', s => s.get(k)).catch(() => null),
+      set: (k, v) => run('readwrite', s => s.put(v, k)).catch(() => null),
+      del: k => run('readwrite', s => s.delete(k)).catch(() => null),
+    };
+  })();
+
+  const target = { kind: store.get('you.target') || 'browser', name: store.get('you.targetName') || '' };
+  let fileHandle = null, dirty = false, saving = false, needsPermission = false, saveError = false, writeTimer;
+
+  function setTarget(kind, name = '') {
+    target.kind = kind; target.name = name;
+    store.set('you.target', kind); store.set('you.targetName', name);
+    if (kind !== 'browser') document.getElementById('nudge').hidden = true;
+    renderPill();
+  }
+  const fileName = () => `${(profile.name || 'you').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'you'}.you.json`;
+  const exportData = () => JSON.stringify({ app: 'you', version: 1, savedAt: nowISO(), profile }, null, 2);
+
+  async function initTarget() {
+    if (target.kind === 'file') {
+      fileHandle = FS_OK ? await idb.get('handle') : null;
+      if (!fileHandle) setTarget('browser');
+      else needsPermission = (await fileHandle.queryPermission({ mode: 'readwrite' })) !== 'granted';
+    }
+    renderPill();
+  }
+
+  // Called after every change.
+  function scheduleWrite() {
+    if (target.kind === 'browser') return;
+    dirty = true;
+    if (target.kind === 'file' && fileHandle && !needsPermission) {
+      clearTimeout(writeTimer);
+      writeTimer = setTimeout(writeFile, 600);
+    }
+    renderPill();
+  }
+
+  async function writeFile() {
+    if (!fileHandle) return;
+    saving = true; saveError = false; renderPill();
+    try {
+      const w = await fileHandle.createWritable();
+      await w.write(exportData());
+      await w.close();
+      dirty = false;
+    } catch (e) {
+      saveError = true;
+      if (e && e.name === 'NotAllowedError') needsPermission = true;
+    }
+    saving = false; renderPill();
+  }
+
+  function downloadCopy() {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([exportData()], { type: 'application/json' }));
+    a.download = target.kind === 'download' && target.name ? target.name : fileName();
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    if (target.kind === 'download') { dirty = false; renderPill(); }
+  }
+
+  const CHECK = '<svg class="ok" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  function renderPill() {
+    const pill = document.getElementById('saved');
+    const n = esc(target.name);
+    let html, state = 'warn';
+    if (target.kind === 'browser') html = `<span class="dot"></span><span>Only in this browser · <b>Choose where to keep it</b></span>`;
+    else if (needsPermission) html = `<span class="dot"></span><span>Reconnect <b>${n}</b></span>`;
+    else if (saveError) html = `<span class="dot"></span><span>Couldn't save · <b>Try again</b></span>`;
+    else if (saving) { state = ''; html = `<span class="spin"></span><span>Saving to ${n}…</span>`; }
+    else if (target.kind === 'download' && dirty) html = `<span class="dot"></span><span>Unsaved changes · <b>Download ${n}</b></span>`;
+    else if (dirty) { state = ''; html = `<span class="spin"></span><span>Saving to ${n}…</span>`; }
+    else { state = 'ok'; html = `${CHECK}<span>${target.kind === 'download' ? 'Downloaded' : 'Saved to'} <b>${n}</b></span>`; }
+    pill.className = 'saved ' + state;
+    pill.innerHTML = html;
+  }
+
+  document.getElementById('saved').addEventListener('click', async () => {
+    if (target.kind === 'browser') return storePicker('save');
+    if (needsPermission && fileHandle) {
+      if ((await fileHandle.requestPermission({ mode: 'readwrite' })) === 'granted') { needsPermission = false; writeFile(); }
+      return;
+    }
+    if (saveError) return writeFile();
+    if (target.kind === 'download' && dirty) return downloadCopy();
+    storageMenu();
+  });
+
+  function storageMenu() {
+    const where = target.kind === 'file' ? 'A file on this device' : 'Downloaded file';
+    openSheet(`${sheetTop('Where your data is kept')}
+      <h3 class="sh-title">${esc(target.name)}</h3>
+      <p class="hint">${where}. ${target.kind === 'file' ? 'Changes save to it automatically.' : 'This browser can’t save into files directly, so download a fresh copy after changes.'}</p>
+      <div class="menu">
+        ${target.kind === 'file' ? `<button type="button" data-act="now">Save now</button>` : `<button type="button" data-act="dl">Download latest</button>`}
+        ${target.kind === 'file' ? `<button type="button" data-act="dl">Download a copy</button>` : ''}
+        <button type="button" data-act="change">Keep it somewhere else…</button>
+        <button type="button" data-act="forget" class="soft">Stop using this file</button>
+      </div>`,
+    {
+      now: () => { writeFile(); closeSheet(); },
+      dl: () => { downloadCopy(); closeSheet(); },
+      change: () => storePicker('save'),
+      forget: () => { if (confirm(`Stop saving to ${target.name}?\n\nThe file stays where it is. Your data stays in this browser.`)) { idb.del('handle'); fileHandle = null; dirty = false; setTarget('browser'); closeSheet(); } },
+    });
+  }
+
+  // The picker. mode 'save' = choose where to keep it; 'open' = load existing data.
+  function storePicker(mode) {
+    const open = mode === 'open';
+    const list = STORES.filter(s => !(open && s.id === 'browser'));
+    openSheet(`${sheetTop(open ? 'Load your data' : 'Save your data')}
+      <h3 class="sh-title">${open ? 'Where is your data?' : 'Where should we keep your data?'}</h3>
+      <p class="hint">${open ? 'Open the file you saved before.' : 'It never touches our servers. You can change this any time.'}</p>
+      <div class="stores">${list.map(s => `<button type="button" class="store${s.soon ? ' soon' : ''}${!open && target.kind === (s.id === 'device' ? 'file' : s.id) ? ' on' : ''}"
+          data-act="${s.soon ? 'soon' : s.id}" ${s.soon ? 'aria-disabled="true"' : ''}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">${s.icon}</svg>
+          <span><b>${s.title}</b><small>${s.desc}</small></span>
+        </button>`).join('')}</div>
+      <div class="btns"><button class="btn quiet" type="button" data-act="close">${open ? 'Cancel' : 'Decide later'}</button></div>`,
+    {
+      soon: () => {},
+      browser: () => { idb.del('handle'); fileHandle = null; dirty = false; needsPermission = false; setTarget('browser'); closeSheet(); },
+      device: open ? openFromDevice : saveToDevice,
+    });
+  }
+
+  async function saveToDevice() {
+    if (!FS_OK) { setTarget('download', fileName()); downloadCopy(); return closeSheet(); }
+    try {
+      const h = await showSaveFilePicker({ suggestedName: fileName(),
+        types: [{ description: 'You data', accept: { 'application/json': ['.json'] } }] });
+      fileHandle = h; needsPermission = false; await idb.set('handle', h);
+      setTarget('file', h.name); closeSheet();
+      dirty = true; writeFile();
+    } catch (e) { if (e.name !== 'AbortError') alert('That file could not be used. Try another location.'); }
+  }
+
+  async function openFromDevice() {
+    if (!FS_OK) { closeSheet(); return document.getElementById('file').click(); }
+    try {
+      const [h] = await showOpenFilePicker({ types: [{ description: 'You data', accept: { 'application/json': ['.json'] } }] });
+      if (!loadData(await (await h.getFile()).text())) return;
+      fileHandle = h; await idb.set('handle', h);
+      needsPermission = (await h.requestPermission({ mode: 'readwrite' })) !== 'granted';
+      dirty = false; setTarget('file', h.name); closeSheet(); showHome();
+    } catch (e) { if (e.name !== 'AbortError') alert('That file could not be opened.'); }
+  }
+
+  // Accepts our file format ({ app: 'you', profile }) or a bare profile.
+  function loadData(text) {
+    try {
+      const data = JSON.parse(text);
+      const p = data && data.app === 'you' ? data.profile : data;
+      if (!p || !p.name) throw 0;
+      profile = p; normalize();
+      profile.updatedAt = profile.updatedAt || nowISO();
+      store.set('you.profile', JSON.stringify(profile));
+      return true;
+    } catch { alert('That file doesn’t look like your You data.'); return false; }
+  }
+
+  initTarget();
+
+  // Gentle, one-time suggestion once someone has added a few cards and is still browser-only.
+  // "Not now" or choosing a place means we never ask again; the status pill stays available.
+  const NUDGE_AT = 3;
+  const nudge = document.getElementById('nudge');
+  function maybeNudge() {
+    if (target.kind !== 'browser' || store.get('you.nudged') || profile.cards.length < NUDGE_AT || !nudge.hidden) return;
+    setTimeout(() => {
+      document.getElementById('nudge-name').textContent = profile.name ? `, ${profile.name}` : '';
+      nudge.hidden = false;
+    }, 700);
+  }
+  nudge.addEventListener('click', e => {
+    const b = e.target.closest('[data-n]'); if (!b) return;
+    store.set('you.nudged', new Date().toISOString());
+    nudge.hidden = true;
+    if (b.dataset.n === 'choose') storePicker('save');
+  });
+
+  // Simple routing: #health opens Health, no hash shows the overview. Browser back works.
+  const currentArea = () => AREAS.find(a => '#' + a.id === location.hash);
+  function route() {
+    if (!document.body.classList.contains('home')) return;
+    const a = currentArea();
+    overview.hidden = !!a;
+    detail.hidden = !a;
+    if (a) { renderDetail(a); window.scrollTo(0, 0); }
+    else renderOverview();
+  }
+  window.addEventListener('hashchange', route);
+
+  // Click your name to edit it.
+  const nameHeading = document.getElementById('you-name');
+  nameHeading.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); nameHeading.blur(); } });
+  nameHeading.addEventListener('blur', () => {
+    const v = nameHeading.textContent.trim();
+    if (!v) { nameHeading.textContent = profile.name || ''; return; }
+    profile.name = v; save();
+    document.getElementById('back-name').textContent = v;
+  });
+
+  // Returning visitor: go straight to their space. Add ?new to the URL to see the name screen again.
+  if (profile.name && !location.search.includes('new')) showHome();
+
+  // Light / dark toggle. Follows the system until the visitor picks one, then remembers it.
+  const root = document.documentElement;
+  const themeBtn = document.getElementById('theme');
+  const sysDark = window.matchMedia('(prefers-color-scheme: dark)');
+  const label = () => themeBtn.setAttribute('aria-label', root.dataset.mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+  label();
+  themeBtn.addEventListener('mousedown', e => e.preventDefault()); // keep the cursor in the name field
+  themeBtn.addEventListener('click', () => {
+    const next = root.dataset.mode === 'dark' ? 'light' : 'dark';
+    root.dataset.theme = root.dataset.mode = next;
+    store.set('you.theme', next);
+    label();
+  });
+  sysDark.addEventListener('change', e => {
+    if (root.dataset.theme) return; // visitor already chose
+    root.dataset.mode = e.matches ? 'dark' : 'light';
+    label();
+  });
+
+  // "or load your data" opens the same picker, in open mode.
+  document.getElementById('load').addEventListener('click', () => storePicker('open'));
+  // Fallback for browsers without file access: a plain file input. The data loads into this browser.
+  document.getElementById('file').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    if (loadData(await f.text())) { setTarget('browser'); showHome(); }
+    e.target.value = '';
+  });
+</script>
+</body>
+</html>

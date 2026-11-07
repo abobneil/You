@@ -1,0 +1,81 @@
+// One card, opened: correct it, link it, replace it, end it, or (rarely) remove it.
+import { areaById } from '../core/areas';
+import { atTheTime, byId, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink } from '../core/cards';
+import { fmtISO, thisMonth } from '../core/dates';
+import { profile, save } from '../state';
+import { dateInputs, readDate } from './dateInput';
+import { $, esc } from './dom';
+import { openComposer } from './composer';
+import { openLinkPicker } from './linkPicker';
+import { closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
+
+/** Opens a card, switching to its area first if needed. */
+export function openCard(id: string, opts: { ending?: boolean } = {}) {
+  const c = byId(profile, id);
+  if (!c) return;
+  if (location.hash !== '#' + c.area) location.hash = '#' + c.area;
+  const a = areaById(c.area)!;
+  const on = c.status === 'active';
+  const links = linksOf(profile, c.id);
+  const near = atTheTime(profile, c);
+  const prev = byId(profile, c.replaces), next = byId(profile, c.replacedBy);
+  const cardChip = (id: string, text: string) => `<button class="chip" type="button" data-act="open" data-id="${id}">${text}</button>`;
+  const story = [
+    prev ? `Replaced ${cardChip(prev.id, esc(prev.value))}` : '',
+    next ? `Replaced by ${cardChip(next.id, esc(next.value))}` : '',
+  ].filter(Boolean).join(' ');
+
+  openSheet(`${sheetTop(`${esc(a.title)} · ${esc(c.kind)} <span class="status ${on ? 'on' : ''}">${on ? 'Active' : 'History'}</span>`)}
+    <div class="fx"><label for="v-value">Value</label><input id="v-value" class="big" value="${esc(c.value)}"></div>
+    <div class="fx"><span class="lab">Since</span>${dateInputs(c.since, 'since')}</div>
+    ${on ? '' : `<div class="fx"><span class="lab">Until</span>${dateInputs(c.until, 'until')}</div>`}
+    <div class="fx"><span class="lab">Recorded</span><span class="hint">${esc(fmtISO(c.recordedAt))}${story ? ' · ' : ''}${story}</span></div>
+    ${c.revisions.length ? `<div class="block"><h5>Earlier wording</h5><ul class="revs">${[...c.revisions].reverse()
+      .map(r => `<li>“${esc(r.value)}” · changed ${esc(fmtISO(r.at))}</li>`).join('')}</ul></div>` : ''}
+    <div class="block"><h5>Linked</h5><div class="chips">${links.map(x =>
+      `<button class="chip" type="button" data-act="open" data-id="${x.other.id}">${x.label ? `<em>${esc(x.label)}</em> ` : ''}${esc(x.other.value)}<span class="x" data-act="unlink" data-link="${x.link.id}" title="Remove link">×</span></button>`).join('')}
+      <button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
+    ${near.length ? `<div class="block"><h5>At the time</h5><div class="chips">${near.map(o =>
+      cardChip(o.id, `<em>${esc(o.kind)}</em> ${esc(o.value)}`)).join('')}</div></div>` : ''}
+    ${opts.ending
+      ? `<div class="block"><h5>When did it end?</h5>${dateInputs(thisMonth(), 'end')}
+          <div class="btns"><button class="btn quiet" type="button" data-act="end-cancel">Cancel</button><button class="btn primary" type="button" data-act="end-confirm">Mark as ended</button></div></div>`
+      : `<div class="btns">
+          <button class="link-btn" type="button" data-act="remove">Remove (added by mistake)</button><span class="spacer"></span>
+          ${on ? `<button class="btn" type="button" data-act="end">This ended</button><button class="btn primary" type="button" data-act="replace">Replace</button>`
+               : (!c.replacedBy ? `<button class="btn" type="button" data-act="reopen">It's still true</button>` : '')}
+        </div>`}`,
+  {
+    open: b => openCard(b.dataset.id!),
+    unlink: (b, e) => { e.stopPropagation(); removeLink(profile, b.dataset.link!); save(); openCard(id); },
+    'add-link': () => openLinkPicker({
+      selfLabel: c.value,
+      exclude: [c.id, ...links.map(x => x.other.id)],
+      onPick: (other, fwd, back) => { addLink(profile, c.id, other, fwd, back); save(); openCard(id); },
+      onBack: () => openCard(id),
+    }),
+    replace: () => openComposer(c.area, { kind: c.kind, replaceId: c.id }),
+    end: () => openCard(id, { ending: true }),
+    'end-cancel': () => openCard(id),
+    'end-confirm': () => { endCard(profile, id, readDate(sheetBody, 'end')); save(); openCard(id); },
+    reopen: () => { reopenCard(profile, id); save(); openCard(id); },
+    remove: () => {
+      if (!confirm('Remove this card?\n\nOnly do this for a card added by mistake. To record a real change, use Replace or This ended so it stays in your history.')) return;
+      removeCard(profile, id); save(); closeSheet();
+    },
+  });
+
+  // Corrections save in place; the old wording is kept quietly.
+  const val = $<HTMLInputElement>('#v-value', sheetBody);
+  val.addEventListener('change', () => {
+    if (correctValue(profile, id, val.value)) { save(); openCard(id); }
+    else val.value = c.value;
+  });
+  val.addEventListener('keydown', e => { if (e.key === 'Enter') val.blur(); });
+  sheetBody.querySelectorAll<HTMLElement>('[data-date="since"], [data-date="until"]').forEach(el =>
+    el.addEventListener('change', () => {
+      const key = el.dataset.date as 'since' | 'until';
+      c[key] = readDate(sheetBody, key);
+      save();
+    }));
+}
