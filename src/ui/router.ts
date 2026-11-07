@@ -8,7 +8,14 @@ import { renderWhoButton } from './switcher';
 const overview = $('#overview');
 const detail = $('#detail');
 
-export const currentArea = (): Area | undefined => areaById(location.hash.slice(1));
+/** "#interests" is an area; "#interests/Movie%20or%20show" is one kind inside it. */
+function parseHash(): { area?: Area; kind?: string } {
+  const [a, k] = location.hash.slice(1).split('/');
+  let kind: string | undefined;
+  try { kind = k ? decodeURIComponent(k) : undefined; } catch { kind = undefined; }
+  return { area: areaById(a), kind };
+}
+export const currentArea = (): Area | undefined => parseHash().area;
 const isHome = () => document.body.classList.contains('home');
 
 export function showHome() {
@@ -22,18 +29,18 @@ export function showHome() {
 
 export function route() {
   if (!isHome()) return;
-  const a = currentArea();
+  const { area: a, kind } = parseHash();
   overview.hidden = !!a;
   detail.hidden = !a;
-  if (a) { renderArea(a); window.scrollTo(0, 0); }
+  if (a) { renderArea(a, kind); window.scrollTo(0, 0); }
   else renderOverview();
 }
 
 /** Redraws whatever is showing, without scrolling. */
 export function refresh() {
   if (!isHome()) return;
-  const a = currentArea();
-  a ? renderArea(a) : renderOverview();
+  const { area: a, kind } = parseHash();
+  a ? renderArea(a, kind) : renderOverview();
 }
 
 function renderOverview() {

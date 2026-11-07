@@ -15,6 +15,11 @@ export interface Proposal {
   fields?: Record<string, string>;
   /** Stable source identity and snapshot time for a reviewed, repeatable sync. */
   sync?: { source: string; id: string; at: string };
+  /**
+   * Cards an earlier import of the same source made by mistake (episodes filed as movies). They are
+   * removed when this card is applied, but only if nobody has touched them since.
+   */
+  absorbs?: { source: string; ids: string[] };
 }
 
 /** One line in the review list. A contact is one row even if it becomes several cards. */

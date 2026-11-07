@@ -46,9 +46,9 @@ export function openReview(source: string, result: ImportResult, onDone?: (area:
       none: () => { states.forEach(s => { s.on = false; }); render(); },
       add: () => {
         const proposals = states.filter(s => s.on).flatMap(s => s.row.build(s.choice));
-        const { added, filled, updated } = applyProposals(profile, proposals, source);
+        const { added, filled, updated, merged } = applyProposals(profile, proposals, source);
         save();
-        done(added, filled, updated, proposals[0]?.area);
+        done(added, filled, updated, merged, proposals[0]?.area);
       },
     });
   }
@@ -66,10 +66,10 @@ export function openReview(source: string, result: ImportResult, onDone?: (area:
     </li>`;
   }
 
-  function done(added: number, filled: number, updated: number, area?: string) {
+  function done(added: number, filled: number, updated: number, merged: number, area?: string) {
     openSheet(`${sheetTop(`Import · ${esc(source)}`)}
       <h3 class="sh-title">Done</h3>
-      <p class="hint">${added ? `Added ${added} card${added === 1 ? '' : 's'}.` : 'No new cards.'}${filled ? ` Filled in details on ${filled}.` : ''}${updated ? ` Refreshed details on ${updated}.` : ''}
+      <p class="hint">${added ? `Added ${added} card${added === 1 ? '' : 's'}.` : 'No new cards.'}${filled ? ` Filled in details on ${filled}.` : ''}${updated ? ` Refreshed details on ${updated}.` : ''}${merged ? ` Folded ${merged} episode${merged === 1 ? '' : 's'} an earlier import filed as movies into their shows.` : ''}
         ${added ? `New cards note they came from ${esc(source)}.` : ''}</p>
       <div class="btns"><button class="btn primary" type="button" data-act="ok">${area ? 'Show me' : 'Done'}</button></div>`,
     { ok: () => { closeSheet(); if (area) onDone?.(area); } });

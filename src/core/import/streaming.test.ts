@@ -112,6 +112,35 @@ describe('streaming imports', () => {
       'Apple Music Activity/Apple Music - Play History Daily Tracks.csv', 'Spotify Account Data/StreamingHistory_music_0.json']);
   });
 
+  it('treats "Show: Episode" titles that share a show name as episodes, not movies', () => {
+    const csv = 'Title,Date\n'
+      + '"How To Get To Heaven From Belfast: Anagnorisis",8/31/26\n"How To Get To Heaven From Belfast: The Box",8/31/26\n'
+      + '"Mission: Impossible – Fallout",1/1/20\n"Mission: Impossible – Dead Reckoning",1/1/24\n'
+      + '"The Diplomat: Season 1: The Cinderella Thing",1/1/23\n"The Diplomat: Special Look",1/2/23\n'
+      + '"Glass Onion: A Knives Out Mystery",12/24/22';
+    const out = build(streamingRows({ 'NetflixViewingHistory.csv': csv })).map(p => [p.value, p.fields!.type]);
+    expect(out).toEqual(expect.arrayContaining([
+      ['How To Get To Heaven From Belfast', 'Show'], ['The Diplomat', 'Show'],
+      ['Mission: Impossible – Fallout', 'Movie'], ['Mission: Impossible – Dead Reckoning', 'Movie'], ['Glass Onion: A Knives Out Mystery', 'Movie']]));
+    expect(out).toHaveLength(5);
+  });
+
+  it('folds episode cards an earlier import filed as movies into the show, unless they were edited', () => {
+    const p = { ...emptyProfile(), name: 'Sam' };
+    const ep = (title: string) => {
+      const c = addCard(p, { area: 'interests', kind: 'Movie or show', value: title, since: '2026-08-31', fields: { type: 'Movie', status: 'Watched', service: 'Netflix' } }, undefined, NOW);
+      c.imports = { Netflix: { id: `movie:${title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`, at: '2026-08-31T00:00:00.000Z', fields: { ...c.fields! } } };
+      return c;
+    };
+    ep('Belfast: Anagnorisis'); ep('Belfast: The Box');
+    const kept = ep('Belfast: The Ghost');
+    kept.fields!.rating = '★★★★';
+    const show = build(streamingRows({ 'NetflixViewingHistory.csv': 'Title,Date\n"Belfast: Anagnorisis",8/31/26\n"Belfast: The Box",8/31/26\n"Belfast: The Ghost",8/31/26' }))[0];
+    expect(planFor(p, show)).toBe('new');
+    expect(applyProposals(p, [show], 'Netflix', NOW)).toMatchObject({ added: 1, merged: 2 });
+    expect(p.cards.map(c => c.value).sort()).toEqual(['Belfast', 'Belfast: The Ghost']);
+  });
+
   it('helpers', () => {
     expect(listened(45 * 60_000)).toBe('45 min');
     expect(listened(42 * 3_600_000)).toBe('42 hours');

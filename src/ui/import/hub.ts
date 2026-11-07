@@ -153,7 +153,7 @@ function sources(): Source[] {
       actions: [{ label: 'Choose .vcf file', primary: true, run: () => pick('.vcf,text/vcard,text/x-vcard', true, importContacts) },
         ...(canPickContacts() ? [{ label: 'Pick from this phone', run: pickPhoneContacts }] : [])] },
     { id: 'linkedin', title: 'LinkedIn', desc: 'Your jobs with their dates, education, skills, certifications and languages.', icon: ICONS.linkedin,
-      how: 'LinkedIn → Settings & Privacy → Data privacy → <b>Get a copy of your data</b>. Pick the data you want (or everything) and request it. LinkedIn emails a zip, usually within minutes; choose that zip here.',
+      how: 'LinkedIn → Settings & Privacy → Data privacy → <b>Get a copy of your data</b>. Choose the <b>larger data archive</b>, since picking only Profile leaves out your jobs. LinkedIn emails a zip, usually within minutes; choose that zip here.',
       actions: [{ label: 'Choose zip or CSV files', primary: true, run: () => pick('.zip,.csv', true, importLinkedin) }] },
     { id: 'license', title: 'Driver’s license', desc: 'Your name, birthday, license details and address, from the barcode on the back.', icon: ICONS.license,
       how: 'The wide barcode on the back of every US and Canadian license holds the details printed on the front. It’s read on this device.',

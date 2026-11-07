@@ -106,6 +106,13 @@ describe('LinkedIn', () => {
     const lang = linkedinRows(files).rows.find(r => r.group === 'Languages')!.build()[0];
     expect(lang.fields).toEqual({ level: 'Conversational' });
   });
+  it('reads the birthday and says when work history is missing', () => {
+    const { rows, notes } = linkedinRows({ 'Profile.csv': 'First Name,Last Name,Birth Date\nNeil,Chester,"Aug 29, 1989"' });
+    expect(rows.map(r => r.sub)).toEqual(['Full name', 'Birthday']);
+    expect(rows[1].build()[0]).toMatchObject({ kind: 'Birthday', since: '1989-08-29' });
+    expect(notes?.join(' ')).toMatch(/Positions\.csv/);
+    expect(linkedinRows(files).notes).toEqual([]);
+  });
   it('reads the zip LinkedIn sends', () => {
     const zip = zipSync({ 'Basic_LinkedInDataExport/Positions.csv': strToU8(files['Positions.csv']), 'Basic_LinkedInDataExport/Rich_Media.txt': strToU8('x') });
     const unzipped = unzipCsvs(zip);
@@ -209,11 +216,11 @@ describe('matching and adding', () => {
     ];
     expect(planFor(p, proposals[0])).toBe('fill');
     expect(planFor(p, proposals[1])).toBe('new');
-    expect(applyProposals(p, proposals, 'LinkedIn', NOW)).toEqual({ added: 1, filled: 1, updated: 0 });
+    expect(applyProposals(p, proposals, 'LinkedIn', NOW)).toEqual({ added: 1, filled: 1, updated: 0, merged: 0 });
     expect(phone.tag).toBe('cell');
     const job = p.cards.find(c => c.kind === 'Job')!;
     expect(job).toMatchObject({ status: 'past', since: '2018-06', until: '2018-08', source: { from: 'LinkedIn', at: NOW } });
     expect(planFor(p, proposals[0])).toBe('have');
-    expect(applyProposals(p, proposals, 'LinkedIn', NOW)).toEqual({ added: 0, filled: 0, updated: 0 });
+    expect(applyProposals(p, proposals, 'LinkedIn', NOW)).toEqual({ added: 0, filled: 0, updated: 0, merged: 0 });
   });
 });

@@ -1,6 +1,6 @@
 // Matching imported cards against what's already there, and adding them.
 // Ordinary imports fill missing details. Explicit source snapshots can refresh unchanged imported fields.
-import { addCard, setField } from '../cards';
+import { addCard, removeCard, setField } from '../cards';
 import type { Card, Profile } from '../types';
 import type { Proposal } from './types';
 
@@ -33,6 +33,22 @@ export function findMatch(profile: Profile, p: Proposal): Card | undefined {
 
 export type Plan = 'new' | 'fill' | 'update' | 'have';
 
+/**
+ * Cards from an earlier import that this proposal replaces (see Proposal.absorbs). Only cards still
+ * exactly as imported qualify: no corrections, links, or details changed by hand.
+ */
+export function absorbable(profile: Profile, p: Proposal): Card[] {
+  if (!p.absorbs?.ids.length) return [];
+  const ids = new Set(p.absorbs.ids);
+  return profile.cards.filter(c => {
+    const snap = c.imports?.[p.absorbs!.source];
+    if (!snap || !ids.has(snap.id) || c.area !== p.area || c.kind !== p.kind) return false;
+    const fields = c.fields ?? {};
+    const same = Object.keys({ ...fields, ...snap.fields }).every(k => (fields[k] ?? '') === (snap.fields[k] ?? ''));
+    return same && !c.revisions?.length && !profile.links.some(l => l.a === c.id || l.b === c.id);
+  });
+}
+
 function fieldChanges(m: Card, p: Proposal): [string, string][] {
   const previous = p.sync ? m.imports?.[p.sync.source] : undefined;
   if (previous && p.sync!.at <= previous.at) return [];
@@ -48,6 +64,11 @@ function fieldChanges(m: Card, p: Proposal): [string, string][] {
 
 /** What adding this proposal would do. */
 export function planFor(profile: Profile, p: Proposal): Plan {
+  const plan = basePlan(profile, p);
+  return plan === 'have' && absorbable(profile, p).length ? 'update' : plan;
+}
+
+function basePlan(profile: Profile, p: Proposal): Plan {
   const m = findMatch(profile, p);
   if (!m) return 'new';
   const previous = p.sync ? m.imports?.[p.sync.source] : undefined;
@@ -61,8 +82,9 @@ export function planFor(profile: Profile, p: Proposal): Plan {
 
 /** Adds or fills in cards. Returns counts for the summary. */
 export function applyProposals(profile: Profile, proposals: Proposal[], from: string, now = new Date().toISOString()) {
-  let added = 0, filled = 0, updated = 0;
+  let added = 0, filled = 0, updated = 0, merged = 0;
   for (const p of proposals) {
+    for (const c of absorbable(profile, p)) { removeCard(profile, c.id); merged++; }
     const m = findMatch(profile, p);
     if (m) {
       const plan = planFor(profile, p);
@@ -82,7 +104,7 @@ export function applyProposals(profile: Profile, proposals: Proposal[], from: st
     if (p.sync) rememberSync(c, p);
     added++;
   }
-  return { added, filled, updated };
+  return { added, filled, updated, merged };
 }
 
 function rememberSync(c: Card, p: Proposal) {

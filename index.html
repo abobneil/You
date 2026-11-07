@@ -107,12 +107,23 @@
         </span>
       </div>
 
-      <div class="sec"><h4>Now</h4><span id="now-count"></span></div>
-      <div class="tiles" id="now"></div>
-      <div class="ghosts" id="ghosts"></div>
+      <!-- Stays at the top while you scroll, so adding never means scrolling back up. -->
+      <div class="atools">
+        <label class="asearch">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
+          <input id="a-search" type="search" placeholder="Search" autocomplete="off" spellcheck="false" aria-label="Search">
+          <kbd title="Press / to search">/</kbd>
+        </label>
+        <button class="btn primary" id="a-add" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+        <button class="btn" id="a-import" type="button">Import…</button>
+      </div>
 
-      <div class="sec"><h4>Over time</h4><span>Nothing is ever lost</span></div>
-      <ol class="tl" id="timeline"></ol>
+      <div id="a-body"></div>
+
+      <div id="a-history">
+        <div class="sec"><h4>Over time</h4><span>Nothing is ever lost</span></div>
+        <ol class="tl-years" id="timeline"></ol>
+      </div>
     </div>
   </section>
 

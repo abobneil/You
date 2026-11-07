@@ -2,6 +2,7 @@
 // we read Profile, Positions, Education, Skills, Certifications, Languages, Honors, Email Addresses
 // and PhoneNumbers. Connections are left out on purpose: hundreds of contacts aren't your life record.
 import { unzipSync } from 'fflate';
+import { fmtDate } from '../dates';
 import { FORMATS } from '../formats';
 import { col, csvObjects, looseDate, rowId } from './parse';
 import type { ImportResult, ImportRow, Proposal } from './types';
@@ -37,6 +38,9 @@ export function linkedinRows(files: Files): ImportResult {
     const first = col(r, 'First Name'), last = col(r, 'Last Name');
     if (first || last) rows.push(row('About you', `${first} ${last}`.trim(), 'Full name',
       { area: 'about', kind: 'Full name', value: `${first} ${last}`.trim(), fields: keep({ first, last }) }));
+    const born = looseDate(col(r, 'Birth Date'));
+    if (/^\d{4}-\d{2}-\d{2}$/.test(born)) rows.push(row('About you', fmtDate(born), 'Birthday',
+      { area: 'about', kind: 'Birthday', value: fmtDate(born), since: born }));
   }
 
   for (const r of csvObjects(file(files, 'Positions.csv'), ['Company Name', 'Title'])) {
@@ -104,6 +108,7 @@ export function linkedinRows(files: Files): ImportResult {
     rows.push(row('Contact info', value, 'Phone', { area: 'about', kind: 'Phone', value, tag }));
   }
 
+  if (!file(files, 'Positions.csv')) notes.push('This download has no work history (Positions.csv). On LinkedIn’s “Get a copy of your data” page, choose the larger data archive, not just Profile, then bring in that zip.');
   if (!rows.length) notes.push('Nothing usable was found. Choose the zip LinkedIn emailed you, or the CSV files inside it.');
   return { rows, notes };
 }

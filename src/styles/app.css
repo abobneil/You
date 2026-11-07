@@ -625,4 +625,113 @@
   .lookup { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: -2px; }
   .lookup .hint:empty { display: none; }
 
+  /* ---------- Browsing a big area ---------- */
+  /* Search and Add stay at the top while you scroll. */
+  .atools {
+    position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px;
+    margin: 22px -24px 0; padding: 10px 24px; background: var(--bg);
+    border-bottom: 1px solid transparent; transition: border-color .2s;
+  }
+  .atools .btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .atools .btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  .asearch {
+    flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--card); transition: border-color .2s;
+  }
+  .asearch:focus-within { border-color: var(--ink); }
+  .asearch svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--soft); stroke-width: 1.8; stroke-linecap: round; }
+  .asearch input {
+    flex: 1; min-width: 0; width: auto; font: inherit; font-size: 14px; font-weight: 400; letter-spacing: normal; text-align: left;
+    color: var(--ink); background: none; border: 0; padding: 0; outline: none; caret-color: var(--accent);
+  }
+  .asearch input::-webkit-search-cancel-button { filter: grayscale(1); opacity: .5; }
+  .asearch kbd { font: inherit; font-size: 11px; color: var(--soft); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+  .asearch:focus-within kbd { display: none; }
+
+  /* A big kind, folded to one row. */
+  .krow {
+    display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "name count chev" "prev prev chev";
+    align-items: baseline; gap: 2px 12px; margin-bottom: 10px; padding: 14px 16px;
+    color: var(--ink); text-decoration: none; background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    transition: border-color .2s, transform .2s;
+  }
+  .krow:hover, .krow:focus-visible { border-color: color-mix(in srgb, var(--ink) 40%, var(--line)); transform: translateY(-1px); outline: none; }
+  .krow .kname { grid-area: name; font-size: 17px; font-weight: 500; }
+  .krow .kcount { grid-area: count; font-size: 12px; color: var(--soft); }
+  .krow .kprev { grid-area: prev; font-size: 13px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .krow .kprev em { font-style: normal; color: var(--ink); opacity: .75; }
+  .krow .chev { grid-area: chev; align-self: center; width: 18px; height: 18px; fill: none; stroke: var(--soft); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .krow:hover .chev { stroke: var(--accent); }
+
+  /* A small kind: its name, then its cards. */
+  .kgroup { margin-bottom: 18px; }
+  .khead { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; }
+  .khead a { font-size: 14px; font-weight: 500; color: var(--ink); text-decoration: none; }
+  .khead a:hover { color: var(--accent); }
+  .khead span { font-size: 12px; color: var(--soft); }
+  .kadd {
+    margin-left: auto; width: 26px; height: 26px; padding: 0; font: inherit; font-size: 17px; line-height: 1; color: var(--soft);
+    background: none; border: 1px dashed var(--line); border-radius: 50%; cursor: pointer; transition: color .2s, border-color .2s;
+  }
+  .kadd:hover, .kadd:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+  .tile.past { opacity: .65; }
+
+  /* One kind: filters and sort. */
+  .filters { display: grid; gap: 6px; margin-top: 18px; }
+  .frow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .flabel { flex: none; width: 40px; font-size: 11px; color: var(--soft); }
+  .fchips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+  .fchips::-webkit-scrollbar { display: none; }
+  .fchip {
+    flex: none; font: inherit; font-size: 12px; color: var(--soft); cursor: pointer;
+    background: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; transition: color .2s, border-color .2s, background-color .2s;
+  }
+  .fchip:hover { color: var(--ink); border-color: var(--ink); }
+  .fchip.on { color: var(--ink); border-color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+  .kstat { margin: 14px 0 0; font-size: 12px; color: var(--soft); }
+
+  /* One line per card, for long lists. */
+  .clist { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  .crow {
+    display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; align-items: baseline; gap: 12px;
+    padding: 9px 4px; border-bottom: 1px solid var(--line); cursor: pointer; user-select: none; transition: background-color .15s;
+  }
+  .crow:hover, .crow:focus-visible { background: color-mix(in srgb, var(--ink) 4%, transparent); outline: none; }
+  .crow .cv { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 15px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .crow .cs { min-width: 0; font-size: 12px; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .crow .cd { font-size: 11px; color: var(--soft); white-space: nowrap; }
+  .crow.past .cv { color: var(--soft); font-weight: 400; }
+  .more {
+    display: block; width: 100%; margin: 8px 0 0; padding: 10px; font: inherit; font-size: 13px; color: var(--soft); cursor: pointer;
+    background: none; border: 1px dashed var(--line); border-radius: 10px;
+  }
+  .more:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Folded years. */
+  .yfold { margin: 0 0 6px; }
+  .yfold > summary {
+    display: flex; align-items: baseline; gap: 10px; padding: 8px 0; cursor: pointer; list-style: none; user-select: none;
+  }
+  .yfold > summary::-webkit-details-marker { display: none; }
+  .yfold > summary::before {
+    content: ""; width: 7px; height: 7px; flex: none; align-self: center; margin-right: 2px;
+    border-right: 1.5px solid var(--soft); border-bottom: 1.5px solid var(--soft); transform: rotate(-45deg); transition: transform .2s;
+  }
+  .yfold[open] > summary::before { transform: rotate(45deg); }
+  .yfold > summary span { font-size: 15px; font-weight: 500; }
+  .yfold > summary small { font-size: 12px; color: var(--soft); }
+  .yfold > summary:hover span { color: var(--accent); }
+  .yfold > .tiles, .yfold > .clist { margin-bottom: 10px; }
+  .tl-years { list-style: none; margin: 0; padding: 0; }
+  .tl-years .tl { margin-bottom: 12px; }
+  .ev.sum .what { color: var(--soft); }
+
+  @media (max-width: 560px) {
+    .atools { margin: 16px -16px 0; padding: 8px 16px; }
+    .atools #a-import { display: none; }
+    .asearch kbd { display: none; }
+    .crow { grid-template-columns: minmax(0, 1fr) auto; }
+    .crow .cs { grid-column: 1 / -1; grid-row: 2; }
+  }
+
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

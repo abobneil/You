@@ -79,8 +79,9 @@ export function scheduleWrite() {
   renderPill();
 }
 
-export async function writeFile() {
-  if (!handle || !vault) return;
+/** Writes the open You into the chosen file. Returns false if it couldn't. */
+export async function writeFile(): Promise<boolean> {
+  if (!handle || !vault) return false;
   saving = true; failed = false; renderPill();
   try {
     const out = await handle.createWritable();
@@ -93,6 +94,19 @@ export async function writeFile() {
   }
   saving = false;
   renderPill();
+  return !failed;
+}
+
+/**
+ * Some browsers (embedded previews, locked-down setups) hand out a file but then refuse to write into it,
+ * which leaves an empty file behind. Clean that up and keep the data as downloads instead.
+ */
+async function fallBackToDownload(h: FileHandle) {
+  try { await (h as FileHandle & { remove?: () => Promise<void> }).remove?.(); } catch { /* leave it */ }
+  alert('This browser won’t let You save into files on your device, so you’ll get a downloaded copy instead.\n\n'
+    + 'After you make changes, download a fresh copy from the bar at the top. In Chrome or Edge, You can save straight into the file.');
+  setTarget('download', h.name);
+  await downloadCopy();
 }
 
 export async function downloadCopy() {
@@ -116,7 +130,7 @@ export async function chooseSaveFile(): Promise<boolean> {
     setTarget('file', h.name);
     handle = h;
     dirty = true;
-    await writeFile();
+    if (!(await writeFile())) await fallBackToDownload(h);
     return true;
   } catch (e) {
     if ((e as Error)?.name !== 'AbortError') alert('That file could not be used. Try another location.');
@@ -167,7 +181,12 @@ export function renderPill() {
 export async function pillClick(): Promise<'menu' | 'picker' | 'done'> {
   if (target.kind === 'browser') return 'picker';
   if (needsPermission && handle) {
-    if ((await handle.requestPermission({ mode: 'readwrite' })) === 'granted') { needsPermission = false; await writeFile(); }
+    const h = handle;
+    let ok = false;
+    try {
+      if ((await h.requestPermission({ mode: 'readwrite' })) === 'granted') { needsPermission = false; ok = await writeFile(); }
+    } catch { /* treated as refused */ }
+    if (!ok) await fallBackToDownload(h);
     return 'done';
   }
   if (failed) { await writeFile(); return 'done'; }

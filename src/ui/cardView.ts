@@ -18,7 +18,7 @@ import { closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
 export function openCard(id: string, opts: { ending?: boolean } = {}) {
   const c = byId(profile, id);
   if (!c) return;
-  if (location.hash !== '#' + c.area) location.hash = '#' + c.area;
+  if (location.hash.slice(1).split('/')[0] !== c.area) location.hash = '#' + c.area;
   const a = areaById(c.area)!;
   const kind = kindOf(c.area, c.kind);
   const isDate = kind.value === 'date';

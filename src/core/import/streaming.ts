@@ -79,25 +79,49 @@ export function netflixTitle(title: string): { what: 'show' | 'movie'; name: str
 // Trailers, previews and recaps that autoplay aren't things you watched.
 const NOT_WATCHED = /trailer|hook|teaser|preview|recap|bumper/i;
 
+/**
+ * Limited series often title episodes just "Show: Episode", which reads like a movie on its own.
+ * Within one export, titles sharing what comes before the colon are episodes of that show, unless
+ * what follows all starts with the same word, as in a film series ("Mission: Impossible – Fallout",
+ * "Mission: Impossible – Dead Reckoning"). A title whose start matches a known show is an episode too.
+ */
+export function seriesFromSiblings(list: { what: 'show' | 'movie'; name: string; item?: string }[]): void {
+  const head = (s: string) => { const i = s.indexOf(': '); return i > 0 ? [s.slice(0, i), s.slice(i + 2)] : null; };
+  const rests = new Map<string, Set<string>>();
+  for (const t of list) {
+    const h = t.what === 'movie' && head(t.name);
+    if (h) rests.set(h[0], (rests.get(h[0]) ?? new Set()).add(h[1]));
+  }
+  const shows = new Set(list.filter(t => t.what === 'show').map(t => t.name.toLowerCase()));
+  const series = new Set([...rests].filter(([h, r]) => shows.has(h.toLowerCase())
+    || (r.size >= 2 && new Set([...r].map(x => x.split(/\s+/)[0].toLowerCase())).size > 1)).map(([h]) => h));
+  for (const t of list) {
+    const h = t.what === 'movie' && head(t.name);
+    if (h && series.has(h[0])) Object.assign(t, { what: 'show', name: h[0], item: t.name });
+  }
+}
+
 function netflix(text: string): Play[] | null {
   const activity = csvObjects(text, ['Profile Name', 'Start Time', 'Title']);
   if (activity.length) {
-    return activity.flatMap(r => {
+    const plays = activity.flatMap(r => {
       if (NOT_WATCHED.test(col(r, 'Supplemental Video Type'))) return [];
       const t = netflixTitle(col(r, 'Title'));
-      const ms = hms(col(r, 'Duration'));
-      // A couple of minutes is browsing, not watching. Movies need a real sitting.
-      if (!t.name || ms < (t.what === 'movie' ? 10 : 2) * 60_000) return [];
-      return [{ service: 'Netflix', ...t, day: looseDate(col(r, 'Start Time')), ms, profile: col(r, 'Profile Name') } as Play];
+      return t.name ? [{ service: 'Netflix', ...t, day: looseDate(col(r, 'Start Time')), ms: hms(col(r, 'Duration')), profile: col(r, 'Profile Name') } as Play] : [];
     });
+    seriesFromSiblings(plays as any);
+    // A couple of minutes is browsing, not watching. Movies need a real sitting.
+    return plays.filter(p => p.ms! >= (p.what === 'movie' ? 10 : 2) * 60_000);
   }
   // The simpler download from a profile's Viewing activity page: Title, Date.
   const simple = csvObjects(text, ['Title', 'Date']);
   if (simple.length && simple.every(r => Object.keys(r).length <= 3)) {
-    return simple.flatMap(r => {
+    const plays = simple.flatMap(r => {
       const t = netflixTitle(col(r, 'Title'));
       return t.name ? [{ service: 'Netflix', ...t, day: looseDate(col(r, 'Date')) } as Play] : [];
     });
+    seriesFromSiblings(plays as any);
+    return plays;
   }
   return null;
 }
@@ -209,7 +233,9 @@ function proposal(t: Tally, at: string): Proposal {
   const sync = { source: t.service, id: `${t.what}:${norm(t.name)}`, at };
   const keep = (o: Record<string, string>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v));
   if (t.what === 'show' || t.what === 'movie') {
-    return { area: 'interests', kind: 'Movie or show', value: t.name, since: t.first, sync,
+    // An earlier import may have filed this show's episodes as movies; those cards fold into this one.
+    const absorbs = t.what === 'show' ? { source: t.service, ids: [...t.items].map(i => `movie:${i}`) } : undefined;
+    return { area: 'interests', kind: 'Movie or show', value: t.name, since: t.first, sync, absorbs,
       fields: keep({ type: t.what === 'show' ? 'Show' : 'Movie', status: 'Watched', service: t.service,
         episodes: t.what === 'show' ? String(t.items.size || t.plays) : '', lastWatched: t.last !== t.first ? t.last : '' }) };
   }
