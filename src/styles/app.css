@@ -527,4 +527,24 @@
   .vf-choices button:hover { border-color: var(--ink); }
   .vf-choices button.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 
+  /* Sensitive values: masked, with a press-and-hold eye */
+  .secret-wrap { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+  .secret { letter-spacing: .02em; }
+  .reveal {
+    flex: none; width: 28px; height: 28px; display: inline-grid; place-items: center; padding: 0;
+    border: 0; border-radius: 50%; background: none; color: var(--soft); cursor: pointer;
+    touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    transition: color .15s, background-color .15s;
+  }
+  .reveal svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .reveal:hover { color: var(--ink); }
+  .reveal:focus-visible { outline: none; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+  .reveal.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .vf.secret-field { position: relative; }
+  .vf.secret-field input { padding-right: 36px; }
+  .vf.secret-field .reveal { position: absolute; right: 0; top: 4px; }
+  input.masked:not(.show) { -webkit-text-security: disc; text-security: disc; }
+  div.tile { user-select: none; }
+  div.tile:focus-visible { border-color: color-mix(in srgb, var(--ink) 40%, var(--line)); outline: none; }
+
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

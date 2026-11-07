@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FORMATS, reformat } from './formats';
+import { FORMATS, maskValue, reformat } from './formats';
 
 const { phone, ssn, email, upper } = FORMATS;
 
@@ -55,5 +55,17 @@ describe('cursor', () => {
     // Editing in the middle: cursor stays after the 2nd digit.
     const r = reformat(phone, '(919) 449-8524', 3);
     expect(r.value.slice(0, r.caret)).toBe('(91');
+  });
+});
+
+describe('masking sensitive values', () => {
+  it('keeps the shape and last 4', () => {
+    expect(maskValue('123-45-6789')).toBe('•••-••-6789');
+    expect(maskValue('X12345678')).toBe('•••••5678');
+    expect(maskValue('NC 123456789')).toBe('•• •••••6789');
+  });
+  it('shows nothing of very short values', () => {
+    expect(maskValue('1234')).toBe('••••');
+    expect(maskValue('')).toBe('');
   });
 });

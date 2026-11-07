@@ -26,6 +26,8 @@ export interface Kind {
   format?: FormatId;
   /** Quick picks shown under the value; typing anything else still works. */
   choices?: string[];
+  /** Hidden as •••-••-6789 everywhere, while typing too. Press and hold the eye icon to show it. */
+  sensitive?: boolean;
 }
 
 const k = (name: string, many = false, extra: Partial<Kind> = {}): Kind => ({ name, many, ...extra });
@@ -38,8 +40,8 @@ export const AREAS: Area[] = [
     kinds: [fact('Full name'), fact('Preferred name'), fact('Pronouns', { choices: ['she/her', 'he/him', 'they/them'] }),
       fact('Birthday', { value: 'date' }), fact('Birthplace'),
       k('Phone', true, { format: 'phone' }), k('Email', true, { format: 'email' }), k('Citizenship', true), fact('Language', { many: true }),
-      k("Driver's license", false, { format: 'upper' }), k('Passport', false, { format: 'upper' }),
-      fact('Social Security number', { format: 'ssn' })] },
+      k("Driver's license", false, { format: 'upper', sensitive: true }), k('Passport', false, { format: 'upper', sensitive: true }),
+      fact('Social Security number', { format: 'ssn', sensitive: true })] },
   { id: 'health', title: 'Health', hint: 'Doctors, meds, records',
     icon: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>',
     kinds: [k('Doctor'), k('Dentist'), fact('Blood type', { choices: ['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−'] }), k('Allergy', true), k('Medication', true), k('Condition', true), k('Health insurance'), k('Emergency contact')] },

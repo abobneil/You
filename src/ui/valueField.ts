@@ -3,6 +3,7 @@
 import type { KindInfo } from '../core/areas';
 import { FORMATS, reformat } from '../core/formats';
 import { esc } from './dom';
+import { revealButton } from './sensitive';
 
 export function valueFieldHtml(id: string, value: string, kind: KindInfo, placeholder = ''): string {
   const f = kind.format ? FORMATS[kind.format] : null;
@@ -15,8 +16,10 @@ export function valueFieldHtml(id: string, value: string, kind: KindInfo, placeh
     ? `<div class="vf-choices">${kind.choices.map(c =>
         `<button type="button" data-choice="${esc(c)}" class="${c === value ? 'on' : ''}">${esc(c)}</button>`).join('')}</div>`
     : '';
-  return `<div class="vf">
-    <input id="${id}" class="big" value="${esc(value)}" placeholder="${esc(placeholder)}" ${attrs}>
+  const secret = !!kind.sensitive;
+  return `<div class="vf${secret ? ' secret-field' : ''}">
+    <input id="${id}" class="big${secret ? ' masked' : ''}" value="${esc(value)}" placeholder="${esc(placeholder)}" ${attrs}>
+    ${secret ? revealButton(`data-input="${id}"`) : ''}
     <div class="hint vf-hint" id="${id}-hint" aria-live="polite"></div>
     ${choices}
   </div>`;

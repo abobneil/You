@@ -6,6 +6,7 @@ import type { AreaId } from '../core/types';
 import { profile } from '../state';
 import { $, esc } from './dom';
 import { act, openSheet, sheetBody, sheetTop } from './sheet';
+import { shownValue } from './sensitive';
 
 interface Options {
   /** The card being linked from: its area, kind and how to describe it (its value). */
@@ -30,7 +31,7 @@ export function openLinkPicker(o: Options) {
       const late = pointlessLink(o.self.area, a.id);
       return `<li class="grp">${esc(a.title)}${late ? '<span class="grp-note"> · already connected through you, so linking these isn’t needed</span>' : ''}</li>`
         + cs.map(c => `<li${late ? ' class="late"' : ''}><button type="button" data-act="pick" data-id="${c.id}">
-          <span><i class="lk">${esc(c.kind)}</i> ${esc(c.value)}</span><span class="meta">${esc(c.status === 'active' ? 'now' : rangeText(c))}</span></button></li>`).join('');
+          <span><i class="lk">${esc(c.kind)}</i> ${esc(shownValue(c))}</span><span class="meta">${esc(c.status === 'active' ? 'now' : rangeText(c))}</span></button></li>`).join('');
     }).join('');
   };
 
@@ -50,7 +51,7 @@ export function openLinkPicker(o: Options) {
     const other = byId(profile, otherId)!;
     const labels = suggestLabels(o.self.area, o.self.kind, other.area, other.kind);
     const sentence = (fwd: string) =>
-      `<span>${esc(o.self.label)}</span> <b>${esc(fwd)}</b> <span><i class="lk">${esc(other.kind)}</i> ${esc(other.value)}</span>`;
+      `<span>${esc(o.self.label)}</span> <b>${esc(fwd)}</b> <span><i class="lk">${esc(other.kind)}</i> ${esc(shownValue(other))}</span>`;
     openSheet(`${sheetTop('How are they connected?')}
       <p class="hint">Optional. Pick the one that reads right, write your own, or skip it.</p>
       <div class="labels">${labels.map(([fwd], i) => `<button type="button" data-act="label" data-i="${i}">${sentence(fwd)}</button>`).join('')}</div>

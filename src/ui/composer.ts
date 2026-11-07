@@ -9,6 +9,8 @@ import { $, esc, linkText } from './dom';
 import { emit } from './events';
 import { openLinkPicker } from './linkPicker';
 import { attachValueField, valueFieldHtml } from './valueField';
+import { shownValue } from './sensitive';
+import { maskValue } from '../core/formats';
 import { act, closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
 
 const OTHER = '__other';
@@ -67,10 +69,10 @@ function render(focus = false) {
 
   const modeRow = actives.length ? `<div class="fx"><span class="lab">Current ${esc(draft.kind.toLowerCase())}</span>
     <div class="seg">${actives.map(c =>
-      `<button type="button" data-act="mode" data-mode="r:${c.id}" class="${draft.mode === 'r:' + c.id ? 'on' : ''}">Replaces ${esc(c.value)}</button>`).join('')}
+      `<button type="button" data-act="mode" data-mode="r:${c.id}" class="${draft.mode === 'r:' + c.id ? 'on' : ''}">Replaces ${esc(shownValue(c))}</button>`).join('')}
       <button type="button" data-act="mode" data-mode="add" class="${draft.mode === 'add' ? 'on' : ''}">Add alongside</button></div></div>` : '';
   const linkChips = draft.links.map((l, i) =>
-    `<span class="chip">${linkText(l.fwd, byId(profile, l.id)?.kind ?? '', byId(profile, l.id)?.value ?? '')}<span class="x" data-act="drop-link" data-i="${i}" role="button" title="Remove">×</span></span>`).join('');
+    `<span class="chip">${(() => { const o = byId(profile, l.id); return linkText(l.fwd, o?.kind ?? '', o ? shownValue(o) : ''); })()}<span class="x" data-act="drop-link" data-i="${i}" role="button" title="Remove">×</span></span>`).join('');
 
   const valueRow = isDate
     ? `<div class="fx"><span class="lab">${esc(kind.name)}</span>${dateInputs(draft.valueDate, 'vdate')}</div>`
@@ -106,7 +108,7 @@ function render(focus = false) {
         self: {
           area: draft.area,
           kind: custom ? (draft.custom || 'Note') : draft.kind,
-          label: (isDate ? fmtDate(draft.valueDate) : draft.value.trim()) || 'This card',
+          label: (isDate ? fmtDate(draft.valueDate) : kind.sensitive ? maskValue(draft.value.trim()) : draft.value.trim()) || 'This card',
         },
         exclude: draft.links.map(l => l.id),
         onPick: (id, fwd, back) => { draft.links.push({ id, fwd, back }); render(); },

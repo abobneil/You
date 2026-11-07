@@ -90,3 +90,14 @@ export function reformat(f: Format, raw: string, caret: number): { value: string
   if (caret >= raw.length) pos = value.length;
   return { value, caret: pos };
 }
+
+/**
+ * Hides a sensitive value but keeps its shape and last 4 letters or digits, so you can tell
+ * them apart: "123-45-6789" → "•••-••-6789". Values with 4 or fewer show only dots.
+ */
+export function maskValue(v: string, keep = 4): string {
+  const total = (v.match(/[A-Za-z0-9]/g) ?? []).length;
+  const show = total > keep ? keep : 0;
+  let seen = 0;
+  return v.replace(/[A-Za-z0-9]/g, ch => (++seen > total - show ? ch : '•'));
+}

@@ -8,6 +8,8 @@ import { esc, linkText } from './dom';
 import { openComposer } from './composer';
 import { openLinkPicker } from './linkPicker';
 import { attachValueField, valueFieldHtml } from './valueField';
+import { isSensitive, shownValue } from './sensitive';
+import { maskValue } from '../core/formats';
 import { closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
 
 /** Opens a card, switching to its area first if needed. */
@@ -24,8 +26,8 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
   const prev = byId(profile, c.replaces), next = byId(profile, c.replacedBy);
   const cardChip = (id: string, text: string) => `<button class="chip" type="button" data-act="open" data-id="${id}">${text}</button>`;
   const story = [
-    prev ? `Replaced ${cardChip(prev.id, esc(prev.value))}` : '',
-    next ? `Replaced by ${cardChip(next.id, esc(next.value))}` : '',
+    prev ? `Replaced ${cardChip(prev.id, esc(shownValue(prev)))}` : '',
+    next ? `Replaced by ${cardChip(next.id, esc(shownValue(next)))}` : '',
   ].filter(Boolean).join(' ');
 
   openSheet(`${sheetTop(`${esc(a.title)} · ${esc(c.kind)} <span class="status ${on ? 'on' : ''}">${on ? 'Active' : 'History'}</span>`)}
@@ -36,12 +38,12 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     ${on ? '' : `<div class="fx"><span class="lab">Until</span>${dateInputs(c.until, 'until')}</div>`}
     <div class="fx"><span class="lab">Recorded</span><span class="hint">${esc(fmtISO(c.recordedAt))}${story ? ' · ' : ''}${story}</span></div>
     ${c.revisions.length ? `<div class="block"><h5>Earlier wording</h5><ul class="revs">${[...c.revisions].reverse()
-      .map(r => `<li>“${esc(r.value)}” · changed ${esc(fmtISO(r.at))}</li>`).join('')}</ul></div>` : ''}
+      .map(r => `<li>“${esc(isSensitive(c) ? maskValue(r.value) : r.value)}” · changed ${esc(fmtISO(r.at))}</li>`).join('')}</ul></div>` : ''}
     <div class="block"><h5>Linked</h5><div class="chips">${links.map(x =>
-      `<button class="chip" type="button" data-act="open" data-id="${x.other.id}">${linkText(x.label, x.other.kind, x.other.value)}<span class="x" data-act="unlink" data-link="${x.link.id}" title="Remove link">×</span></button>`).join('')}
+      `<button class="chip" type="button" data-act="open" data-id="${x.other.id}">${linkText(x.label, x.other.kind, shownValue(x.other))}<span class="x" data-act="unlink" data-link="${x.link.id}" title="Remove link">×</span></button>`).join('')}
       <button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
     ${near.length ? `<div class="block"><h5>At the time</h5><div class="chips">${near.map(o =>
-      cardChip(o.id, linkText('', o.kind, o.value))).join('')}</div></div>` : ''}
+      cardChip(o.id, linkText('', o.kind, shownValue(o)))).join('')}</div></div>` : ''}
     ${opts.ending
       ? `<div class="block"><h5>When did it end?</h5>${dateInputs(thisMonth(), 'end')}
           <div class="btns"><button class="btn quiet" type="button" data-act="end-cancel">Cancel</button><button class="btn primary" type="button" data-act="end-confirm">Mark as ended</button></div></div>`
@@ -54,7 +56,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     open: b => openCard(b.dataset.id!),
     unlink: (b, e) => { e.stopPropagation(); removeLink(profile, b.dataset.link!); save(); openCard(id); },
     'add-link': () => openLinkPicker({
-      self: { area: c.area, kind: c.kind, label: c.value },
+      self: { area: c.area, kind: c.kind, label: shownValue(c) },
       exclude: [c.id, ...links.map(x => x.other.id)],
       onPick: (other, fwd, back) => { addLink(profile, c.id, other, fwd, back); save(); openCard(id); },
       onBack: () => openCard(id),

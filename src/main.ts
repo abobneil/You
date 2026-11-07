@@ -10,6 +10,7 @@ import { refresh, showHome } from './ui/router';
 import { lockNewData, start } from './ui/session';
 import { onSheetClose } from './ui/sheet';
 import { renderWhoButton } from './ui/switcher';
+import './ui/sensitive';
 import './ui/theme';
 
 // After every change: show "Saved" briefly, write to the chosen file (if any), and redraw.
