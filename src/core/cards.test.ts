@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeOf, addCard, addLink, atTheTime, byId, correctValue, defaultMode, endCard, linksOf, rangeText, removeCard, reopenCard,
+  activeOf, addCard, addCardBefore, addLink, atTheTime, byId, correctValue, defaultMode, endCard, linksOf, rangeText, removeCard, reopenCard,
 } from './cards';
 import { kindLabel, kindOf, tagOf } from './areas';
 import { emptyProfile } from './profile';
@@ -163,5 +163,29 @@ describe('tags', () => {
   it('kinds without tags, and unknown tags, show just the kind', () => {
     expect(kindLabel({ area: 'about', kind: 'Email' })).toBe('Email');
     expect(kindLabel({ area: 'about', kind: 'Phone', tag: 'nope' })).toBe('Phone');
+  });
+});
+
+describe('adding a card that came before', () => {
+  it('an older address entered after the current one goes into history', () => {
+    const p = seed();
+    const fox = addCard(p, { area: 'home', kind: 'Address', value: '225 Fox Run Dr.', since: '2024' });
+    const colchis = addCardBefore(p, { area: 'home', kind: 'Address', value: '115 Colchis Court', since: '2018' }, fox.id)!;
+    expect(colchis).toMatchObject({ status: 'past', until: '2024', replacedBy: fox.id });
+    expect(fox.replaces).toBe(colchis.id);
+    expect(rangeText(colchis)).toBe('2018 – 2024');
+    expect(activeOf(p, 'home', 'Address')).toEqual([fox]);
+  });
+
+  it('is refused when the later card already has one before it', () => {
+    const p = seed();
+    const a = addCard(p, { area: 'home', kind: 'Address', value: 'A', since: '2010' });
+    const b = addCard(p, { area: 'home', kind: 'Address', value: 'B', since: '2020' }, a.id);
+    expect(addCardBefore(p, { area: 'home', kind: 'Address', value: 'C', since: '2015' }, b.id)).toBeUndefined();
+  });
+
+  it('property and where you live are separate', () => {
+    expect(kindOf('home', 'Property').many).toBe(true);
+    expect(kindOf('home', 'Address').many).toBe(false);
   });
 });

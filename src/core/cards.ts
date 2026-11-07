@@ -67,6 +67,22 @@ export function addCard(p: Profile, input: NewCard, replaceId?: string, now = ne
   return c;
 }
 
+/**
+ * Adds a card that came *before* an existing one, e.g. an older address entered after the current one.
+ * The new card goes straight into history, ending when the later card starts.
+ * Only possible when the later card doesn't already have a card before it.
+ */
+export function addCardBefore(p: Profile, input: NewCard, laterId: string, now = new Date().toISOString()): Card | undefined {
+  const later = byId(p, laterId);
+  if (!later || later.replaces) return;
+  const c = addCard(p, input, undefined, now);
+  c.status = 'past';
+  c.until = later.since || thisMonth(now);
+  c.replacedBy = later.id;
+  later.replaces = c.id;
+  return c;
+}
+
 /** Fixes wording in place (a typo is not a life event) and keeps the old wording. */
 export function correctValue(p: Profile, id: string, value: string, now = new Date().toISOString()): boolean {
   const c = byId(p, id);

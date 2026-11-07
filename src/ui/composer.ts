@@ -1,6 +1,6 @@
 // "Add a card": kind, value, since-date, replace-or-alongside, and links.
 import { areaById, kindLabel, kindOf, tagOf } from '../core/areas';
-import { activeOf, addCard, addLink, byId, defaultMode } from '../core/cards';
+import { activeOf, addCard, addCardBefore, addLink, byId, defaultMode } from '../core/cards';
 import { fmtDate } from '../core/dates';
 import type { AreaId, FuzzyDate } from '../core/types';
 import { profile, save } from '../state';
@@ -57,13 +57,14 @@ function render(focus = false) {
   const custom = draft.kind === OTHER;
   const kind = kindOf(draft.area, custom ? (draft.custom || 'Note') : draft.kind);
   const actives = custom ? [] : activeOf(profile, draft.area, draft.kind);
-  if (draft.mode && draft.mode !== 'add' && !actives.some(c => 'r:' + c.id === draft.mode)) draft.mode = null;
+  if (draft.mode && draft.mode !== 'add' && !actives.some(c => 'r:' + c.id === draft.mode || 'b:' + c.id === draft.mode)) draft.mode = null;
   if (!draft.mode) draft.mode = custom ? 'add' : defaultMode(profile, draft.area, draft.kind, draft.replaceId);
   const replacing = draft.mode.startsWith('r:');
+  const before = draft.mode.startsWith('b:');
   if (!kind.tags?.some(t => t.id === draft.tag)) draft.tag = kind.tags?.[0]?.id;
   const isDate = kind.value === 'date';
   // Facts (Full name) have no start date, but replacing one is a change worth dating.
-  const showSince = !isDate && (kind.dated || replacing);
+  const showSince = !isDate && (kind.dated || replacing || before);
 
   const kindChips = a.kinds.map(k => {
     const has = activeOf(profile, draft.area, k.name).length > 0;
@@ -74,7 +75,10 @@ function render(focus = false) {
   const modeRow = actives.length ? `<div class="fx"><span class="lab">Current ${esc(draft.kind.toLowerCase())}</span>
     <div class="seg">${actives.map(c =>
       `<button type="button" data-act="mode" data-mode="r:${c.id}" class="${draft.mode === 'r:' + c.id ? 'on' : ''}">Replaces ${(t => (t ? esc(t.label) + ' ' : ''))(tagOf(c))}${esc(shownValue(c))}</button>`).join('')}
-      <button type="button" data-act="mode" data-mode="add" class="${draft.mode === 'add' ? 'on' : ''}">Add alongside</button></div></div>` : '';
+      ${actives.filter(c => !c.replaces && !kind.many).map(c =>
+        `<button type="button" data-act="mode" data-mode="b:${c.id}" class="${draft.mode === 'b:' + c.id ? 'on' : ''}">Came before ${(t => (t ? esc(t.label) + ' ' : ''))(tagOf(c))}${esc(shownValue(c))}</button>`).join('')}
+      <button type="button" data-act="mode" data-mode="add" class="${draft.mode === 'add' ? 'on' : ''}">Add alongside</button></div>
+      ${before ? `<div class="hint">This goes into your history, ending when ${esc(shownValue(actives.find(c => 'b:' + c.id === draft.mode)!))} started.</div>` : ''}</div>` : '';
   const linkChips = draft.links.map((l, i) =>
     `<span class="chip">${(() => { const o = byId(profile, l.id); return linkText(l.fwd, o ? kindLabel(o) : '', o ? shownValue(o) : ''); })()}<span class="x" data-act="drop-link" data-i="${i}" role="button" title="Remove">×</span></span>`).join('');
 
@@ -88,7 +92,7 @@ function render(focus = false) {
 
   openSheet(`${sheetTop(`${esc(a.title)} · new card`)}
     <h3 class="sh-title">Add a card</h3>
-    <div class="fx kinds-row"><span class="lab">Card</span><div class="kinds">${kindChips}</div></div>
+    <div class="fx kinds-row"><span class="lab">Card</span><div><div class="kinds">${kindChips}</div>${kind.hint ? `<div class="hint kind-hint">${esc(kind.hint)}</div>` : ''}</div></div>
     ${custom ? `<div class="fx"><label for="c-custom">Name it</label><input id="c-custom" value="${esc(draft.custom)}" placeholder="e.g. Eye doctor"></div>` : ''}
     ${valueRow}
     ${tagRowHtml(kind, draft.tag)}
@@ -133,8 +137,11 @@ function render(focus = false) {
         since = draft.valueDate; // a birthday sits at that date on the timeline
       }
       if (!value) return $<HTMLInputElement>('#c-value', sheetBody).focus();
-      const replaceId = replacing ? draft.mode!.slice(2) : undefined;
-      const c = addCard(profile, { area: draft.area, kind: name, value, since, tag: draft.tag }, replaceId);
+      const input = { area: draft.area, kind: name, value, since, tag: draft.tag };
+      const c = before
+        ? addCardBefore(profile, input, draft.mode!.slice(2))
+        : addCard(profile, input, replacing ? draft.mode!.slice(2) : undefined);
+      if (!c) return;
       for (const l of draft.links) addLink(profile, c.id, l.id, l.fwd, l.back);
       save();
       closeSheet();
@@ -151,7 +158,8 @@ const EXAMPLES: Record<string, string> = {
   'Full name': 'Alex Morgan Kim', 'Preferred name': 'Alex', Pronouns: 'they/them', Birthplace: 'Raleigh, NC',
   Phone: '(555) 123-4567', Email: 'alex@example.com', Citizenship: 'United States', Language: 'Spanish',
   "Driver's license": 'NC 123456789', Passport: 'X12345678', 'Social Security number': '123-45-6789',
-  Doctor: 'Dr. Maya Lee', Allergy: 'Penicillin', Address: '12 Elm St, Springfield', Job: 'Designer at Acme Corp',
+  Doctor: 'Dr. Maya Lee', Allergy: 'Penicillin', Address: '12 Elm St, Springfield', Property: '48 Oak Ave, Raleigh',
+  Mortgage: 'Wells Fargo 30-yr fixed', Lease: '12-month lease, Greystar', Job: 'Designer at Acme Corp',
   'Health insurance': 'Aetna PPO', Book: 'East of Eden', Friend: 'Sam Rivera', Goal: 'Run a marathon',
 };
 const example = (kind: string) => EXAMPLES[kind] || kind;

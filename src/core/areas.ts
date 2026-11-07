@@ -30,6 +30,8 @@ export interface Kind {
   sensitive?: boolean;
   /** Sub-types with icons (a phone's Cell, Home, Work…). The first is the default. */
   tags?: Tag[];
+  /** One line shown when adding this kind, when its meaning needs spelling out. */
+  hint?: string;
 }
 
 export interface Tag {
@@ -69,9 +71,14 @@ export const AREAS: Area[] = [
   { id: 'money', title: 'Money', hint: 'Accounts, bills, taxes',
     icon: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/>',
     kinds: [k('Bank account', true), k('Credit card', true), k('Bill', true), k('Retirement account', true), k('Investment', true), k('Insurance policy', true), k('Tax preparer'), k('Saving for', true)] },
-  { id: 'home', title: 'Home', hint: 'Addresses, lease, utilities',
+  { id: 'home', title: 'Home', hint: 'Where you live, what you own',
     icon: '<path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-5h4v5"/>',
-    kinds: [k('Address'), k('Lease or mortgage'), k('Utility', true), k('Internet'), k('Home insurance'), k('Vehicle', true)] },
+    kinds: [
+      k('Address', false, { hint: 'Where you live. Moving replaces it, so the places you’ve lived stay in your history.' }),
+      k('Property', true, { hint: 'A place you own. Add it when you buy; end it when you sell. It doesn’t have to be where you live.' }),
+      k('Mortgage', true, { hint: 'The loan itself, like the lender and terms. Link it to the property it’s for.' }),
+      k('Lease', false, { hint: 'Your rental agreement. Link it to the address it’s for.' }),
+      k('Utility', true), k('Internet'), k('Home insurance', true), k('Vehicle', true)] },
   { id: 'people', title: 'People', hint: 'Family, friends, contacts',
     icon: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.4A5 5 0 0 1 21 19"/>',
     kinds: [k('Partner'), k('Family member', true), k('Child', true), k('Friend', true), k('Pet', true), k('Mentor', true)] },

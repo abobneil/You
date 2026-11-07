@@ -26,3 +26,10 @@ describe('link label suggestions', () => {
     expect(pointlessLink('about', 'interests')).toBe(false);
   });
 });
+
+describe('home links', () => {
+  it('mortgage on a property, and where you lived owned as a property', () => {
+    expect(suggestLabels('home', 'Mortgage', 'home', 'Property')[0]).toEqual(['on', 'financed by']);
+    expect(suggestLabels('home', 'Property', 'home', 'Address')[0]).toEqual(['lived in', 'owned as']);
+  });
+});
