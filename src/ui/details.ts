@@ -23,11 +23,12 @@ export function detailsHtml(kind: KindInfo, values: Record<string, string> = {},
   if (!kind.fields?.length) return '';
   const filled = kind.fields.filter(f => values[f.id]).length;
   const collapse = saved && filled > 0 && filled < kind.fields.length;
-  const rows = kind.fields.map(f => `<div class="fx"${collapse && !values[f.id] ? ' data-empty hidden' : ''}>
+  const rows = kind.fields.map(f => `<div class="fx${f.choices ? ' has-choices' : ''}"${collapse && !values[f.id] ? ' data-empty hidden' : ''}>
       <label for="${key(prefix, f)}">${esc(f.label)}</label>
       ${f.type === 'date'
         ? dateInputs(values[f.id], key(prefix, f))
-        : valueFieldHtml(key(prefix, f), values[f.id] ?? '', asKind(f), saved ? 'Add' : f.placeholder ?? '')}
+        : valueFieldHtml(key(prefix, f), values[f.id] ?? '', asKind(f),
+            saved ? 'Add' : f.placeholder ?? (f.choices ? 'Pick one, or type your own' : ''))}
     </div>`).join('');
   const more = collapse
     ? `<button type="button" class="link-btn more-details" data-more>Show all ${kind.fields.length} details</button>` : '';

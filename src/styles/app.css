@@ -568,6 +568,9 @@
   .details .fx { padding: 6px 0; border-bottom: 0; }
   .details .vf input.big { font-size: 15px; font-weight: 400; }
   .details .vf-choices { margin-top: 6px; }
+  .details .fx.has-choices { align-items: start; }
+  .details .fx.has-choices > label { padding-top: 7px; }
+  .details .vf input::placeholder { font-size: 14px; }
   .more-details { margin: 6px 0 2px; }
   .details .vf input::placeholder { opacity: .45; }
   .tile .sum { font-size: 12px; color: var(--ink); opacity: .75; margin-top: 2px; }

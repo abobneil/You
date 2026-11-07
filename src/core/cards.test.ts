@@ -43,11 +43,11 @@ describe('adding and replacing', () => {
 
   it('suggests replace for one-at-a-time kinds and alongside for many', () => {
     const p = seed();
-    const doc = addCard(p, { area: 'health', kind: 'Doctor', value: 'Dr. Lee', since: '' });
+    const den = addCard(p, { area: 'health', kind: 'Dentist', value: 'Dr. Lee', since: '' });
     addCard(p, { area: 'health', kind: 'Allergy', value: 'Penicillin', since: '' });
-    expect(defaultMode(p, 'health', 'Doctor')).toBe(`r:${doc.id}`);
+    expect(defaultMode(p, 'health', 'Dentist')).toBe(`r:${den.id}`);
     expect(defaultMode(p, 'health', 'Allergy')).toBe('add');
-    expect(defaultMode(p, 'health', 'Dentist')).toBe('add');
+    expect(defaultMode(p, 'health', 'Doctor')).toBe('add'); // several doctors are normal
     expect(defaultMode(p, 'health', 'Eye doctor')).toBe('add'); // invented kinds add alongside
   });
 });
