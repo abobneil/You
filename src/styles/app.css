@@ -300,7 +300,23 @@
   .fx select { cursor: pointer; }
   .fx .big { font-size: 20px; font-weight: 500; }
   .date { display: flex; gap: 10px; align-items: center; }
-  .date select { width: auto; }
+  .date { flex-wrap: wrap; }
+  .date .mbtn {
+    font: inherit; font-size: 15px; color: var(--ink); background: none; cursor: pointer;
+    border: 0; border-bottom: 1px solid transparent; border-radius: 0; padding: 4px 18px 4px 0;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: right 6px top 55%, right 2px top 55%; background-size: 4px 4px; background-repeat: no-repeat;
+  }
+  .date .mbtn.empty { color: var(--soft); }
+  .date .mbtn:focus-visible, .date .mbtn[aria-expanded="true"] { outline: none; border-bottom-color: var(--ink); }
+  .date .mgrid { flex-basis: 100%; display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 6px; }
+  .date .mgrid button {
+    font: inherit; font-size: 13px; padding: 6px 0; border-radius: 8px; cursor: pointer;
+    background: none; border: 1px solid var(--line); color: var(--ink);
+  }
+  .date .mgrid button:hover, .date .mgrid button:focus-visible { border-color: var(--ink); outline: none; }
+  .date .mgrid button.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+  .date .mgrid .clear { grid-column: 1 / -1; color: var(--soft); border-style: dashed; }
   .date input[data-d="d"] { width: 3.2em; }
   .date input[data-d="y"] { width: 4.2em; }
   .hint { font-size: 12px; color: var(--soft); }

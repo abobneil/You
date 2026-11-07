@@ -95,7 +95,7 @@ function render(focus = false) {
       draft.kind = b.dataset.kind!;
       draft.mode = null;
       render();
-      (sheetBody.querySelector<HTMLElement>(draft.kind === OTHER ? '#c-custom' : '#c-value, [data-date="vdate"] select'))?.focus();
+      (sheetBody.querySelector<HTMLElement>(draft.kind === OTHER ? '#c-custom' : '#c-value, [data-date="vdate"] .mbtn'))?.focus();
     },
     mode: b => { read(); draft.mode = b.dataset.mode!; render(); },
     'drop-link': b => { read(); draft.links.splice(+b.dataset.i!, 1); render(); },
@@ -130,7 +130,7 @@ function render(focus = false) {
   });
 
   sheetBody.querySelector('#c-value')?.addEventListener('keydown', e => { if ((e as KeyboardEvent).key === 'Enter') act('save'); });
-  if (focus) (sheetBody.querySelector<HTMLElement>('#c-value, [data-date="vdate"] select'))?.focus();
+  if (focus) (sheetBody.querySelector<HTMLElement>('#c-value, [data-date="vdate"] .mbtn'))?.focus();
 }
 
 const EXAMPLES: Record<string, string> = {
