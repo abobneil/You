@@ -8,6 +8,7 @@ import { dateInputs, readDate } from './dateInput';
 import { $, esc, linkText } from './dom';
 import { emit } from './events';
 import { openLinkPicker } from './linkPicker';
+import { attachValueField, valueFieldHtml } from './valueField';
 import { act, closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
 
 const OTHER = '__other';
@@ -73,7 +74,7 @@ function render(focus = false) {
 
   const valueRow = isDate
     ? `<div class="fx"><span class="lab">${esc(kind.name)}</span>${dateInputs(draft.valueDate, 'vdate')}</div>`
-    : `<div class="fx"><label for="c-value">Value</label><input id="c-value" class="big" value="${esc(draft.value)}" placeholder="${custom ? '' : 'e.g. ' + esc(example(draft.kind))}" autocomplete="off"></div>`;
+    : `<div class="fx"><label for="c-value">Value</label>${valueFieldHtml('c-value', draft.value, kind, custom ? '' : 'e.g. ' + example(draft.kind))}</div>`;
   const sinceRow = showSince
     ? `<div class="fx"><span class="lab">${kind.dated ? 'Since' : 'Changed'}</span><div>${dateInputs(draft.since, 'since')}<div class="hint">${
         kind.dated ? 'When this became true. A year is enough.' : 'When it changed. A year is enough.'}</div></div></div>`
@@ -133,6 +134,7 @@ function render(focus = false) {
     },
   });
 
+  attachValueField(sheetBody, 'c-value', kind);
   sheetBody.querySelector('#c-value')?.addEventListener('keydown', e => { if ((e as KeyboardEvent).key === 'Enter') act('save'); });
   if (focus) (sheetBody.querySelector<HTMLElement>('#c-value, [data-date="vdate"] .mbtn'))?.focus();
 }

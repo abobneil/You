@@ -1,3 +1,4 @@
+import type { FormatId } from './formats';
 import type { AreaId } from './types';
 
 export interface Area {
@@ -21,21 +22,27 @@ export interface Kind {
   dated?: boolean;
   /** 'date' when the value itself is a date (Birthday). It also becomes the card's since-date. */
   value?: 'text' | 'date';
+  /** Formatting applied while typing (Phone → (919) 449-8524). See formats.ts. */
+  format?: FormatId;
+  /** Quick picks shown under the value; typing anything else still works. */
+  choices?: string[];
 }
 
-const k = (name: string, many = false): Kind => ({ name, many });
+const k = (name: string, many = false, extra: Partial<Kind> = {}): Kind => ({ name, many, ...extra });
 /** A fact about you, not dated. */
 const fact = (name: string, extra: Partial<Kind> = {}): Kind => ({ name, dated: false, ...extra });
 
 export const AREAS: Area[] = [
   { id: 'about', title: 'About', hint: 'Birthday, contact, IDs',
     icon: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
-    kinds: [fact('Full name'), fact('Preferred name'), fact('Pronouns'), fact('Birthday', { value: 'date' }), fact('Birthplace'),
-      k('Phone', true), k('Email', true), k('Citizenship', true), fact('Language', { many: true }),
-      k("Driver's license"), k('Passport'), fact('Social Security number')] },
+    kinds: [fact('Full name'), fact('Preferred name'), fact('Pronouns', { choices: ['she/her', 'he/him', 'they/them'] }),
+      fact('Birthday', { value: 'date' }), fact('Birthplace'),
+      k('Phone', true, { format: 'phone' }), k('Email', true, { format: 'email' }), k('Citizenship', true), fact('Language', { many: true }),
+      k("Driver's license", false, { format: 'upper' }), k('Passport', false, { format: 'upper' }),
+      fact('Social Security number', { format: 'ssn' })] },
   { id: 'health', title: 'Health', hint: 'Doctors, meds, records',
     icon: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>',
-    kinds: [k('Doctor'), k('Dentist'), fact('Blood type'), k('Allergy', true), k('Medication', true), k('Condition', true), k('Health insurance'), k('Emergency contact')] },
+    kinds: [k('Doctor'), k('Dentist'), fact('Blood type', { choices: ['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−'] }), k('Allergy', true), k('Medication', true), k('Condition', true), k('Health insurance'), k('Emergency contact')] },
   { id: 'work', title: 'Work', hint: 'Jobs, skills, résumé',
     icon: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 12h18"/>',
     kinds: [k('Job'), k('Skill', true), k('Education', true), k('Certification', true), k('Award', true), k('Profile link', true)] },
@@ -60,9 +67,10 @@ export const areaById = (id: string): Area | undefined => AREAS.find(a => a.id =
 export const isAreaId = (id: string): id is AreaId => AREAS.some(a => a.id === id);
 
 /** A kind's settings. Kinds the person invents are dated, text, and added alongside. */
-export function kindOf(area: AreaId, kind: string): Required<Kind> {
+export type KindInfo = Kind & { many: boolean; dated: boolean; value: 'text' | 'date' };
+export function kindOf(area: AreaId, kind: string): KindInfo {
   const found = areaById(area)?.kinds.find(x => x.name === kind);
-  return { name: kind, many: found ? !!found.many : true, dated: found?.dated ?? true, value: found?.value ?? 'text' };
+  return { ...found, name: kind, many: found ? !!found.many : true, dated: found?.dated ?? true, value: found?.value ?? 'text' };
 }
 
 export const isMany = (area: AreaId, kind: string) => kindOf(area, kind).many;

@@ -7,6 +7,7 @@ import { dateInputs, readDate } from './dateInput';
 import { esc, linkText } from './dom';
 import { openComposer } from './composer';
 import { openLinkPicker } from './linkPicker';
+import { attachValueField, valueFieldHtml } from './valueField';
 import { closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
 
 /** Opens a card, switching to its area first if needed. */
@@ -30,7 +31,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
   openSheet(`${sheetTop(`${esc(a.title)} · ${esc(c.kind)} <span class="status ${on ? 'on' : ''}">${on ? 'Active' : 'History'}</span>`)}
     ${isDate
       ? `<div class="fx"><span class="lab">${esc(c.kind)}</span>${dateInputs(c.since, 'vdate')}</div>`
-      : `<div class="fx"><label for="v-value">Value</label><input id="v-value" class="big" value="${esc(c.value)}"></div>`}
+      : `<div class="fx"><label for="v-value">Value</label>${valueFieldHtml('v-value', c.value, kind)}</div>`}
     ${!isDate && (kind.dated || c.since) ? `<div class="fx"><span class="lab">${kind.dated ? 'Since' : 'Changed'}</span>${dateInputs(c.since, 'since')}</div>` : ''}
     ${on ? '' : `<div class="fx"><span class="lab">Until</span>${dateInputs(c.until, 'until')}</div>`}
     <div class="fx"><span class="lab">Recorded</span><span class="hint">${esc(fmtISO(c.recordedAt))}${story ? ' · ' : ''}${story}</span></div>
@@ -69,6 +70,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     },
   });
 
+  attachValueField(sheetBody, 'v-value', kind);
   // Corrections save in place; the old wording is kept quietly.
   const val = sheetBody.querySelector<HTMLInputElement>('#v-value');
   val?.addEventListener('change', () => {
