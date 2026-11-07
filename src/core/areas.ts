@@ -32,6 +32,24 @@ export interface Kind {
   tags?: Tag[];
   /** One line shown when adding this kind, when its meaning needs spelling out. */
   hint?: string;
+  /** Structured details (a vehicle's Year, Make, Model…). All optional. */
+  fields?: Field[];
+  /** Builds the card's name from its details while the name hasn't been typed by hand. */
+  titleFrom?: (f: Record<string, string>) => string;
+  /** Detail ids shown under the value on the card (a vehicle's plate). */
+  summary?: string[];
+}
+
+/** One detail on a card. Stored as text in card.fields[id]. */
+export interface Field {
+  id: string;
+  label: string;
+  /** 'date' uses the Month / Day / Year picker and stores a fuzzy date. */
+  type?: 'text' | 'date';
+  format?: FormatId;
+  choices?: string[];
+  sensitive?: boolean;
+  placeholder?: string;
 }
 
 export interface Tag {
@@ -51,6 +69,17 @@ const PHONE_TAGS: Tag[] = [
 ];
 
 const k = (name: string, many = false, extra: Partial<Kind> = {}): Kind => ({ name, many, ...extra });
+
+/** Builds a Field: f('vin', 'VIN', { format: 'vin', sensitive: true }). */
+const f = (id: string, label: string, extra: Partial<Field> = {}): Field => ({ id, label, ...extra });
+const date = (id: string, label: string) => f(id, label, { type: 'date' });
+const money = (id: string, label: string) => f(id, label, { format: 'money', placeholder: '$0' });
+const phone = f('phone', 'Phone', { format: 'phone' });
+const email = f('email', 'Email', { format: 'email' });
+const account = (label = 'Account number') => f('account', label, { sensitive: true, format: 'upper' });
+/** Joins the non-empty parts with spaces. */
+const join = (...parts: (string | undefined)[]) => parts.filter(x => x && x.trim()).join(' ').trim();
+const PERSON = [f('relationship', 'Relationship'), phone, email, date('birthday', 'Birthday')];
 /** A fact about you, not dated. */
 const fact = (name: string, extra: Partial<Kind> = {}): Kind => ({ name, dated: false, ...extra });
 
@@ -59,35 +88,103 @@ export const AREAS: Area[] = [
     icon: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
     kinds: [fact('Full name'), fact('Preferred name'), fact('Pronouns', { choices: ['she/her', 'he/him', 'they/them'] }),
       fact('Birthday', { value: 'date' }), fact('Birthplace'),
-      k('Phone', true, { format: 'phone', tags: PHONE_TAGS }), k('Email', true, { format: 'email' }), k('Citizenship', true), fact('Language', { many: true }),
-      k("Driver's license", false, { format: 'upper', sensitive: true }), k('Passport', false, { format: 'upper', sensitive: true }),
+      k('Phone', true, { format: 'phone', tags: PHONE_TAGS }), k('Email', true, { format: 'email' }),
+      k('Citizenship', true, { fields: [f('how', 'How', { choices: ['By birth', 'Naturalized', 'By descent'] }), f('passport', 'Passport country')] }),
+      fact('Language', { many: true, fields: [f('level', 'Level', { choices: ['Native', 'Fluent', 'Conversational', 'Learning'] })] }),
+      k("Driver's license", false, { format: 'upper', sensitive: true,
+        fields: [f('state', 'State', { format: 'upper', placeholder: 'NC' }), f('class', 'Class', { format: 'upper' }), date('expires', 'Expires')], summary: ['state'] }),
+      k('Passport', false, { format: 'upper', sensitive: true,
+        fields: [f('country', 'Country', { placeholder: 'United States' }), date('issued', 'Issued'), date('expires', 'Expires')], summary: ['country'] }),
       fact('Social Security number', { format: 'ssn', sensitive: true })] },
   { id: 'health', title: 'Health', hint: 'Doctors, meds, records',
     icon: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>',
-    kinds: [k('Doctor'), k('Dentist'), fact('Blood type', { choices: ['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−'] }), k('Allergy', true), k('Medication', true), k('Condition', true), k('Health insurance'), k('Emergency contact')] },
+    kinds: [
+      k('Doctor', false, { fields: [f('practice', 'Practice'), f('specialty', 'Specialty'), phone, f('address', 'Address')], summary: ['practice'] }),
+      k('Dentist', false, { fields: [f('practice', 'Practice'), phone, f('address', 'Address')], summary: ['practice'] }),
+      fact('Blood type', { choices: ['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−'] }),
+      k('Allergy', true, { fields: [f('reaction', 'Reaction', { placeholder: 'Hives' }), f('severity', 'Severity', { choices: ['Mild', 'Moderate', 'Severe'] })], summary: ['severity'] }),
+      k('Medication', true, { fields: [f('dose', 'Dose', { placeholder: '10 mg' }), f('often', 'How often', { choices: ['Daily', 'Twice a day', 'Weekly', 'As needed'] }), f('pharmacy', 'Pharmacy')], summary: ['dose', 'often'] }),
+      k('Condition', true, { fields: [f('notes', 'Notes')] }),
+      k('Health insurance', false, { fields: [f('plan', 'Plan'), f('member', 'Member ID', { sensitive: true, format: 'upper' }), f('group', 'Group number', { format: 'upper' }), phone], summary: ['plan'] }),
+      k('Emergency contact', false, { fields: [f('relationship', 'Relationship'), phone], summary: ['relationship'] })] },
   { id: 'work', title: 'Work', hint: 'Jobs, skills, résumé',
     icon: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 12h18"/>',
-    kinds: [k('Job'), k('Skill', true), k('Education', true), k('Certification', true), k('Award', true), k('Profile link', true)] },
+    kinds: [
+      k('Job', false, { fields: [f('title', 'Job title'), f('employer', 'Employer'), f('location', 'Location'), money('salary', 'Salary')],
+        titleFrom: x => (x.title && x.employer ? `${x.title} at ${x.employer}` : join(x.title, x.employer)), summary: ['location'] }),
+      k('Skill', true, { fields: [f('level', 'Level', { choices: ['Learning', 'Comfortable', 'Expert'] })], summary: ['level'] }),
+      k('Education', true, { fields: [f('school', 'School'), f('degree', 'Degree', { choices: ['High school', 'Associate', 'Bachelor’s', 'Master’s', 'Doctorate', 'Certificate'] }), f('field', 'Field of study')],
+        titleFrom: x => (x.degree && x.school ? `${x.degree}, ${x.school}` : join(x.degree, x.school)), summary: ['field'] }),
+      k('Certification', true, { fields: [f('issuer', 'Issued by'), f('number', 'Number', { format: 'upper' }), date('expires', 'Expires')], summary: ['issuer'] }),
+      k('Award', true, { fields: [f('from', 'From')] }),
+      k('Profile link', true)] },
   { id: 'money', title: 'Money', hint: 'Accounts, bills, taxes',
     icon: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/>',
-    kinds: [k('Bank account', true), k('Credit card', true), k('Bill', true), k('Retirement account', true), k('Investment', true), k('Insurance policy', true), k('Tax preparer'), k('Saving for', true)] },
+    kinds: [
+      k('Bank account', true, { fields: [f('bank', 'Bank'), f('type', 'Type', { choices: ['Checking', 'Savings', 'Money market', 'CD'] }), account(), f('routing', 'Routing number', { format: 'number' })],
+        titleFrom: x => join(x.bank, x.type), summary: ['type'] }),
+      k('Credit card', true, { fields: [f('issuer', 'Issuer'), f('last4', 'Last 4 digits', { format: 'number' }), date('expires', 'Expires')],
+        titleFrom: x => (x.issuer && x.last4 ? `${x.issuer} ••${x.last4}` : x.issuer ?? ''), summary: ['last4'] }),
+      k('Bill', true, { fields: [money('amount', 'Amount'), f('frequency', 'How often', { choices: ['Monthly', 'Quarterly', 'Yearly', 'Weekly'] }), f('due', 'Due day', { format: 'number', placeholder: '15' }), f('autopay', 'Autopay', { choices: ['Yes', 'No'] })],
+        summary: ['amount', 'frequency'] }),
+      k('Retirement account', true, { fields: [f('provider', 'Provider'), f('type', 'Type', { choices: ['401(k)', '403(b)', 'IRA', 'Roth IRA', 'Pension'] }), account()],
+        titleFrom: x => join(x.provider, x.type), summary: ['type'] }),
+      k('Investment', true, { fields: [f('provider', 'Provider'), f('type', 'Type', { choices: ['Brokerage', 'HSA', '529', 'Crypto', 'Other'] }), account()],
+        titleFrom: x => join(x.provider, x.type), summary: ['type'] }),
+      k('Insurance policy', true, { fields: [f('insurer', 'Insurer'), f('type', 'Type', { choices: ['Auto', 'Life', 'Umbrella', 'Disability', 'Other'] }), account('Policy number'), money('premium', 'Premium')],
+        titleFrom: x => join(x.insurer, x.type), summary: ['type'] }),
+      k('Tax preparer', false, { fields: [f('firm', 'Firm'), phone, email], summary: ['firm'] }),
+      k('Saving for', true, { fields: [money('target', 'Goal amount'), date('by', 'Target date')], summary: ['target'] })] },
   { id: 'home', title: 'Home', hint: 'Where you live, what you own',
     icon: '<path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-5h4v5"/>',
     kinds: [
-      k('Address', false, { hint: 'Where you live. Moving replaces it, so the places you’ve lived stay in your history.' }),
-      k('Property', true, { hint: 'A place you own. Add it when you buy; end it when you sell. It doesn’t have to be where you live.' }),
-      k('Mortgage', true, { hint: 'The loan itself, like the lender and terms. Link it to the property it’s for.' }),
-      k('Lease', false, { hint: 'Your rental agreement. Link it to the address it’s for.' }),
-      k('Utility', true), k('Internet'), k('Home insurance', true), k('Vehicle', true)] },
+      k('Address', false, { hint: 'Where you live. Moving replaces it, so the places you’ve lived stay in your history.',
+        fields: [f('street', 'Street', { placeholder: '225 Fox Run Dr.' }), f('unit', 'Apt / unit'), f('city', 'City'), f('state', 'State', { format: 'upper', placeholder: 'NC' }), f('zip', 'ZIP', { format: 'zip' })],
+        titleFrom: x => join(x.street, x.unit), summary: ['city', 'state'] }),
+      k('Property', true, { hint: 'A place you own. Add it when you buy; end it when you sell. It doesn’t have to be where you live.',
+        fields: [f('type', 'Type', { choices: ['House', 'Condo', 'Townhouse', 'Land', 'Other'] }), money('price', 'Purchase price'), f('parcel', 'Parcel ID', { format: 'upper' }),
+          f('sqft', 'Square feet', { format: 'number' }), f('beds', 'Bedrooms', { format: 'number' }), f('baths', 'Bathrooms', { format: 'number' })],
+        summary: ['type'] }),
+      k('Mortgage', true, { hint: 'The loan itself, like the lender and terms. Link it to the property it’s for.',
+        fields: [f('lender', 'Lender'), account('Loan number'), money('amount', 'Original amount'), f('rate', 'Rate (%)', { format: 'number', placeholder: '6.25' }),
+          f('term', 'Term (years)', { format: 'number', placeholder: '30' }), money('payment', 'Monthly payment')],
+        titleFrom: x => (x.lender && x.term ? `${x.lender} ${x.term}-yr` : x.lender ?? ''), summary: ['payment'] }),
+      k('Lease', false, { hint: 'Your rental agreement. Link it to the address it’s for.',
+        fields: [f('landlord', 'Landlord'), money('rent', 'Monthly rent'), money('deposit', 'Deposit'), date('ends', 'Lease ends')],
+        summary: ['rent'] }),
+      k('Utility', true, { fields: [f('service', 'Service', { choices: ['Electric', 'Water', 'Gas', 'Trash', 'Sewer'] }), f('provider', 'Provider'), account()],
+        titleFrom: x => join(x.provider, x.service), summary: ['service'] }),
+      k('Internet', false, { fields: [f('provider', 'Provider'), f('plan', 'Plan'), account()], titleFrom: x => join(x.provider, x.plan), summary: ['plan'] }),
+      k('Home insurance', true, { fields: [f('insurer', 'Insurer'), account('Policy number'), money('premium', 'Yearly premium'), date('renews', 'Renews')],
+        titleFrom: x => x.insurer ?? '', summary: ['premium'] }),
+      k('Vehicle', true, {
+        fields: [f('year', 'Year', { format: 'year' }), f('make', 'Make', { placeholder: 'Kia' }), f('model', 'Model', { placeholder: 'Niro' }), f('trim', 'Trim', { placeholder: 'PHEV' }),
+          f('color', 'Color'), f('vin', 'VIN', { format: 'vin', sensitive: true }), f('plate', 'License plate', { format: 'upper' }),
+          f('plateState', 'Plate state', { format: 'upper', placeholder: 'NC' }), money('price', 'Purchase price'), f('mileage', 'Mileage at purchase', { format: 'number' })],
+        titleFrom: x => join(x.year, x.color, x.make, x.model, x.trim), summary: ['plate'] })] },
   { id: 'people', title: 'People', hint: 'Family, friends, contacts',
     icon: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.4A5 5 0 0 1 21 19"/>',
-    kinds: [k('Partner'), k('Family member', true), k('Child', true), k('Friend', true), k('Pet', true), k('Mentor', true)] },
+    kinds: [
+      k('Partner', false, { fields: PERSON.slice(1), summary: ['phone'] }),
+      k('Family member', true, { fields: [f('relationship', 'Relationship', { choices: ['Mother', 'Father', 'Sister', 'Brother', 'Grandparent', 'Aunt', 'Uncle', 'Cousin', 'Other'] }), ...PERSON.slice(1)], summary: ['relationship'] }),
+      k('Child', true, { fields: PERSON.slice(1), summary: ['birthday'] }),
+      k('Friend', true, { fields: PERSON.slice(1), summary: ['phone'] }),
+      k('Pet', true, { fields: [f('species', 'Species', { choices: ['Dog', 'Cat', 'Bird', 'Fish', 'Other'] }), f('breed', 'Breed'), date('birthday', 'Birthday'), f('vet', 'Vet')], summary: ['species'] }),
+      k('Mentor', true, { fields: PERSON, summary: ['relationship'] })] },
   { id: 'interests', title: 'Interests', hint: 'Books, music, places',
     icon: '<path d="M12 4l2.5 5 5.5.8-4 3.9.9 5.5L12 16.6l-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/>',
-    kinds: [k('Book', true), k('Music', true), k('Movie or show', true), k('Food', true), k('Hobby', true), k('Sport', true), k('Place visited', true), k('Place to go', true)] },
+    kinds: [
+      k('Book', true, { fields: [f('author', 'Author')], summary: ['author'] }),
+      k('Music', true, { fields: [f('artist', 'Artist')], summary: ['artist'] }),
+      k('Movie or show', true, { fields: [f('type', 'Type', { choices: ['Movie', 'Show'] }), f('year', 'Year', { format: 'year' })], summary: ['type'] }),
+      k('Food', true), k('Hobby', true), k('Sport', true),
+      k('Place visited', true, { fields: [f('notes', 'Notes')] }), k('Place to go', true, { fields: [f('why', 'Why')] })] },
   { id: 'goals', title: 'Goals', hint: 'Plans, habits, someday',
     icon: '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/>',
-    kinds: [k('Goal', true), k('Habit', true), k('Learning', true), k('Someday', true), k('Bucket list', true), k('Value', true)] },
+    kinds: [
+      k('Goal', true, { fields: [date('by', 'By'), f('status', 'Status', { choices: ['Not started', 'In progress', 'Done'] })], summary: ['status'] }),
+      k('Habit', true, { fields: [f('often', 'How often', { choices: ['Daily', 'Weekly', 'Monthly'] })], summary: ['often'] }),
+      k('Learning', true), k('Someday', true), k('Bucket list', true), k('Value', true)] },
 ];
 
 export const areaById = (id: string): Area | undefined => AREAS.find(a => a.id === id);

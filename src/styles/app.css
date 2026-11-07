@@ -562,4 +562,14 @@
   .kind-hint { margin-top: 10px; max-width: 46ch; line-height: 1.45; }
   .seg + .hint { margin-top: 8px; }
 
+  /* Card details */
+  .details { margin-top: 6px; padding-top: 4px; border-top: 1px solid var(--line); }
+  .details h5 { margin: 12px 0 2px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); font-weight: 600; }
+  .details .fx { padding: 6px 0; border-bottom: 0; }
+  .details .vf input.big { font-size: 15px; font-weight: 400; }
+  .details .vf-choices { margin-top: 6px; }
+  .more-details { margin: 6px 0 2px; }
+  .details .vf input::placeholder { opacity: .45; }
+  .tile .sum { font-size: 12px; color: var(--ink); opacity: .75; margin-top: 2px; }
+
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

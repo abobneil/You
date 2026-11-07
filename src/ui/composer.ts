@@ -13,6 +13,7 @@ import { shownValue } from './sensitive';
 import { tagRowHtml } from './tags';
 import { maskValue } from '../core/formats';
 import { act, closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
+import { attachDetails, detailsHtml, readDetails } from './details';
 
 const OTHER = '__other';
 
@@ -26,6 +27,10 @@ interface Draft {
   since: FuzzyDate;
   /** Sub-type for kinds with tags (a phone's Cell, Home…). */
   tag?: string;
+  /** Structured details (a vehicle's Year, Make…). */
+  fields: Record<string, string>;
+  /** True once the name was typed by hand, so details stop filling it in. */
+  nameTyped: boolean;
   mode: string | null;
   replaceId?: string;
   links: { id: string; fwd: string; back: string }[];
@@ -34,7 +39,7 @@ let draft: Draft;
 
 export function openComposer(area: AreaId, preset: { kind?: string; replaceId?: string } = {}) {
   draft = { area, kind: preset.kind || firstOpenKind(area), custom: '', value: '', valueDate: '', since: '',
-    mode: null, replaceId: preset.replaceId, links: [] };
+    fields: {}, nameTyped: false, mode: null, replaceId: preset.replaceId, links: [] };
   render(true);
 }
 
@@ -50,7 +55,10 @@ function read() {
   if (v) draft.value = v.value;
   if (sheetBody.querySelector('[data-date="vdate"]')) draft.valueDate = readDate(sheetBody, 'vdate');
   if (sheetBody.querySelector('[data-date="since"]')) draft.since = readDate(sheetBody, 'since');
+  if (sheetBody.querySelector('.details')) draft.fields = readDetails(sheetBody, currentKind(), 'cf');
 }
+
+const currentKind = () => kindOf(draft.area, draft.kind === OTHER ? (draft.custom || 'Note') : draft.kind);
 
 function render(focus = false) {
   const a = areaById(draft.area)!;
@@ -84,7 +92,8 @@ function render(focus = false) {
 
   const valueRow = isDate
     ? `<div class="fx"><span class="lab">${esc(kind.name)}</span>${dateInputs(draft.valueDate, 'vdate')}</div>`
-    : `<div class="fx"><label for="c-value">Value</label>${valueFieldHtml('c-value', draft.value, kind, custom ? '' : 'e.g. ' + example(draft.kind))}</div>`;
+    : `<div class="fx"><label for="c-value">${kind.titleFrom ? 'Name' : 'Value'}</label>${valueFieldHtml('c-value', draft.value, kind,
+        kind.titleFrom ? 'Filled in from the details below' : custom ? '' : 'e.g. ' + example(draft.kind))}</div>`;
   const sinceRow = showSince
     ? `<div class="fx"><span class="lab">${kind.dated ? 'Since' : 'Changed'}</span><div>${dateInputs(draft.since, 'since')}<div class="hint">${
         kind.dated ? 'When this became true. A year is enough.' : 'When it changed. A year is enough.'}</div></div></div>`
@@ -96,6 +105,7 @@ function render(focus = false) {
     ${custom ? `<div class="fx"><label for="c-custom">Name it</label><input id="c-custom" value="${esc(draft.custom)}" placeholder="e.g. Eye doctor"></div>` : ''}
     ${valueRow}
     ${tagRowHtml(kind, draft.tag)}
+    ${detailsHtml(kind, draft.fields, 'cf')}
     ${modeRow}
     ${sinceRow}
     <div class="fx"><span class="lab">Linked to</span><div class="chips">${linkChips}<button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
@@ -106,6 +116,9 @@ function render(focus = false) {
       if (b.dataset.kind === draft.kind) return;
       draft.kind = b.dataset.kind!;
       draft.mode = null;
+      draft.fields = {};
+      draft.nameTyped = false;
+      draft.value = '';
       render();
       (sheetBody.querySelector<HTMLElement>(draft.kind === OTHER ? '#c-custom' : '#c-value, [data-date="vdate"] .mbtn'))?.focus();
     },
@@ -129,15 +142,15 @@ function render(focus = false) {
       read();
       const name = draft.kind === OTHER ? draft.custom : draft.kind;
       if (!name) return sheetBody.querySelector<HTMLInputElement>('#c-custom')?.focus();
-      let value = draft.value.trim();
+      let value = draft.value.trim() || (kind.titleFrom ? kind.titleFrom(draft.fields) : '');
       let since = showSince ? draft.since : '';
       if (isDate) {
         if (!draft.valueDate) return sheetBody.querySelector<HTMLElement>('[data-date="vdate"] [data-d="y"]')?.focus();
         value = fmtDate(draft.valueDate);
         since = draft.valueDate; // a birthday sits at that date on the timeline
       }
-      if (!value) return $<HTMLInputElement>('#c-value', sheetBody).focus();
-      const input = { area: draft.area, kind: name, value, since, tag: draft.tag };
+      if (!value) return (sheetBody.querySelector<HTMLElement>('.details input') ?? $<HTMLInputElement>('#c-value', sheetBody)).focus();
+      const input = { area: draft.area, kind: name, value, since, tag: draft.tag, fields: draft.fields };
       const c = before
         ? addCardBefore(profile, input, draft.mode!.slice(2))
         : addCard(profile, input, replacing ? draft.mode!.slice(2) : undefined);
@@ -150,6 +163,15 @@ function render(focus = false) {
   });
 
   attachValueField(sheetBody, 'c-value', kind);
+  // The name builds itself from the details until it's typed by hand (clearing it hands it back).
+  const nameInput = sheetBody.querySelector<HTMLInputElement>('#c-value');
+  nameInput?.addEventListener('input', () => { draft.nameTyped = nameInput.value.trim() !== ''; });
+  attachDetails(sheetBody, kind, 'cf', {
+    input: () => {
+      if (!kind.titleFrom || draft.nameTyped || !nameInput) return;
+      nameInput.value = kind.titleFrom(readDetails(sheetBody, kind, 'cf'));
+    },
+  });
   sheetBody.querySelector('#c-value')?.addEventListener('keydown', e => { if ((e as KeyboardEvent).key === 'Enter') act('save'); });
   if (focus) (sheetBody.querySelector<HTMLElement>('#c-value, [data-date="vdate"] .mbtn'))?.focus();
 }

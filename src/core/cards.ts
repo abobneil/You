@@ -47,6 +47,7 @@ export interface NewCard {
   value: string;
   since: FuzzyDate;
   tag?: string;
+  fields?: Record<string, string>;
 }
 
 /** Adds a card. If `replaceId` is given, that card moves to history and ends when this one starts. */
@@ -55,6 +56,7 @@ export function addCard(p: Profile, input: NewCard, replaceId?: string, now = ne
     id: newId(), area: input.area, kind: input.kind.trim(), value: input.value.trim(),
     since: input.since, status: 'active', recordedAt: now, revisions: [],
     ...(input.tag ? { tag: input.tag } : {}),
+    ...(input.fields && Object.keys(cleanFields(input.fields)).length ? { fields: cleanFields(input.fields) } : {}),
   };
   const old = byId(p, replaceId);
   if (old && old.status === 'active') {
@@ -90,6 +92,27 @@ export function correctValue(p: Profile, id: string, value: string, now = new Da
   if (!c || !v || v === c.value) return false;
   c.revisions.push({ value: c.value, at: now });
   c.value = v;
+  return true;
+}
+
+/** Drops empty details and trims the rest. */
+export function cleanFields(f: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(f)) if (v && v.trim()) out[k] = v.trim();
+  return out;
+}
+
+/** Corrects one detail in place, keeping the old wording (empty clears it). */
+export function setField(p: Profile, id: string, field: string, value: string, now = new Date().toISOString()): boolean {
+  const c = byId(p, id);
+  if (!c) return false;
+  const v = value.trim();
+  const old = c.fields?.[field] ?? '';
+  if (v === old) return false;
+  if (old) c.revisions.push({ field, value: old, at: now });
+  c.fields = { ...c.fields };
+  if (v) c.fields[field] = v; else delete c.fields[field];
+  if (!Object.keys(c.fields).length) delete c.fields;
   return true;
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FORMATS, maskValue, reformat } from './formats';
 
-const { phone, ssn, email, upper } = FORMATS;
+const { phone, ssn, email, upper, zip, money, year, vin } = FORMATS;
 
 describe('phone', () => {
   it('formats US numbers as they are typed', () => {
@@ -67,5 +67,28 @@ describe('masking sensitive values', () => {
   it('shows nothing of very short values', () => {
     expect(maskValue('1234')).toBe('••••');
     expect(maskValue('')).toBe('');
+  });
+});
+
+describe('detail formats', () => {
+  it('ZIP codes', () => {
+    expect(zip.apply('27601')).toBe('27601');
+    expect(zip.apply('276011234')).toBe('27601-1234');
+    expect(zip.check('2760')).toMatch(/5 digits/);
+  });
+  it('money', () => {
+    expect(money.apply('1234567')).toBe('$1,234,567');
+    expect(money.apply('$1,234.567')).toBe('$1,234.56');
+    expect(money.apply('.5')).toBe('$0.5');
+    expect(money.apply('00012')).toBe('$12');
+    expect(money.apply('')).toBe('');
+    expect(money.apply(money.apply('98000.10'))).toBe('$98,000.10');
+  });
+  it('years and VINs', () => {
+    expect(year.apply('2020abc')).toBe('2020');
+    expect(year.check('202')).toMatch(/4-digit/);
+    expect(vin.apply('kndcm3lc1l5 3i4oq')).toBe('KNDCM3LC1L534');
+    expect(vin.check('KNDCM3LC1L5341234')).toBe('');
+    expect(vin.check('KNDC')).toMatch(/17/);
   });
 });

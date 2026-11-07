@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeOf, addCard, addCardBefore, addLink, atTheTime, byId, correctValue, defaultMode, endCard, linksOf, rangeText, removeCard, reopenCard,
+  activeOf, addCard, addCardBefore, addLink, setField, atTheTime, byId, correctValue, defaultMode, endCard, linksOf, rangeText, removeCard, reopenCard,
 } from './cards';
 import { kindLabel, kindOf, tagOf } from './areas';
 import { emptyProfile } from './profile';
@@ -187,5 +187,32 @@ describe('adding a card that came before', () => {
   it('property and where you live are separate', () => {
     expect(kindOf('home', 'Property').many).toBe(true);
     expect(kindOf('home', 'Address').many).toBe(false);
+  });
+});
+
+describe('details', () => {
+  it('a vehicle keeps its details and builds its name from them', () => {
+    const p = seed();
+    const fields = { year: '2020', color: 'White', make: 'Kia', model: 'Niro', trim: 'PHEV', plate: 'ABC1234', vin: '' };
+    expect(kindOf('home', 'Vehicle').titleFrom!(fields)).toBe('2020 White Kia Niro PHEV');
+    const c = addCard(p, { area: 'home', kind: 'Vehicle', value: '2020 White Kia Niro PHEV', since: '2020', fields });
+    expect(c.fields).toEqual({ year: '2020', color: 'White', make: 'Kia', model: 'Niro', trim: 'PHEV', plate: 'ABC1234' });
+  });
+
+  it('correcting a detail keeps the old one; clearing removes it', () => {
+    const p = seed();
+    const c = addCard(p, { area: 'home', kind: 'Vehicle', value: 'Miata', since: '', fields: { plate: 'ABC' } });
+    expect(setField(p, c.id, 'plate', 'XYZ', NOW)).toBe(true);
+    expect(c.fields).toEqual({ plate: 'XYZ' });
+    expect(c.revisions).toEqual([{ field: 'plate', value: 'ABC', at: NOW }]);
+    expect(setField(p, c.id, 'plate', 'XYZ')).toBe(false);
+    setField(p, c.id, 'plate', '');
+    expect(c.fields).toBeUndefined();
+  });
+
+  it('names read naturally', () => {
+    expect(kindOf('work', 'Job').titleFrom!({ title: 'Designer', employer: 'Acme' })).toBe('Designer at Acme');
+    expect(kindOf('home', 'Mortgage').titleFrom!({ lender: 'Wells Fargo', term: '30' })).toBe('Wells Fargo 30-yr');
+    expect(kindOf('money', 'Credit card').titleFrom!({ issuer: 'Chase', last4: '1234' })).toBe('Chase ••1234');
   });
 });

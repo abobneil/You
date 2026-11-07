@@ -1,5 +1,5 @@
 // One area of life: active cards under "Now", empty kinds as suggestions, and "Over time".
-import { kindLabel, tagOf, type Area } from '../core/areas';
+import { kindLabel, kindOf, tagOf, type Area } from '../core/areas';
 import { byId, byStartDesc, cardStart, linksOf, rangeText } from '../core/cards';
 import { fmtDate, fmtISO } from '../core/dates';
 import { profile } from '../state';
@@ -8,6 +8,7 @@ import { openComposer } from './composer';
 import { $, ICON, esc, linkText } from './dom';
 import { shownValue, valueHtml } from './sensitive';
 import { tagIcon } from './tags';
+import { summaryText } from './details';
 
 const detail = $('#detail');
 let shown: Area | undefined;
@@ -29,6 +30,7 @@ export function renderArea(a: Area) {
     return `<div class="tile" role="button" tabindex="0" data-act="card" data-id="${c.id}">
       <span class="k"><i></i>${esc(kindLabel(c))}</span>
       <span class="v">${(t => (t ? tagIcon(t) : ''))(tagOf(c))}${valueHtml(c)}</span>
+      ${(s => (s ? `<span class="sum">${esc(s)}</span>` : ''))(summaryText(c, kindOf(c.area, c.kind)))}
       <span class="d">${esc(rangeText(c))}</span>
       ${chips ? `<span class="chips">${chips}</span>` : ''}
     </div>`;

@@ -67,4 +67,5 @@ Each You has its own passphrase, encrypted copy (`you.vault.<id>`), save locatio
 - Fixing a typo **corrects** the card in place and keeps the old wording.
 - **This ended** moves a card to history with nothing replacing it.
 - **Remove** is only for cards added by mistake. Removing a mistaken replacement restores the card it replaced.
+- **Details**: many kinds have structured details (a Vehicle's Year, Make, Model, VIN, plate…), defined in `src/core/areas.ts`. Details can format as you type, offer quick picks, or be hidden as sensitive. A card's name can build itself from its details until it's typed by hand, and corrected details keep their old value in the card's history.
 - **Links** connect cards, with optional labels read from each side ("through" / "provides"). **At the time** is worked out from overlapping dates and never stored.

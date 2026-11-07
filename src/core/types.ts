@@ -7,6 +7,8 @@ export type AreaId = 'about' | 'health' | 'work' | 'money' | 'home' | 'people' |
 export type FuzzyDate = string;
 
 export interface Revision {
+  /** Which detail changed, or absent for the card's main value. */
+  field?: string;
   value: string;
   /** ISO timestamp of when the old wording was replaced. */
   at: string;
@@ -20,6 +22,8 @@ export interface Card {
   value: string;
   /** A sub-type picked from the kind's tags, e.g. a phone's "cell", "home" or "work". */
   tag?: string;
+  /** Structured details, keyed by Field id (a vehicle's year, make, vin…). */
+  fields?: Record<string, string>;
   /** When this became true in the person's life. */
   since: FuzzyDate;
   /** When it stopped being true. Only set once the card is in history. */

@@ -1,7 +1,7 @@
 // Formatting applied while a value is typed, chosen by the kind of card (see Kind.format in areas.ts).
 // Each format cleans up what's typed and can return a gentle warning. Warnings never block saving.
 
-export type FormatId = 'phone' | 'ssn' | 'email' | 'upper';
+export type FormatId = 'phone' | 'ssn' | 'email' | 'upper' | 'zip' | 'money' | 'year' | 'vin' | 'number';
 
 export interface Format {
   /** Turns whatever was typed or pasted into the tidy form. Must be idempotent. */
@@ -10,7 +10,7 @@ export interface Format {
   check(value: string): string;
   /** Characters that carry meaning, used to keep the cursor in place while reformatting. */
   significant: RegExp;
-  inputMode?: 'tel' | 'email' | 'numeric' | 'text';
+  inputMode?: 'tel' | 'email' | 'numeric' | 'decimal' | 'text';
   autocomplete?: string;
 }
 
@@ -73,6 +73,46 @@ export const FORMATS: Record<FormatId, Format> = {
     check: () => '',
     significant: /[A-Za-z0-9]/,
     autocomplete: 'off',
+  },
+  zip: {
+    apply: raw => { const d = digits(raw).slice(0, 9); return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d; },
+    check: v => (v && ![5, 9].includes(digits(v).length) ? 'ZIP codes have 5 digits (or 9).' : ''),
+    significant: /\d/,
+    inputMode: 'numeric',
+    autocomplete: 'postal-code',
+  },
+  /** $1,234.56 — digits and one decimal point, up to cents. */
+  money: {
+    apply: raw => {
+      const clean = raw.replace(/[^\d.]/g, '');
+      if (!clean) return '';
+      const [whole, ...rest] = clean.split('.');
+      const cents = rest.length ? '.' + rest.join('').slice(0, 2) : '';
+      const w = (whole.replace(/^0+(?=\d)/, '') || (cents ? '0' : '')).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      return '$' + w + cents;
+    },
+    check: () => '',
+    significant: /[\d.]/,
+    inputMode: 'decimal',
+  },
+  year: {
+    apply: raw => digits(raw).slice(0, 4),
+    check: v => (v && (v.length !== 4 || +v < 1800 || +v > 2200) ? 'Enter a 4-digit year.' : ''),
+    significant: /\d/,
+    inputMode: 'numeric',
+  },
+  /** Vehicle identification numbers: 17 letters and digits, never I, O or Q. */
+  vin: {
+    apply: raw => raw.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '').slice(0, 17),
+    check: v => (v && v.length !== 17 ? 'VINs have 17 letters and numbers.' : ''),
+    significant: /[A-Za-z0-9]/,
+    autocomplete: 'off',
+  },
+  number: {
+    apply: raw => raw.replace(/[^\d.,]/g, ''),
+    check: () => '',
+    significant: /[\d.]/,
+    inputMode: 'decimal',
   },
 };
 

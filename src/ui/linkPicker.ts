@@ -1,5 +1,5 @@
 // "Link a card": search all cards, pick one, then optionally choose how they're connected.
-import { AREAS, kindLabel } from '../core/areas';
+import { AREAS, kindLabel, kindOf } from '../core/areas';
 import { byId, rangeText } from '../core/cards';
 import { pointlessLink, suggestLabels } from '../core/relations';
 import type { AreaId } from '../core/types';
@@ -7,6 +7,7 @@ import { profile } from '../state';
 import { $, esc } from './dom';
 import { act, openSheet, sheetBody, sheetTop } from './sheet';
 import { shownValue } from './sensitive';
+import { searchableDetails } from './details';
 
 interface Options {
   /** The card being linked from: its area, kind and how to describe it (its value). */
@@ -23,7 +24,7 @@ export function openLinkPicker(o: Options) {
 
   const list = (q: string) => {
     const t = q.trim().toLowerCase();
-    const hits = pool.filter(c => !t || `${c.value} ${c.kind}`.toLowerCase().includes(t));
+    const hits = pool.filter(c => !t || `${c.value} ${kindLabel(c)} ${searchableDetails(c, kindOf(c.area, c.kind))}`.toLowerCase().includes(t));
     if (!hits.length) return `<li class="grp">${pool.length ? 'No matches' : 'No other cards yet. Add some first.'}</li>`;
     return order.map(a => {
       const cs = hits.filter(c => c.area === a.id);

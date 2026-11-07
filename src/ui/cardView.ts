@@ -1,6 +1,6 @@
 // One card, opened: correct it, link it, replace it, end it, or (rarely) remove it.
 import { areaById, kindLabel, kindOf } from '../core/areas';
-import { atTheTime, byId, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink } from '../core/cards';
+import { atTheTime, byId, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink, setField } from '../core/cards';
 import { fmtDate, fmtISO, thisMonth } from '../core/dates';
 import { profile, save } from '../state';
 import { dateInputs, readDate } from './dateInput';
@@ -10,6 +10,7 @@ import { openLinkPicker } from './linkPicker';
 import { attachValueField, valueFieldHtml } from './valueField';
 import { isSensitive, shownValue } from './sensitive';
 import { tagRowHtml } from './tags';
+import { attachDetails, detailsHtml } from './details';
 import { maskValue } from '../core/formats';
 import { closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
 
@@ -34,13 +35,17 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
   openSheet(`${sheetTop(`${esc(a.title)} · ${esc(kindLabel(c))} <span class="status ${on ? 'on' : ''}">${on ? 'Active' : 'History'}</span>`)}
     ${isDate
       ? `<div class="fx"><span class="lab">${esc(c.kind)}</span>${dateInputs(c.since, 'vdate')}</div>`
-      : `<div class="fx"><label for="v-value">Value</label>${valueFieldHtml('v-value', c.value, kind)}</div>`}
+      : `<div class="fx"><label for="v-value">${kind.titleFrom ? 'Name' : 'Value'}</label>${valueFieldHtml('v-value', c.value, kind)}</div>`}
     ${tagRowHtml(kind, c.tag)}
+    ${detailsHtml(kind, c.fields, 'vf', true)}
     ${!isDate && (kind.dated || c.since) ? `<div class="fx"><span class="lab">${kind.dated ? 'Since' : 'Changed'}</span>${dateInputs(c.since, 'since')}</div>` : ''}
     ${on ? '' : `<div class="fx"><span class="lab">Until</span>${dateInputs(c.until, 'until')}</div>`}
     <div class="fx"><span class="lab">Recorded</span><span class="hint">${esc(fmtISO(c.recordedAt))}${story ? ' · ' : ''}${story}</span></div>
     ${c.revisions.length ? `<div class="block"><h5>Earlier wording</h5><ul class="revs">${[...c.revisions].reverse()
-      .map(r => `<li>“${esc(isSensitive(c) ? maskValue(r.value) : r.value)}” · changed ${esc(fmtISO(r.at))}</li>`).join('')}</ul></div>` : ''}
+      .map(r => { const fd = r.field ? kind.fields?.find(x => x.id === r.field) : undefined;
+        const hide = fd ? fd.sensitive : isSensitive(c);
+        return `<li>${fd ? `${esc(fd.label)}: ` : ''}“${esc(hide ? maskValue(r.value) : r.value)}” · changed ${esc(fmtISO(r.at))}</li>`; })
+      .join('')}</ul></div>` : ''}
     <div class="block"><h5>Linked</h5><div class="chips">${links.map(x =>
       `<button class="chip" type="button" data-act="open" data-id="${x.other.id}">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}<span class="x" data-act="unlink" data-link="${x.link.id}" title="Remove link">×</span></button>`).join('')}
       <button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
@@ -76,6 +81,21 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
   });
 
   attachValueField(sheetBody, 'v-value', kind);
+  // Details save as each one is finished. If the name was built from the details, it follows them.
+  attachDetails(sheetBody, kind, 'vf', {
+    commit: (field, value) => {
+      const wasBuilt = !!kind.titleFrom && c.value === kind.titleFrom(c.fields ?? {});
+      if (!setField(profile, id, field, value)) return;
+      if (wasBuilt) {
+        const name = kind.titleFrom!(c.fields ?? {});
+        if (name && correctValue(profile, id, name)) {
+          const v = sheetBody.querySelector<HTMLInputElement>('#v-value');
+          if (v) v.value = name;
+        }
+      }
+      save();
+    },
+  });
   // Corrections save in place; the old wording is kept quietly.
   const val = sheetBody.querySelector<HTMLInputElement>('#v-value');
   val?.addEventListener('change', () => {
