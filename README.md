@@ -16,6 +16,13 @@ npm run preview    # serve the built site locally
 
 The built site in `dist/` is plain static files and can be hosted anywhere.
 
+### Development shortcuts
+
+These exist only under `npm run dev` and are left out of `npm run build`.
+
+- **dev** button, bottom-left: **Clear cards** deletes every card and link in the open You and keeps the You and its passphrase. **Reset everything** wipes all You data in this browser except the light/dark choice.
+- Add **`?reset`** to the address (for example `http://localhost:5173/?reset`) to reset everything straight away.
+
 ## How it's organized
 
 ```

@@ -42,5 +42,10 @@ heading.addEventListener('blur', () => {
   save();
 });
 
-initTarget();
-start().then(where => { if (where === 'home') showHome(); });
+// Development-only tools (?reset, the "dev" button). Left out of production builds entirely.
+const resetting = import.meta.env.DEV && (await (await import('./dev')).init());
+
+if (!resetting) {
+  initTarget();
+  start().then(where => { if (where === 'home') showHome(); });
+}

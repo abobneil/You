@@ -26,4 +26,5 @@ export const idb = {
   get: <T>(key: string) => run<T>('readonly', s => s.get(key)),
   set: (key: string, value: unknown) => run('readwrite', s => s.put(value, key)),
   del: (key: string) => run('readwrite', s => s.delete(key)),
+  clear: () => run('readwrite', s => s.clear()),
 };

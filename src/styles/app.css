@@ -33,6 +33,8 @@
   :root[data-mode="dark"] .theme .moon { opacity: 0; transform: rotate(90deg) scale(.6); }
 
   * { box-sizing: border-box; }
+  /* Anything marked hidden stays hidden, even if its class sets a display. */
+  [hidden] { display: none !important; }
   html, body { height: 100%; margin: 0; }
   body {
     background: var(--bg);
