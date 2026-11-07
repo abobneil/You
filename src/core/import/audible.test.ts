@@ -33,6 +33,16 @@ describe('Audible reviewed sync', () => {
     expect(normalize(JSON.parse(JSON.stringify(profile))).cards[0].imports?.Audible.id).toBe('audible:us:B000000001');
   });
 
+  it('a newer sync with nothing changed is already there, so syncing again flags nothing', () => {
+    const profile = emptyProfile();
+    applyProposals(profile, proposals(), 'Audible');
+    const later = proposals([book()], '2026-11-09T12:00:00Z');
+    expect(planFor(profile, later[0])).toBe('have');
+    expect(applyProposals(profile, later, 'Audible')).toMatchObject({ added: 0, filled: 0, updated: 0 });
+    // A real change after that is still picked up.
+    expect(planFor(profile, proposals([book(undefined, 'finished')], '2026-11-10T12:00:00Z')[0])).toBe('update');
+  });
+
   it('preserves manual edits and deliberate clears on refresh', () => {
     const profile = emptyProfile();
     applyProposals(profile, proposals(), 'Audible');

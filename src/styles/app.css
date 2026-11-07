@@ -737,3 +737,15 @@
   }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  /* Connecting Audible */
+  .steps { margin: 14px 0 6px; padding-left: 20px; display: grid; gap: 16px; }
+  .steps li { padding-left: 4px; }
+  .steps p { margin: 0 0 10px; font-size: 14px; line-height: 1.5; }
+  .steps a.btn { display: inline-block; text-decoration: none; }
+  .aud-url {
+    width: 100%; font: inherit; font-size: 14px; font-weight: 400; letter-spacing: normal; text-align: left;
+    color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; outline: none;
+  }
+  .aud-url:focus { border-color: var(--ink); }
+  .aud-msg:empty { display: none; }

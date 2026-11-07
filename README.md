@@ -73,19 +73,22 @@ Each You has its own passphrase, encrypted copy (`you.vault.<id>`), save locatio
 | Health records | C-CDA (XML) or FHIR (JSON/NDJSON) from a patient portal | `health.ts` |
 | Books & movies | Goodreads, Letterboxd or IMDb CSV (Letterboxd zip too) | `media.ts` |
 | Streaming | Netflix viewing activity, Spotify data (account or extended history), Apple Media Services zip, YouTube Music via Google Takeout (JSON). Plays roll up into one card per show, movie, artist or podcast; a newer export refreshes the counts | `streaming.ts` |
-| Audible | `audible.you-import.json` from the local You Audible adapter | `audible.ts` |
+| Audible | Connected straight from You while it runs on your computer, or a file from `npm run audible -- export` | `audible.ts`, `server/audible/` |
 
 The barcode reader (zxing, WebAssembly) and the importers load only when used. Nothing here needs an app registration.
 
-Audible exports are produced by the separate local adapter at `../aapi` (see its README).
-Use **Bring in your data → Audible**, or **Interests → Import…**. Audible's reading status,
-ownership and saved position appear as separate Book details; an existing Goodreads/manual
-Status is preserved. Reimporting a newer snapshot refreshes unchanged imported details by
-stable marketplace/ASIN identity, keeps manual edits and records revisions. Older snapshots
-are ignored, and missing titles never delete cards. **Owned** means Audible reports
-Purchase origin with indefinite listening rights; **Likely owned** has incomplete rights
-evidence, and **Subscription** is kept separate.
-Audible credentials stay in the adapter's Windows-protected vault and are never imported here.
+### Audible
+
+Audible has no public API, so You connects the way the Audible iPhone app does: sign in to Amazon on Amazon's own page, then register this computer as an Audible device. Requests are signed with the device key Amazon issues. The code is in `server/audible/` (TypeScript, Node) and runs only on your computer:
+
+- **In the app** (`npm run dev` or `npm run preview`): **Import… → Audible → Connect Audible**, then **Sync from Audible** whenever you like. The page talks to local endpoints under `/__you/audible/`, which refuse anything that isn't a same-origin request from You on `localhost`. A published copy of You is static files, has no such endpoints, and offers the file import instead.
+- **From a terminal:** `npm run audible -- connect`, `npm run audible -- export` (writes `exports/audible.you-import.json`, which git ignores), `npm run audible -- status`, `npm run audible -- disconnect`. Add `--active-only` to leave out returned titles.
+
+The connection is kept in `%LOCALAPPDATA%\YouAudible`, encrypted with Windows DPAPI for your Windows account. It's never part of your You data, the repository, or any output. Only read-only library and saved-position requests are made. If the normal route to `api.audible.com` fails to connect, requests go through the CloudFront address Audible's DNS publishes, with the original Host header and normal certificate checks. Connecting currently needs Windows, and only the US store is supported.
+
+Audible's reading status, ownership and saved position appear as separate Book details, and an existing Goodreads or manual Status is kept. Syncing again refreshes imported details that you haven't changed, records the old values in the card's history, and flags nothing when nothing changed. Missing titles never delete cards. **Owned** means Audible reports a purchase with indefinite listening rights; **Likely owned** has incomplete rights evidence; **Subscription** is kept separate.
+
+This uses Audible's private app interface (the same one the community `audible` Python library uses, version 0.13.1, which this code was checked against), so Audible can change it without notice.
 
 ## Card rules
 

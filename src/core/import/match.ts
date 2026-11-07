@@ -74,7 +74,8 @@ function basePlan(profile: Profile, p: Proposal): Plan {
   const previous = p.sync ? m.imports?.[p.sync.source] : undefined;
   if (previous && p.sync!.at <= previous.at) return 'have';
   const changes = fieldChanges(m, p);
-  if (changes.some(([k]) => m.fields?.[k]) || (previous && p.sync!.at > previous.at)) return 'update';
+  // A newer snapshot that changes nothing is "already there": syncing again shouldn't flag every card.
+  if (changes.some(([k]) => m.fields?.[k])) return 'update';
   const missing = changes.length > 0 || (!!p.sync && !previous)
     || (!!p.since && !m.since) || (!!p.tag && !m.tag);
   return missing ? 'fill' : 'have';

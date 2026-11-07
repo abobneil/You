@@ -6,6 +6,7 @@ import { healthRows, parseHealth } from '../../core/import/health';
 import { linkedinRows, unzipCsvs, type Files } from '../../core/import/linkedin';
 import { mediaRows } from '../../core/import/media';
 import { audibleRows } from '../../core/import/audible';
+import { audibleStatus, connectAudible, disconnectAudible, syncAudible, type AudibleStatus } from './audibleLive';
 import { streamingRows, streamingZip } from '../../core/import/streaming';
 import { profile } from '../../state';
 import type { ImportResult } from '../../core/import/types';
@@ -146,7 +147,7 @@ const ICONS = {
   media: '<path d="M4 5h6a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4z"/><path d="M20 5h-6a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h6z"/>',
 };
 
-function sources(): Source[] {
+function sources(audible: AudibleStatus | null): Source[] {
   return [
     { id: 'contacts', title: 'Contacts', desc: 'People from Google or iCloud, or pick them on your phone. Mark one as you.', icon: ICONS.contacts,
       how: '<b>Google:</b> contacts.google.com → Export → vCard. <b>iPhone / iCloud:</b> icloud.com/contacts → select contacts → ⚙ → Export vCard.',
@@ -175,17 +176,39 @@ function sources(): Source[] {
     { id: 'media', title: 'Books & movies', desc: 'What you’ve read and watched, with ratings and dates.', icon: ICONS.media,
       how: '<b>Goodreads:</b> My Books → Import and export → Export library. <b>Letterboxd:</b> Settings → Data → Export your data (choose the zip). <b>IMDb:</b> Your ratings → ⋯ → Export.',
       actions: [{ label: 'Choose CSV or zip', primary: true, run: () => pick('.csv,.zip', true, importMedia) }] },
-    { id: 'audible', title: 'Audible', desc: 'Your library, listening status and ownership, from an Audible export.', icon: ICONS.media,
-      how: 'Use the You Audible adapter on your computer to sign in to Audible US and export your library. Choose its <b>audible.you-import.json</b> file here. Export and import again to refresh your Audible details. Your Audible password is never needed here.',
-      actions: [{ label: 'Choose Audible JSON', primary: true, run: () => pick('.json,application/json', false, async files => {
-        try { show('Audible', audibleRows(await files[0].text())); }
-        catch { failed('Audible', 'That file could not be read. Choose your Audible library export.'); }
-      }) }] },
+    audibleSource(audible),
   ];
 }
 
-export function openImportHub(only?: SourceId[]) {
-  const list = sources().filter(s => !only || only.includes(s.id));
+/**
+ * Audible (US). While You runs on this computer it connects to the account directly: sign in to
+ * Amazon once, then "Sync" reads the library whenever you like. Otherwise it takes the file that
+ * `npm run audible -- export` writes. Either way, everything goes through the review list.
+ */
+function audibleSource(live: AudibleStatus | null): Source {
+  const file = { label: 'Choose Audible JSON', primary: !live?.connected && !live?.supported, run: () => pick('.json,application/json', false, async files => {
+    try { show('Audible', audibleRows(await files[0].text())); }
+    catch { failed('Audible', 'That file could not be read. Choose your Audible library export.'); }
+  }) };
+  const actions: Source['actions'] = live?.connected
+    ? [{ label: 'Sync from Audible', primary: true, run: () => syncAudible(show) }, { ...file, label: 'Choose a file instead' },
+      { label: 'Disconnect', run: async () => { const err = await disconnectAudible(); if (err) failed('Audible', err); else openImportHub(['audible']); } }]
+    : live?.supported ? [{ label: 'Connect Audible', primary: true, run: () => connectAudible(show) }, { ...file, label: 'Choose a file instead' }]
+    : [file];
+  const how = live?.supported
+    ? '<b>Connect</b> signs in to Amazon on Amazon’s own page and registers this computer as an Audible device, the way the Audible app does. '
+      + 'The connection stays on this computer, locked to your Windows account. After that, <b>Sync</b> reads your library, listening status and ownership whenever you like, '
+      + 'and refreshes cards you imported before without touching details you changed. This uses Audible’s private app interface, so Audible may change it without notice.'
+    : live
+      ? 'Connecting Audible directly currently needs Windows. You can still import a file exported on a Windows computer with <b>npm run audible -- export</b>.'
+      : 'Connecting your Audible account works when You runs on your own computer (<b>npm run dev</b>). Here, choose a library file exported with <b>npm run audible -- export</b>.';
+  return { id: 'audible', title: 'Audible', icon: ICONS.media, how, actions,
+    desc: live?.connected ? 'Connected on this computer. Sync your library, listening status and ownership.' : 'Your library, listening status and ownership, from your Audible account.' };
+}
+
+export async function openImportHub(only?: SourceId[]) {
+  const audible = !only || only.includes('audible') ? await audibleStatus() : null;
+  const list = sources(audible).filter(s => !only || only.includes(s.id));
   const runners: Record<string, () => void> = {};
   openSheet(`${sheetTop('Bring in your data')}
     <h3 class="sh-title">Start with what you already have</h3>
