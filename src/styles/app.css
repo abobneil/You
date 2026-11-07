@@ -1,4 +1,5 @@
   :root {
+    color-scheme: light;
     --bg: #FAFAF8;
     --ink: #141414;
     --soft: #9A9A96;
@@ -7,9 +8,9 @@
     --font: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --bg: #141414; --ink: #F5F5F5; --soft: #77776F; --line: #33332F; }
+    :root:not([data-theme="light"]) { color-scheme: dark; --bg: #141414; --ink: #F5F5F5; --soft: #77776F; --line: #33332F; }
   }
-  :root[data-theme="dark"] { --bg: #141414; --ink: #F5F5F5; --soft: #77776F; --line: #33332F; }
+  :root[data-theme="dark"] { color-scheme: dark; --bg: #141414; --ink: #F5F5F5; --soft: #77776F; --line: #33332F; }
   body { transition: background-color .3s ease, color .3s ease; }
 
   /* Theme toggle: shows the moon in light mode and the sun in dark mode */
@@ -295,7 +296,6 @@
   .fx input:focus, .fx select:focus { border-bottom-color: var(--ink); }
   .fx input::placeholder { color: var(--soft); opacity: .7; }
   .fx select { cursor: pointer; }
-  .fx select option { background: var(--card); color: var(--ink); }
   .fx .big { font-size: 20px; font-weight: 500; }
   .date { display: flex; gap: 10px; align-items: center; }
   .date select { width: auto; }
@@ -478,5 +478,17 @@
   .you-chip .av { width: 24px; height: 24px; font-size: 12px; }
   .you-chip.add { padding: 6px 12px; color: var(--soft); border-style: dashed; }
   .you-chip.add:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Card kinds in "Add a card": every option visible, no hidden dropdown */
+  .fx.kinds-row { align-items: start; }
+  .fx.kinds-row .lab { padding-top: 6px; }
+  .kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+  .kinds button {
+    font: inherit; font-size: 13px; padding: 5px 11px; border-radius: 999px; cursor: pointer;
+    background: none; border: 1px solid var(--line); color: var(--ink); transition: border-color .2s, color .2s;
+  }
+  .kinds button:hover { border-color: var(--ink); }
+  .kinds button.has { color: var(--soft); }
+  .kinds button.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

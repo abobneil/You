@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeOf, addCard, addLink, atTheTime, byId, correctValue, defaultMode, endCard, linksOf, removeCard, reopenCard,
+  activeOf, addCard, addLink, atTheTime, byId, correctValue, defaultMode, endCard, linksOf, rangeText, removeCard, reopenCard,
 } from './cards';
+import { kindOf } from './areas';
 import { emptyProfile } from './profile';
 import type { Profile } from './types';
 
@@ -125,5 +126,28 @@ describe('at the time', () => {
     endCard(p, old.id, '2014');
     addLink(p, aetna.id, job.id, 'through', 'provides');
     expect(atTheTime(p, aetna).map(c => c.value)).toEqual([home.value]);
+  });
+});
+
+describe('dated and undated kinds', () => {
+  it('facts like Full name show no date line; a later name change does', () => {
+    const p = seed();
+    const first = addCard(p, { area: 'about', kind: 'Full name', value: 'Neil Chester', since: '' });
+    expect(rangeText(first)).toBe('');
+    const changed = addCard(p, { area: 'about', kind: 'Full name', value: 'Neil A. Chester', since: '2030-06' }, first.id);
+    expect(rangeText(changed)).toBe('Changed Jun 2030');
+    expect(rangeText(first)).toBe('Until Jun 2030');
+  });
+
+  it('a birthday is its own date', () => {
+    const p = seed();
+    const b = addCard(p, { area: 'about', kind: 'Birthday', value: 'Aug 29, 1989', since: '1989-08-29' });
+    expect(rangeText(b)).toBe('');
+    expect(kindOf('about', 'Birthday')).toMatchObject({ dated: false, value: 'date' });
+  });
+
+  it('ordinary and invented kinds stay dated', () => {
+    expect(kindOf('health', 'Doctor').dated).toBe(true);
+    expect(kindOf('about', 'Favorite color')).toMatchObject({ dated: true, many: true, value: 'text' });
   });
 });

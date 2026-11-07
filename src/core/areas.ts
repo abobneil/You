@@ -6,22 +6,36 @@ export interface Area {
   hint: string;
   /** Inner SVG markup for a 24×24 stroke icon. */
   icon: string;
-  /**
-   * Suggested kinds of card. `many: true` kinds (Allergy, Friend…) are added alongside by default;
-   * the rest (Doctor, Address…) replace the current card by default.
-   */
-  kinds: { name: string; many?: boolean }[];
+  /** Suggested kinds of card. */
+  kinds: Kind[];
 }
 
-const k = (name: string, many = false) => ({ name, many });
+export interface Kind {
+  name: string;
+  /** Kinds you can have several of (Allergy, Friend…) are added alongside by default; others replace. */
+  many?: boolean;
+  /**
+   * false for facts about you rather than things that start on a date (Full name, Birthplace).
+   * Their first card has no "since" date; replacing one asks when it changed.
+   */
+  dated?: boolean;
+  /** 'date' when the value itself is a date (Birthday). It also becomes the card's since-date. */
+  value?: 'text' | 'date';
+}
+
+const k = (name: string, many = false): Kind => ({ name, many });
+/** A fact about you, not dated. */
+const fact = (name: string, extra: Partial<Kind> = {}): Kind => ({ name, dated: false, ...extra });
 
 export const AREAS: Area[] = [
   { id: 'about', title: 'About', hint: 'Birthday, contact, IDs',
     icon: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
-    kinds: [k('Full name'), k('Preferred name'), k('Birthday'), k('Birthplace'), k('Phone', true), k('Email', true), k("Driver's license"), k('Passport')] },
+    kinds: [fact('Full name'), fact('Preferred name'), fact('Pronouns'), fact('Birthday', { value: 'date' }), fact('Birthplace'),
+      k('Phone', true), k('Email', true), k('Citizenship', true), fact('Language', { many: true }),
+      k("Driver's license"), k('Passport'), fact('Social Security number')] },
   { id: 'health', title: 'Health', hint: 'Doctors, meds, records',
     icon: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>',
-    kinds: [k('Doctor'), k('Dentist'), k('Blood type'), k('Allergy', true), k('Medication', true), k('Condition', true), k('Health insurance'), k('Emergency contact')] },
+    kinds: [k('Doctor'), k('Dentist'), fact('Blood type'), k('Allergy', true), k('Medication', true), k('Condition', true), k('Health insurance'), k('Emergency contact')] },
   { id: 'work', title: 'Work', hint: 'Jobs, skills, résumé',
     icon: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 12h18"/>',
     kinds: [k('Job'), k('Skill', true), k('Education', true), k('Certification', true), k('Award', true), k('Profile link', true)] },
@@ -45,11 +59,13 @@ export const AREAS: Area[] = [
 export const areaById = (id: string): Area | undefined => AREAS.find(a => a.id === id);
 export const isAreaId = (id: string): id is AreaId => AREAS.some(a => a.id === id);
 
-/** Kinds the person invents themselves default to "add alongside". */
-export function isMany(area: AreaId, kind: string): boolean {
+/** A kind's settings. Kinds the person invents are dated, text, and added alongside. */
+export function kindOf(area: AreaId, kind: string): Required<Kind> {
   const found = areaById(area)?.kinds.find(x => x.name === kind);
-  return found ? !!found.many : true;
+  return { name: kind, many: found ? !!found.many : true, dated: found?.dated ?? true, value: found?.value ?? 'text' };
 }
+
+export const isMany = (area: AreaId, kind: string) => kindOf(area, kind).many;
 
 /**
  * Suggested link labels, phrased from each side:

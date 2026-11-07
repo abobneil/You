@@ -1,10 +1,10 @@
 // One card, opened: correct it, link it, replace it, end it, or (rarely) remove it.
-import { areaById } from '../core/areas';
+import { areaById, kindOf } from '../core/areas';
 import { atTheTime, byId, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink } from '../core/cards';
-import { fmtISO, thisMonth } from '../core/dates';
+import { fmtDate, fmtISO, thisMonth } from '../core/dates';
 import { profile, save } from '../state';
 import { dateInputs, readDate } from './dateInput';
-import { $, esc } from './dom';
+import { esc } from './dom';
 import { openComposer } from './composer';
 import { openLinkPicker } from './linkPicker';
 import { closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
@@ -15,6 +15,8 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
   if (!c) return;
   if (location.hash !== '#' + c.area) location.hash = '#' + c.area;
   const a = areaById(c.area)!;
+  const kind = kindOf(c.area, c.kind);
+  const isDate = kind.value === 'date';
   const on = c.status === 'active';
   const links = linksOf(profile, c.id);
   const near = atTheTime(profile, c);
@@ -26,8 +28,10 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
   ].filter(Boolean).join(' ');
 
   openSheet(`${sheetTop(`${esc(a.title)} · ${esc(c.kind)} <span class="status ${on ? 'on' : ''}">${on ? 'Active' : 'History'}</span>`)}
-    <div class="fx"><label for="v-value">Value</label><input id="v-value" class="big" value="${esc(c.value)}"></div>
-    <div class="fx"><span class="lab">Since</span>${dateInputs(c.since, 'since')}</div>
+    ${isDate
+      ? `<div class="fx"><span class="lab">${esc(c.kind)}</span>${dateInputs(c.since, 'vdate')}</div>`
+      : `<div class="fx"><label for="v-value">Value</label><input id="v-value" class="big" value="${esc(c.value)}"></div>`}
+    ${!isDate && (kind.dated || c.since) ? `<div class="fx"><span class="lab">${kind.dated ? 'Since' : 'Changed'}</span>${dateInputs(c.since, 'since')}</div>` : ''}
     ${on ? '' : `<div class="fx"><span class="lab">Until</span>${dateInputs(c.until, 'until')}</div>`}
     <div class="fx"><span class="lab">Recorded</span><span class="hint">${esc(fmtISO(c.recordedAt))}${story ? ' · ' : ''}${story}</span></div>
     ${c.revisions.length ? `<div class="block"><h5>Earlier wording</h5><ul class="revs">${[...c.revisions].reverse()
@@ -66,12 +70,20 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
   });
 
   // Corrections save in place; the old wording is kept quietly.
-  const val = $<HTMLInputElement>('#v-value', sheetBody);
-  val.addEventListener('change', () => {
+  const val = sheetBody.querySelector<HTMLInputElement>('#v-value');
+  val?.addEventListener('change', () => {
     if (correctValue(profile, id, val.value)) { save(); openCard(id); }
     else val.value = c.value;
   });
-  val.addEventListener('keydown', e => { if (e.key === 'Enter') val.blur(); });
+  val?.addEventListener('keydown', e => { if (e.key === 'Enter') val.blur(); });
+  // Date-valued cards (Birthday): the date is both the value and where it sits on the timeline.
+  sheetBody.querySelector('[data-date="vdate"]')?.addEventListener('change', () => {
+    const d = readDate(sheetBody, 'vdate');
+    if (!d) return;
+    correctValue(profile, id, fmtDate(d));
+    c.since = d;
+    save();
+  });
   sheetBody.querySelectorAll<HTMLElement>('[data-date="since"], [data-date="until"]').forEach(el =>
     el.addEventListener('change', () => {
       const key = el.dataset.date as 'since' | 'until';

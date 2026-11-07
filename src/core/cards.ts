@@ -1,5 +1,5 @@
 // All the rules for cards live here, free of any screen code, so they can be tested.
-import { isMany } from './areas';
+import { isMany, kindOf } from './areas';
 import { endKey, fmtDate, fmtISO, localDay, startKey, thisMonth } from './dates';
 import type { AreaId, Card, FuzzyDate, Link, Profile } from './types';
 
@@ -16,8 +16,14 @@ export const cardEnd = (c: Card) =>
   c.status === 'active' ? '9999-12-31' : c.until ? endKey(c.until) : cardStart(c);
 
 export function rangeText(c: Card): string {
-  if (c.status === 'active') return c.since ? `Since ${fmtDate(c.since)}` : `Added ${fmtISO(c.recordedAt)}`;
-  return `${fmtDate(c.since) || '?'} – ${fmtDate(c.until) || '?'}`;
+  const k = kindOf(c.area, c.kind);
+  if (c.status === 'active') {
+    if (k.value === 'date') return ''; // the value already is the date
+    if (c.since) return `${k.dated || !c.replaces ? 'Since' : 'Changed'} ${fmtDate(c.since)}`;
+    return k.dated ? `Added ${fmtISO(c.recordedAt)}` : '';
+  }
+  if (!c.since) return c.until ? `Until ${fmtDate(c.until)}` : 'Ended';
+  return `${fmtDate(c.since)} – ${fmtDate(c.until) || '?'}`;
 }
 
 /** Newest first; cards that started on the same day are ordered by when they were added. */
