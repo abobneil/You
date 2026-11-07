@@ -193,15 +193,13 @@ function audibleSource(live: AudibleStatus | null): Source {
   const actions: Source['actions'] = live?.connected
     ? [{ label: 'Sync from Audible', primary: true, run: () => syncAudible(show) }, { ...file, label: 'Choose a file instead' },
       { label: 'Disconnect', run: async () => { const err = await disconnectAudible(); if (err) failed('Audible', err); else openImportHub(['audible']); } }]
-    : live?.supported ? [{ label: 'Connect Audible', primary: true, run: () => connectAudible(show) }, { ...file, label: 'Choose a file instead' }]
+    : live?.supported ? [{ label: 'Connect Audible', primary: true, run: () => connectAudible(show, live.kept) }, { ...file, label: 'Choose a file instead' }]
     : [file];
   const how = live?.supported
     ? '<b>Connect</b> signs in to Amazon on Amazon’s own page and registers this computer as an Audible device, the way the Audible app does. '
-      + 'The connection stays on this computer, locked to your Windows account. After that, <b>Sync</b> reads your library, listening status and ownership whenever you like, '
+      + `The connection stays on the computer running You, ${esc(live.kept)}. After that, <b>Sync</b> reads your library, listening status and ownership whenever you like, `
       + 'and refreshes cards you imported before without touching details you changed. This uses Audible’s private app interface, so Audible may change it without notice.'
-    : live
-      ? 'Connecting Audible directly currently needs Windows. You can still import a file exported on a Windows computer with <b>npm run audible -- export</b>.'
-      : 'Connecting your Audible account works when You runs on your own computer (<b>npm run dev</b>). Here, choose a library file exported with <b>npm run audible -- export</b>.';
+    : 'Connecting your Audible account works when You runs on your own computer (<b>npm run dev</b>). Here, choose a library file exported with <b>npm run audible -- export</b>.';
   return { id: 'audible', title: 'Audible', icon: ICONS.media, how, actions,
     desc: live?.connected ? 'Connected on this computer. Sync your library, listening status and ownership.' : 'Your library, listening status and ownership, from your Audible account.' };
 }

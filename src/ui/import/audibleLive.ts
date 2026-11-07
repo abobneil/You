@@ -1,6 +1,6 @@
 // Connecting to Audible straight from You. This works while You runs on this computer (npm run dev or
 // npm run preview): the page talks to the local connection in server/audible, which signs requests
-// with a device key kept under the person's Windows account. A published copy of You has no such
+// with a device key kept in that computer's credential store (Windows, the Linux keyring, or a private file). A published copy of You has no such
 // connection; audibleStatus() then returns null and only the file import is offered.
 import { audibleRows } from '../../core/import/audible';
 import type { ImportResult } from '../../core/import/types';
@@ -8,7 +8,8 @@ import { esc } from '../dom';
 import { openSheet, sheetTop } from '../sheet';
 
 const BASE = '/__you/audible/';
-export interface AudibleStatus { supported: boolean; connected: boolean; pending: boolean }
+/** `kept` says how the connection is protected: "locked to your Windows account", "in your system keyring"… */
+export interface AudibleStatus { supported: boolean; connected: boolean; pending: boolean; kept: string }
 
 async function call<T>(action: string, body: unknown, timeoutMs: number): Promise<T> {
   const res = await fetch(BASE + action, {
@@ -50,7 +51,7 @@ export async function syncAudible(show: Show) {
 }
 
 /** Sign in to Amazon, paste the address it ends on, and this computer becomes an Audible device. */
-export async function connectAudible(show: Show) {
+export async function connectAudible(show: Show, kept: string) {
   let url: string;
   try { url = (await call<{ url: string }>('sign-in', {}, 15_000)).url; }
   catch (e) { return show('Audible', { rows: [], notes: [message(e)] }); }
@@ -65,8 +66,8 @@ export async function connectAudible(show: Show) {
         <input id="aud-url" class="aud-url" type="password" autocomplete="off" spellcheck="false" placeholder="Paste the address" aria-label="Address Amazon finished on"></li>
     </ol>
     <p class="hint aud-msg" id="aud-msg" role="status"></p>
-    <p class="hint">Your Amazon password is only ever typed on Amazon’s page. This computer keeps the connection, locked to
-      your Windows account. It isn’t part of your You data and never leaves this computer.</p>
+    <p class="hint">Your Amazon password is only ever typed on Amazon’s page. The computer running You keeps the connection
+      ${esc(kept)}. It isn’t part of your You data and never leaves that computer.</p>
     <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button>
       <button class="btn primary" type="button" data-act="finish">Connect</button></div>`,
   {

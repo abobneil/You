@@ -38,14 +38,14 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   if (!allowed(req)) return reply(res, 403, { error: 'Not allowed.' });
   const action = (req.url ?? '').slice(BASE.length).split('?')[0];
   try {
-    if (req.method === 'GET' && action === 'status') return reply(res, 200, status());
+    if (req.method === 'GET' && action === 'status') return reply(res, 200, await status());
     if (req.method !== 'POST') return reply(res, 405, { error: 'Not allowed.' });
     const body = await readJson(req);
     switch (action) {
       case 'sign-in': return reply(res, 200, { url: await startSignIn() });
       case 'finish': await finishSignIn(String(body.redirect ?? '')); return reply(res, 200, { ok: true });
       case 'export': return reply(res, 200, await exportLibrary({ activeOnly: !!body.activeOnly }));
-      case 'disconnect': disconnect(); return reply(res, 200, { ok: true });
+      case 'disconnect': await disconnect(); return reply(res, 200, { ok: true });
       default: return reply(res, 404, { error: 'Unknown action.' });
     }
   } catch (e) {

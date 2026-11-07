@@ -84,7 +84,15 @@ Audible has no public API, so You connects the way the Audible iPhone app does: 
 - **In the app** (`npm run dev` or `npm run preview`): **Import… → Audible → Connect Audible**, then **Sync from Audible** whenever you like. The page talks to local endpoints under `/__you/audible/`, which refuse anything that isn't a same-origin request from You on `localhost`. A published copy of You is static files, has no such endpoints, and offers the file import instead.
 - **From a terminal:** `npm run audible -- connect`, `npm run audible -- export` (writes `exports/audible.you-import.json`, which git ignores), `npm run audible -- status`, `npm run audible -- disconnect`. Add `--active-only` to leave out returned titles.
 
-The connection is kept in `%LOCALAPPDATA%\YouAudible`, encrypted with Windows DPAPI for your Windows account. It's never part of your You data, the repository, or any output. Only read-only library and saved-position requests are made. If the normal route to `api.audible.com` fails to connect, requests go through the CloudFront address Audible's DNS publishes, with the original Host header and normal certificate checks. Connecting currently needs Windows, and only the US store is supported.
+The connection is kept on the computer running You, in the best place available. It's never part of your You data, the repository, or any output:
+
+| System | Where | Protection |
+|---|---|---|
+| Windows | `%LOCALAPPDATA%\YouAudible` | Windows DPAPI: only your Windows account can read it |
+| Linux desktop | The system keyring (GNOME Keyring, KWallet…) via `secret-tool` | Unlocked when you log in |
+| Linux server, macOS, anything else | `~/.config/you-audible` (or `$XDG_CONFIG_HOME`) | Folder `0700`, file `0600`, like SSH keys. Set `YOU_AUDIBLE_PASSPHRASE` to also encrypt it (scrypt + AES-256-GCM) |
+
+`YOU_AUDIBLE_STORE=file` forces the private file. Only read-only library and saved-position requests are made. If the normal route to `api.audible.com` fails to connect, requests go through the CloudFront address Audible's DNS publishes, with the original Host header and normal certificate checks. Only the US store is supported. Tested on Windows 11 and on Linux (Debian, Node 24), including a live export.
 
 Audible's reading status, ownership and saved position appear as separate Book details, and an existing Goodreads or manual Status is kept. Syncing again refreshes imported details that you haven't changed, records the old values in the card's history, and flags nothing when nothing changed. Missing titles never delete cards. **Owned** means Audible reports a purchase with indefinite listening rights; **Likely owned** has incomplete rights evidence; **Subscription** is kept separate.
 

@@ -27,8 +27,8 @@ function hidden(prompt: string): Promise<string> {
 async function main(): Promise<number> {
   const command = args[0];
   if (command === 'status') {
-    const s = status();
-    console.log(!s.supported ? 'Connecting Audible currently needs Windows.' : s.connected ? 'Audible is connected on this computer.' : 'Audible isn’t connected. Run: npm run audible -- connect');
+    const s = await status();
+    console.log(s.connected ? `Audible is connected on this computer. The connection is kept ${s.kept}.` : 'Audible isn’t connected. Run: npm run audible -- connect');
     return 0;
   }
   if (command === 'connect') {
@@ -36,7 +36,7 @@ async function main(): Promise<number> {
     console.log('\nOpen that address and sign in to Amazon. When it ends on a blank or error page, copy the whole');
     console.log('address from the address bar (it starts with https://www.amazon.com/ap/maplanding).\n');
     await finishSignIn(await hidden('Paste the address (hidden): '));
-    console.log('Audible is connected. The connection is protected by your Windows account.');
+    console.log(`Audible is connected. The connection is kept ${(await status()).kept}.`);
     return 0;
   }
   if (command === 'export') {
@@ -51,7 +51,7 @@ async function main(): Promise<number> {
     return 0;
   }
   if (command === 'disconnect') {
-    disconnect();
+    await disconnect();
     console.log('Forgot the Audible connection on this computer. To remove the device from your account too, use Amazon’s “Your devices” page.');
     return 0;
   }
