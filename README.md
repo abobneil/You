@@ -82,8 +82,9 @@ Use **Bring in your data → Audible**, or **Interests → Import…**. Audible'
 ownership and saved position appear as separate Book details; an existing Goodreads/manual
 Status is preserved. Reimporting a newer snapshot refreshes unchanged imported details by
 stable marketplace/ASIN identity, keeps manual edits and records revisions. Older snapshots
-are ignored, and missing titles never delete cards. Ownership is provisional until the
-account's purchase evidence is verified: **Likely owned** is distinct from **Subscription**.
+are ignored, and missing titles never delete cards. **Owned** means Audible reports
+Purchase origin with indefinite listening rights; **Likely owned** has incomplete rights
+evidence, and **Subscription** is kept separate.
 Audible credentials stay in the adapter's Windows-protected vault and are never imported here.
 
 ## Card rules

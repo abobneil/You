@@ -28,7 +28,7 @@ export function audibleRows(input: string): ImportResult {
       skipped++; continue;
     }
     // Preserve podcasts in the export, but do not turn their seasons/episodes into book cards.
-    if (book.content_delivery_type === 'Podcast' || /podcast|episode|periodical/i.test(text(book.content_type))) { skipped++; continue; }
+    if (/podcast|episode|periodical|newspaper|magazine/i.test(text(book.content_type) + ' ' + text(book.content_delivery_type))) { skipped++; continue; }
     if (seen.has(book.id)) { skipped++; continue; }
     seen.add(book.id);
     const author = Array.isArray(book.authors) ? book.authors.filter((v: unknown) => typeof v === 'string').join(', ') : '';
@@ -47,7 +47,7 @@ export function audibleRows(input: string): ImportResult {
     });
   }
   return { rows, notes: [
-    'Audible reading status and ownership are shown separately. “Likely owned” needs purchase verification; subscription titles are not purchases.',
+    'Audible reading status and ownership are shown separately. “Owned” means Audible reports a purchase with indefinite listening rights. Subscription titles are not purchases.',
     'Reimport a newer export to refresh Audible details. Your own reading status and details you changed by hand are kept. Books missing from an export are kept.',
     ...(skipped ? [`Skipped ${skipped} duplicate, unsupported or incomplete entries.`] : []),
   ] };
