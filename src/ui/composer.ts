@@ -5,8 +5,8 @@ import { activeOf, addCard, addCardBefore, addLink, byId, defaultMode } from '..
 import { startKey, endKey, fmtDate } from '../core/dates';
 import type { AreaId, FuzzyDate } from '../core/types';
 import { profile, save } from '../state';
-import { dateInputs, readDate } from './dateInput';
-import { $, esc, linkText } from './dom';
+import { dateError, dateInputs, readDate } from './dateInput';
+import { $, esc, linkText, showFieldError } from './dom';
 import { emit } from './events';
 import { openLinkPicker } from './linkPicker';
 import { attachValueField, valueFieldHtml } from './valueField';
@@ -41,10 +41,21 @@ interface Draft {
   links: { id: string; fwd: string; back: string }[];
 }
 let draft: Draft;
+/** What was typed, as it was when the composer opened, to tell whether backing out loses anything. */
+let typedAtStart = '';
+const typed = () => JSON.stringify([draft.note, draft.custom, draft.value, draft.valueDate, draft.since, draft.fields, draft.links]);
+/** Lets the sheet offer "Draft discarded · Undo" when the composer is dismissed with typing in it. */
+const draftHook = {
+  // A date that can't be read yet still counts as typed.
+  dirty: () => { try { read(); } catch { return true; } return typed() !== typedAtStart; },
+  snapshot: () => structuredClone(draft),
+  restore: (snap: unknown) => { draft = structuredClone(snap as Draft); render(true); },
+};
 
 export function openComposer(area: AreaId, preset: { kind?: string; replaceId?: string; since?: string } = {}) {
   draft = { note: '', noteOpen: false, area, kind: preset.kind || firstOpenKind(area), custom: '', value: '', valueDate: '', since: preset.since || '',
     fields: {}, fieldsByKind: {}, nameTyped: false, mode: null, replaceId: preset.replaceId, links: [] };
+  typedAtStart = typed();
   render(true);
 }
 
@@ -82,8 +93,8 @@ function render(focus = false) {
 
   const kindChips = a.kinds.map(k => {
     const has = activeOf(profile, draft.area, k.name).length > 0;
-    return `<button type="button" data-act="kind" data-kind="${esc(k.name)}" class="${k.name === draft.kind ? 'on' : ''}${has ? ' has' : ''}"
-      ${has ? `title="You have this one"` : ''}>${esc(k.name)}</button>`;
+    return `<button type="button" data-act="kind" data-kind="${esc(k.name)}" class="${k.name === draft.kind ? 'on' : ''}${has ? ' has' : ''}" aria-pressed="${k.name === draft.kind}"
+      >${esc(k.name)}${has ? '<span class="vh"> (you have one)</span>' : ''}</button>`;
   }).join('') + `<button type="button" data-act="kind" data-kind="${OTHER}" class="${custom ? 'on' : ''}">Something else…</button>`;
 
   const modeRow = actives.length ? `<div class="fx"><span class="lab">Current ${esc(draft.kind.toLowerCase())}</span>
@@ -94,7 +105,9 @@ function render(focus = false) {
       <button type="button" data-act="mode" data-mode="add" class="${draft.mode === 'add' ? 'on' : ''}">Add alongside</button></div>
       ${before ? `<div class="hint">This goes into your history, ending when ${esc(shownValue(actives.find(c => 'b:' + c.id === draft.mode)!))} started.</div>` : ''}</div>` : '';
   const linkChips = draft.links.map((l, i) =>
-    `<span class="chip">${(() => { const o = byId(profile, l.id); return linkText(l.fwd, o ? kindLabel(o) : '', o ? shownValue(o) : ''); })()}<span class="x" data-act="drop-link" data-i="${i}" role="button" title="Remove">×</span></span>`).join('');
+    { const o = byId(profile, l.id);
+      return `<span class="chip">${linkText(l.fwd, o ? kindLabel(o) : '', o ? shownValue(o) : '')}<button type="button" class="x" data-act="drop-link" data-i="${i}"
+        aria-label="Remove link to ${esc(o ? `${kindLabel(o)} ${shownValue(o)}` : 'this card')}">×</button></span>`; }).join('');
 
   const valueRow = isDate
     ? `<div class="fx"><span class="lab">${esc(kind.name)}</span>${dateInputs(draft.valueDate, 'vdate')}</div>`
@@ -159,17 +172,23 @@ function render(focus = false) {
     save: () => {
       read();
       const name = draft.kind === OTHER ? draft.custom : draft.kind;
-      if (!name) return sheetBody.querySelector<HTMLInputElement>('#c-custom')?.focus();
+      if (!name) { const f = sheetBody.querySelector<HTMLInputElement>('#c-custom'); if (f) showFieldError(f, 'Name this card, for example “Eye doctor”.'); return; }
       let value = draft.value.trim() || (kind.titleFrom ? kind.titleFrom(draft.fields) : '');
       let since = showSince ? draft.since : '';
       if (isDate) {
-        if (!draft.valueDate) return sheetBody.querySelector<HTMLElement>('[data-date="vdate"] [data-d="y"]')?.focus();
+        if (!draft.valueDate) return dateError(sheetBody, 'vdate', `Add the ${kind.name.toLowerCase()}. A year alone is enough.`);
         value = fmtDate(draft.valueDate);
         since = draft.valueDate; // a birthday sits at that date on the timeline
       }
-      if (!value) return (sheetBody.querySelector<HTMLElement>('.details input') ?? $<HTMLInputElement>('#c-value', sheetBody)).focus();
+      if (!value) {
+        const f = sheetBody.querySelector<HTMLElement>('#c-value') ?? $<HTMLElement>('.details input', sheetBody);
+        return showFieldError(f, kind.titleFrom ? 'Type a name, or fill in the details below.' : `Type the ${(name).toLowerCase()} first.`, f.closest('.vf') ?? f);
+      }
       const related = byId(profile, draft.mode?.slice(2));
-      if (since && related && ((replacing && related.since && endKey(since) < startKey(related.since)) || (before && related.since && endKey(related.since) < startKey(since)))) { alert('The end must be after the start. Check the dates before adding this card.'); return; }
+      if (since && related?.since && replacing && endKey(since) < startKey(related.since))
+        return dateError(sheetBody, 'since', `This change is dated before ${shownValue(related)} started (${fmtDate(related.since)}). Change the date to ${fmtDate(related.since)} or later.`);
+      if (since && related?.since && before && endKey(related.since) < startKey(since))
+        return dateError(sheetBody, 'since', `This came before ${shownValue(related)}, which started ${fmtDate(related.since)}. Change the date to before ${fmtDate(related.since)}.`);
       const input = { note: draft.note, area: draft.area, kind: name, value, since, tag: draft.tag, fields: draft.fields };
       const c = before
         ? addCardBefore(profile, input, draft.mode!.slice(2))
@@ -180,7 +199,7 @@ function render(focus = false) {
       closeSheet();
       emit('card-added');
     },
-  });
+  }, { draft: draftHook });
 
   autosizeNote(sheetBody);
   attachValueField(sheetBody, 'c-value', kind);

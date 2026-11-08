@@ -1,6 +1,6 @@
 import { MONTHS, fuzzyFromParts, isValidDate } from '../core/dates';
 import type { FuzzyDate } from '../core/types';
-import { $, esc } from './dom';
+import { $, esc, showFieldError } from './dom';
 
 // Month / Day / Year. Only the year is needed; people rarely remember exact dates.
 // The month is our own button + grid rather than a native <select>: on Windows dark mode the
@@ -21,6 +21,15 @@ export function dateInputs(value: FuzzyDate | undefined, key: string): string {
   </span>`;
 }
 
+/** Thrown by readDate after it has shown the person what to fix; whoever was saving just stops. */
+export class InvalidDate extends Error { constructor() { super('Invalid calendar date'); } }
+
+/** Marks a date field as wrong, with the message under it. Focuses its year. */
+export function dateError(root: ParentNode, key: string, message: string) {
+  const el = root.querySelector(`[data-date="${key}"]`);
+  if (el) showFieldError($<HTMLElement>('[data-d="y"]', el), message, el);
+}
+
 export function readDate(root: ParentNode, key: string): FuzzyDate {
   const el = root.querySelector(`[data-date="${key}"]`);
   if (!el) return '';
@@ -28,7 +37,14 @@ export function readDate(root: ParentNode, key: string): FuzzyDate {
   const month = $<HTMLElement>('[data-d="m"]', el).dataset.value || '';
   const day = $<HTMLInputElement>('[data-d="d"]', el).value.trim();
   const raw = year + (month ? '-' + month : '') + (day ? '-' + day.padStart(2, '0') : '');
-  if (raw && !isValidDate(raw)) { alert('Please enter a real date. A year alone is enough.'); throw new Error('Invalid calendar date'); }
+  if (raw && !isValidDate(raw)) {
+    const badYear = !/^\d{4}$/.test(year);
+    showFieldError($<HTMLInputElement>(badYear ? '[data-d="y"]' : '[data-d="d"]', el), !year
+      ? 'Add the year. A year alone is enough.'
+      : badYear ? 'Type the year as four digits, like 1998.'
+      : 'That day isn’t in that month. Change the day, or leave it empty: a year alone is enough.', el);
+    throw new InvalidDate();
+  }
   return fuzzyFromParts(
     $<HTMLInputElement>('[data-d="y"]', el).value,
     $<HTMLElement>('[data-d="m"]', el).dataset.value ?? '',

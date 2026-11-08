@@ -37,7 +37,8 @@ export function openLinkPicker(o: Options) {
   };
 
   openSheet(`${sheetTop('Link a card')}
-    <input class="search" id="p-q" placeholder="Search your cards" autocomplete="off">
+    <label class="pick-lab" for="p-q">Find the card to link</label>
+    <input class="search" id="p-q" placeholder="Type a name, kind or detail" autocomplete="off">
     <ul class="pick" id="p-list">${list('')}</ul>
     <div class="btns"><button class="btn quiet" type="button" data-act="back">Back</button></div>`,
   {
