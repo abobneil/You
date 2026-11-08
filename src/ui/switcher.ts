@@ -4,7 +4,7 @@ import { openSafety } from './safety';
 import { downloadCopy } from '../storage/target';
 // Switching between Yous on this browser. Switching, adding and locking reload the page,
 // so the previous You's data and key are gone from memory.
-import { browserSaveState, canLeave, eraseBrowserCopy, flushPending, persist, profile, vault } from '../state';
+import { browserSaveState, canLeave, eraseBrowserCopy, flushPending, persist, profile, setLockedInPlace, settleAfterUnlock, vault } from '../state';
 import { deriveVault, openWith, seal, WrongPassphrase, type Envelope, type Vault } from '../core/crypto';
 import { askPassphrase, hideGate } from './gate';
 import { keepOpenDraft, offerKeptDrafts } from './drafts';
@@ -104,6 +104,7 @@ async function lockInPlace() {
     try { keepOpenDraft(); } catch { closeSheet(); }
     if ((document.querySelector('#sheet') as HTMLDialogElement | null)?.open) closeSheet();
     hideContent();
+    setLockedInPlace(true);
     const v = vault, check = await sealCheck(v);
     await askPassphrase('unlock', async p => {
       try { await openWith(await deriveVault(p, v.salt, v.iterations), check); return true; }
@@ -117,9 +118,12 @@ async function lockInPlace() {
       note: '<b>Some changes weren’t saved yet.</b> They’re kept in this tab. Unlock to keep working, or download them now (the file opens with the same passphrase).',
     });
     hideGate();
+    setLockedInPlace(false);
     emit('data-loaded');
     offerKeptDrafts();
-  } finally { inPlace = false; lastInteraction = Date.now(); }
+    // Anything another tab saved while this one was locked is settled now: newer work loads, or the person is asked.
+    await settleAfterUnlock();
+  } finally { inPlace = false; setLockedInPlace(false); lastInteraction = Date.now(); }
 }
 /** Something small sealed with the key, so the passphrase can be checked without keeping it. */
 const sealCheck = async (v: Vault) => JSON.parse(await seal(v, 'you-lock-check')) as Envelope;

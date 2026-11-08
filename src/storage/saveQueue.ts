@@ -1,4 +1,4 @@
-export type SaveState = { status: 'saved' | 'saving' | 'failed'; reason?: 'storage full' | 'blocked' };
+export type SaveState = { status: 'saved' | 'saving' | 'failed'; reason?: 'storage full' | 'blocked' | 'other tab' };
 /** One active write and one latest snapshot; failed writes remain retryable. */
 export function saveQueue<T>(write: (value: T) => Promise<void>, changed: (s: SaveState) => void = () => {}) {
   let state: SaveState = { status: 'saved' };
@@ -14,7 +14,7 @@ export function saveQueue<T>(write: (value: T) => Promise<void>, changed: (s: Sa
         try { await write(next.value); }
         catch (e) {
           pending ??= next;
-          update({ status: 'failed', reason: (e as Error)?.name === 'QuotaExceededError' ? 'storage full' : 'blocked' });
+          update({ status: 'failed', reason: (e as Error)?.name === 'QuotaExceededError' ? 'storage full' : (e as Error)?.name === 'TabConflict' ? 'other tab' : 'blocked' });
           return;
         }
       }

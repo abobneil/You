@@ -25,8 +25,18 @@ export function staleGuard(store: Pick<VaultStore, 'get' | 'set'>, lock: Lock = 
     markStale() { stale = true; },
     isStale: () => stale,
     baseline: () => baseline,
-    /** Called after the person chose to keep this tab's version: the copy now stored becomes the baseline. */
-    async adoptStored(id: string) { baseline = await store.get(id); stale = false; },
+    /**
+     * Called after the person chose to keep this tab's version and a copy of the other one was
+     * downloaded. Compare-and-swap under the lock: that downloaded copy becomes the baseline only if
+     * it's still exactly what's stored. Returns false (changing nothing) if another save landed since.
+     */
+    adoptStored(id: string, expected: string): Promise<boolean> {
+      return lock('you-' + id, async () => {
+        if (await store.get(id) !== expected) return false;
+        baseline = expected; stale = false;
+        return true;
+      });
+    },
     /**
      * Writes `envelope` unless storage changed since the baseline. `edited` says whether this tab
      * holds changes that aren't in the baseline; without them, a newer stored copy simply wins.

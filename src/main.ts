@@ -27,7 +27,9 @@ onBrowserSave(() => {
   const was = lastStatus;
   lastStatus = state.status;
   if (state.status === 'failed' && was !== 'failed') {
-    announce(`Couldn't save in this browser${state.reason ? ` (${state.reason})` : ''}. Your changes are still on screen. Use the button at the top to download a copy or try again.`, true);
+    announce(state.reason === 'other tab'
+      ? 'Another tab saved newer changes. Your changes are still here. Use the button at the top to choose which version to keep.'
+      : `Couldn't save in this browser${state.reason ? ` (${state.reason})` : ''}. Your changes are still on screen. Use the button at the top to download a copy or try again.`, true);
   }
   if (state.status !== 'saved') { mark.classList.remove('show'); return; }
   if (editPending || was === 'failed') announce('Saved');
