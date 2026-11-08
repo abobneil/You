@@ -7,7 +7,7 @@ import { linkedinRows, unzipCsvs, type Files } from '../../core/import/linkedin'
 import { mediaRows } from '../../core/import/media';
 import { audibleRows } from '../../core/import/audible';
 import { audibleStatus, connectAudible, disconnectAudible, helperConnectionHtml, syncAudible, type AudibleStatus } from './audibleLive';
-import { streamingRows, streamingZip } from '../../core/import/streaming';
+import { restoreStreaming } from '../../core/import/streamingWire';
 import { profile } from '../../state';
 import type { ImportResult } from '../../core/import/types';
 import { contactRows, parseVcf, type Contact } from '../../core/import/vcard';
@@ -137,16 +137,26 @@ async function importMedia(files: File[]) {
 
 /** Streaming history: loose files, or the zips the services send. */
 async function importStreaming(files: File[]) {
-  const texts: Record<string, string> = {};
-  try {
-    for (const f of files) {
-      if (/\.zip$/i.test(f.name)) Object.assign(texts, streamingZip(new Uint8Array(await f.arrayBuffer())));
-      else texts[f.name] = await f.text();
+  const worker = new Worker(new URL('./streaming.worker.ts', import.meta.url), { type: 'module' });
+  let stopped = false;
+  const stop = () => { stopped = true; worker.terminate(); };
+  openSheet(`${sheetTop('Reading streaming history…')}<p role="status" id="stream-progress">Reading your files…</p><button class="btn" data-act="cancel">Cancel</button>`, {
+    cancel: () => { stop(); openImportHub(['streaming']); },
+  }, { onDismiss: stop });
+  worker.onmessage = ({ data }) => {
+    if (stopped) return;
+    if (data.progress) {
+      const status = document.getElementById('stream-progress');
+      if (status) status.textContent = data.progress;
+    } else {
+      stop();
+      if (data.error) failed('Streaming', data.error);
+      else { const result = restoreStreaming(data.result); show(result.source || 'Streaming', result); }
     }
-  } catch (e) { return failed('Streaming', e instanceof Error && e.message === ARCHIVE_LIMIT ? ARCHIVE_LIMIT : 'That file couldn’t be opened. Choose the zip or the history file the service sent you.'); }
-  if (!Object.keys(texts).length) return failed('Streaming', 'No viewing or listening history was found in that zip. Check that you chose the export from Netflix, Spotify, Apple or Google Takeout.');
-  const r = streamingRows(texts, profile.name);
-  show(r.source || 'Streaming', r);
+  };
+  worker.onerror = () => { if (!stopped) { stop(); failed('Streaming', 'That file could not be read. Nothing was changed.'); } };
+  await new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+  if (!stopped) worker.postMessage({ files, name: profile.name });
 }
 
 // ---------- the screen ----------

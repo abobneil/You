@@ -1,5 +1,6 @@
 import { closeSheet, openSheet, sheetTop } from './sheet';
 import { esc } from './dom';
+import { commitFile, stageFile } from '../storage/stageFile';
 // Getting into your data: first visit, returning visit, upgrading old data, and loading a file.
 import { newId } from '../core/cards';
 import { WrongPassphrase, type Vault } from '../core/crypto';
@@ -152,8 +153,26 @@ export async function importText(source: Blob | string): Promise<boolean> {
   let staged: Staged | null = null;
   const give = async () => { if (staged) await discardStaged(keepsakeStore, staged); backToPrevious(); return false; };
   if (r.kind === 'locked' && key) {
-    try { staged = await stageKeepsakes(keepsakeStore, key, loaded, r.keepsakes()); }
-    catch (e) { cannotOpen(e); hideGate(); return false; }
+    const controller = new AbortController();
+    openSheet(`${sheetTop('Checking your photos and files…')}<p role="status" id="file-check-progress">Checking your photos and files…</p><button class="btn" data-act="cancel">Cancel</button>`, {
+      cancel: () => { controller.abort(); closeSheet(); },
+    }, { onDismiss: () => controller.abort() });
+    const options = { signal: controller.signal, onProgress: (checked: number, total: number) => {
+      const status = document.getElementById('file-check-progress');
+      if (status) status.textContent = `Checking your photos and files… ${checked} of ${total}`;
+    } };
+    try {
+      staged = source instanceof Blob
+        ? await stageFile(source, key, loaded, options)
+        : await stageKeepsakes(keepsakeStore, key, loaded, r.keepsakes(), options);
+      controller.signal.throwIfAborted();
+    } catch (e) {
+      closeSheet();
+      if (!controller.signal.aborted) cannotOpen(e);
+      if (staged) await discardStaged(keepsakeStore, staged);
+      backToPrevious(); return false;
+    }
+    closeSheet();
     const n = staged.problems.length;
     if (n) {
       const problems = staged.problems;
@@ -214,8 +233,18 @@ export async function importText(source: Blob | string): Promise<boolean> {
 
   // The keepsake bytes go in first, so the record never mentions a file that isn't here.
   if (staged) {
-    try { await commitStaged(keepsakeStore, staged, loaded.id, loaded); }
+    const controller = new AbortController();
+    openSheet(`${sheetTop('Opening your record…')}<p role="status">Your photos and files have been checked. Opening your record…</p><button class="btn" data-act="cancel">Cancel</button>`, {
+      cancel: () => { controller.abort(); closeSheet(); },
+    }, { onDismiss: () => controller.abort() });
+    try {
+      if (source instanceof Blob) await commitFile(staged, loaded, controller.signal);
+      else await commitStaged(keepsakeStore, staged, loaded.id, loaded, controller.signal);
+      closeSheet();
+    }
     catch {
+      closeSheet();
+      if (controller.signal.aborted) return give();
       openSheet(`${sheetTop('Couldn’t open')}<h3 class="sh-title">This browser couldn’t store the attached files</h3><p data-announce>Its storage may be full. Nothing was opened and nothing here changed.</p><div class="btns"><button class="btn primary" type="button" data-act="close">OK</button></div>`);
       return give();
     }

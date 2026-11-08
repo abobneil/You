@@ -3,7 +3,7 @@
 // person confirms are they moved under the opening You's id. Problems are reported, never silently dropped.
 import { keepsakeIds } from '../core/cards';
 import type { Vault } from '../core/crypto';
-import { openBytes, sealBytes, sha256Hex, type Keepsake } from '../core/keepsakes';
+import { openBytes, sealBytes, sha256Hex, type Keepsake, type SealedBytes } from '../core/keepsakes';
 import type { Profile } from '../core/types';
 import { checkRawKeepsake, DamagedFile, type RawKeepsake } from './fileFormat';
 import { rowKey, type KeepsakeStore } from './keepsakeStore';
@@ -28,6 +28,7 @@ const metaById = (p: Profile) => {
  * an id no card mentions, or the same id twice. Content problems are returned for the person to review.
  */
 export interface StagingOptions {
+  prefix?: string;
   signal?: AbortSignal;
   onProgress?: (checked: number, total: number) => void;
   /**
@@ -38,9 +39,16 @@ export interface StagingOptions {
 }
 
 export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Profile, entries: AsyncIterable<RawKeepsake>, options: StagingOptions = {}): Promise<Staged> {
-  const staged: Staged = { prefix: `import-${crypto.randomUUID()}`, ids: [], problems: [] };
+  const staged: Staged = { prefix: options.prefix ?? `import-${crypto.randomUUID()}`, ids: [], problems: [] };
   const meta = metaById(p);
   const seen = new Set<string>();
+  let pending: Array<[string, SealedBytes]> = [], pendingBytes = 0;
+  const flush = async () => {
+    options.signal?.throwIfAborted();
+    if (store.putMany) await store.putMany(pending);
+    else for (const [key, value] of pending) await store.put(key, value);
+    pending = []; pendingBytes = 0;
+  };
   try {
     let checked = 0;
     for await (const raw of entries) {
@@ -60,9 +68,13 @@ export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Prof
       }
       options.signal?.throwIfAborted();
       const rekey = options.rekeyTo && options.rekeyTo.key !== vault.key;
-      await store.put(rowKey(staged.prefix, id), rekey ? await sealBytes(options.rekeyTo!, id, bytes) : sealed);
+      const value = rekey ? await sealBytes(options.rekeyTo!, id, bytes) : sealed;
+      pending.push([rowKey(staged.prefix, id), value]);
+      pendingBytes += value.data.byteLength;
       staged.ids.push(id);
+      if (pendingBytes >= 32 * 1024 * 1024) await flush();
     }
+    if (pending.length) await flush();
     options.signal?.throwIfAborted();
   } catch (e) {
     await discardStaged(store, staged);
@@ -74,7 +86,9 @@ export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Prof
 }
 
 /** Moves checked keepsakes under the You's id, and clears that You's rows the record no longer mentions. */
-export async function commitStaged(store: KeepsakeStore, staged: Staged, youId: string, p: Profile) {
+export async function commitStaged(store: KeepsakeStore, staged: Staged, youId: string, p: Profile, signal?: AbortSignal) {
+  signal?.throwIfAborted();
+  if (store.promote) return store.promote(staged.prefix, youId, staged.ids, keepsakeIds(p), signal);
   for (const id of staged.ids) {
     const s = await store.get(rowKey(staged.prefix, id));
     if (!s) throw new Error('Staged keepsake disappeared');

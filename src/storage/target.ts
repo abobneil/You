@@ -190,10 +190,22 @@ const separateName = (what: string) => fileNameFor(profile.name).replace('.you.j
 /** Downloads an encrypted copy of the open You. Returns false (after saying why) if it couldn't. */
 export async function downloadCopy(separate = false): Promise<boolean> {
   if (!vault) return false;
+  const controller = new AbortController();
+  openSheet(`${sheetTop('Making your encrypted copy…')}<p role="status">Keeping your record, photos and files together…</p><button class="btn" data-act="cancel">Cancel</button>`, {
+    cancel: () => { controller.abort(); closeSheet(); },
+  }, { onDismiss: () => controller.abort() });
   try {
-    const blob = await encodeBlob(vault, profile, sealedFor(profile.id!));
+    await new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    controller.signal.throwIfAborted();
+    const blob = await encodeBlob(vault, profile, sealedFor(profile.id!), controller.signal);
+    controller.signal.throwIfAborted();
+    closeSheet();
     startDownload(blob, separate ? separateName('this browser') : target.kind === 'download' && target.name ? target.name : fileNameFor(profile.name, occupiedFileNames(profile.id ?? '')));
-  } catch (e) { cannotDownload(e); return false; }
+  } catch (e) {
+    if (target.kind === 'download') { dirty = true; renderPill(); }
+    if (!controller.signal.aborted) { closeSheet(); cannotDownload(e); }
+    return false;
+  }
   if (target.kind === 'download') { dirty = false; renderPill(); }
   return true;
 }
@@ -211,7 +223,7 @@ async function downloadOtherTab(): Promise<{ name: string; envelope: string } | 
 
 /** Asks where to save, then starts saving there. Returns false if the person cancelled. */
 export async function chooseSaveFile(): Promise<boolean> {
-  if (!canWriteFiles) { setTarget('download', fileNameFor(profile.name, occupiedFileNames(profile.id ?? ''))); downloadCopy(); return true; }
+  if (!canWriteFiles) { setTarget('download', fileNameFor(profile.name, occupiedFileNames(profile.id ?? ''))); return downloadCopy(); }
   try {
     const h = await w.showSaveFilePicker!({ suggestedName: fileNameFor(profile.name, occupiedFileNames(profile.id ?? '')), types: FILE_TYPES });
     await idb.set(handleKey(), h);

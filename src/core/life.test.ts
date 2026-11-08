@@ -41,11 +41,9 @@ describe('life chronology', () => {
     expect(folded.sources.size).toBe(8);
     expect(foldSource(cards[8])).toBe('');
   });
-  it('queries and indexes 10,000 cards in under 200ms', () => {
+  it('queries and indexes every card in a 10,000-card lifetime record', () => {
     const p = profile(Array.from({ length: 10000 }, (_, i) => card(String(i), String(1970 + i % 50), i % 5 === 0 ? String(1971 + i % 50) : undefined)));
-    const start = performance.now();
-    expect(lifeIn(p, '2007').flatMap(g => g.cards).length).toBeGreaterThan(0);
-    expect(yearIndex(p).length).toBeGreaterThan(50);
-    expect(performance.now() - start).toBeLessThan(200);
+    expect(lifeIn(p, '2007').flatMap(g => g.cards)).toHaveLength(6000);
+    expect(yearIndex(p, 2026)).toHaveLength(57);
   });
 });

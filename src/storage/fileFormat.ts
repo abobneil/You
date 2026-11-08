@@ -180,9 +180,13 @@ export async function* encodeFile(vault: Vault, p: Profile, getSealed: (id: stri
 }
 
 /** The whole file as a Blob built from parts (for download and share). */
-export async function encodeBlob(vault: Vault, p: Profile, getSealed: (id: string) => Promise<SealedBytes | null>): Promise<Blob> {
+export async function encodeBlob(vault: Vault, p: Profile, getSealed: (id: string) => Promise<SealedBytes | null>, signal?: AbortSignal): Promise<Blob> {
   const parts: Blob[] = [];
-  for await (const part of encodeFile(vault, p, getSealed)) parts.push(new Blob([part]));
+  for await (const part of encodeFile(vault, p, getSealed)) {
+    signal?.throwIfAborted();
+    parts.push(new Blob([part]));
+  }
+  signal?.throwIfAborted();
   return new Blob(parts, { type: 'application/json' });
 }
 
