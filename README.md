@@ -98,9 +98,9 @@ After permission, sign-in opens `www.amazon.com`, registration contacts `api.ama
 
 CLI: `npm run audible -- connect`, `export`, `status`, `disconnect`. Export writes personal plaintext to ignored `exports/`; delete it after importing. `YOU_AUDIBLE_STORE=file` forces the fallback.
 
-Build with `npm run build` then `npm run build:helper`. Set `YOU_APP_URL` to the deployed HTTPS app URL for production releases. No production hostname is assigned in this repository; the default package targets `http://127.0.0.1:4173`. Ship `dist/downloads/you-audible-helper.zip` with the static site. The helper binds only to `127.0.0.1:49631`, serves only API routes and allows exactly the configured app origin plus preview. Browser local-network permission may be required. Users need no npm install or source checkout.
+The release build (`npm run build`) also builds the helper into `dist/downloads/`: `you-audible-helper-win.exe`, a Node single executable application that needs nothing installed, and `you-audible-helper.zip`, a fallback with double-click launchers that needs Node 22.18 or newer. When the helper starts it asks for the app address shown in the browser and then trusts only that one origin; set `YOU_APP_URL` at build time to fix it to your deployed HTTPS address instead. It binds only to `127.0.0.1:49631` and serves only API routes. The Windows exe is unsigned, so Windows SmartScreen may ask before the first run. Browser local-network permission may be required. Users need no npm install or source checkout.
 
-SEA was not achieved: postject was unavailable and this Node has no built-in --build-sea. The package uses double-click launchers with bundled JavaScript instead.
+Building the exe uses `postject` (a dev dependency) to inject the bundled helper into a copy of the Node binary running the build, so build with a current, patched Node. macOS and Linux single executables can be built the same way on those systems; see `scripts/build-helper.mjs`.
 
 ## Card rules
 
@@ -153,6 +153,7 @@ See [the file format](docs/FORMAT.md). Version 1 is the legacy plaintext format,
 - `typescript`: checks browser and local helper types.
 - `vitest`: runs automated checks.
 - `@types/node`: Node type definitions for build tools and the local helper.
+- `postject`: injects the bundled Audible helper into a Node binary to make the no-install Windows exe.
 - `@xmldom/xmldom`: parses XML in tests without a browser.
 
 The last five are development dependencies; they are not external services.

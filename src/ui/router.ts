@@ -29,7 +29,12 @@ export function showHome() {
 }
 
 export function route() {
-  if (history.state?.youSheet) return;
+  // A sheet's history marker only matters while that sheet is open. After a refresh or reload the sheet is
+  // gone but the marker can survive; drop it so the page underneath still draws.
+  if (history.state?.youSheet) {
+    if ($<HTMLDialogElement>('#sheet').open) return;
+    history.replaceState({ ...history.state, youSheet: undefined }, '');
+  }
   if (!isHome()) return;
   const life = /^#\/?life(?:\/|$)/.test(location.hash);
   $('#life').hidden = !life;
