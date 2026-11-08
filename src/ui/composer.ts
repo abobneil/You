@@ -175,7 +175,9 @@ function render(focus = false) {
   const custom = d.kind === OTHER;
   const kind = currentKind(d);
   const actives = custom ? [] : activeOf(profile, d.area, d.kind);
-  if (d.mode && d.mode !== 'add' && !actives.some(c => 'r:' + c.id === d.mode || 'b:' + c.id === d.mode)) d.mode = null;
+  // "Came before" may point at a history card too (an address older than the oldest one kept).
+  const sameKind = custom ? [] : profile.cards.filter(c => c.area === d.area && c.kind === d.kind);
+  if (d.mode && d.mode !== 'add' && !actives.some(c => 'r:' + c.id === d.mode) && !sameKind.some(c => 'b:' + c.id === d.mode)) d.mode = null;
   if (!d.mode) d.mode = custom ? 'add' : defaultMode(profile, d.area, d.kind, d.replaceId);
   const replacing = d.mode.startsWith('r:');
   const before = d.mode.startsWith('b:');
