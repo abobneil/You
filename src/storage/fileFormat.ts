@@ -3,7 +3,7 @@
 //   version 2 – one encrypted envelope; also the browser copy's format
 //   version 3 – the envelope plus a `keepsakes` array, written one keepsake per line so a big file can be
 //               written and read in pieces without ever becoming one giant string.
-import { fromB64, isEnvelope, seal, sealEnvelope, toB64, unlock, type Envelope, type Vault } from '../core/crypto';
+import { fromB64, isEnvelope, validateEnvelope, seal, sealEnvelope, toB64, unlock, type Envelope, type Vault } from '../core/crypto';
 import { keepsakeIds } from '../core/cards';
 import type { SealedBytes } from '../core/keepsakes';
 import { normalize } from '../core/profile';
@@ -33,6 +33,15 @@ export class DamagedFile extends Error {
   }
 }
 
+/** The envelope's encryption details are out of bounds or malformed. Caught before any passphrase is asked for. */
+export class NotAYouFile extends DamagedFile {
+  constructor() {
+    super();
+    this.message = 'This file is damaged or not a You file. Nothing was changed.';
+    this.name = 'NotAYouFile';
+  }
+}
+
 /** One entry of a version 3 file's `keepsakes` array, still base64. */
 export interface RawKeepsake { id: string; iv: string; data: string }
 
@@ -46,6 +55,8 @@ function classify(data: any, keepsakes: () => AsyncIterable<RawKeepsake>): ReadR
   if (data && data.app === 'you' && 'version' in data && !KNOWN_VERSIONS.includes(data.version)) throw new UnsupportedVersion(data.version);
   if (isEnvelope(data)) {
     const { version, kdf, cipher, data: d } = data;
+    // Bounds-check the encryption details now, before anyone types a passphrase or any key is derived.
+    try { validateEnvelope({ app: 'you', version, kdf, cipher, data: d }); } catch { throw new NotAYouFile(); }
     return { kind: 'locked', env: { app: 'you', version, kdf, cipher, data: d }, keepsakes: version === 3 ? keepsakes : noKeepsakes };
   }
   if (data && data.app === 'you' && (data.version === 2 || data.version === 3)) throw new DamagedFile('its encryption details are missing');

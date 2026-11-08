@@ -9,7 +9,7 @@ import { openSheet, sheetTop } from '../ui/sheet';
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, keepThisTab } from '../state';
+import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, keepThisTab, otherTabVersion } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encodeBlob, encodeFile, fileNameFor } from './fileFormat';
 import { sealedFor } from './keepsakeAccess';
@@ -123,15 +123,23 @@ function showFileConflict() {
         const other = read.kind === 'plain' ? read.profile : normalize(JSON.parse(await openWith(vault, read.env)));
         if (other.id !== profile.id) throw new Error();
         const diff = compare(profile, other);
-        openSheet(`${sheetTop('Compare versions')}<p>${diff.onlyA.length} cards only in this browser � ${diff.onlyB.length} only in the file � ${diff.changed.length} changed in both</p>${diff.changed.map(([a,b]) => `<div><p>This browser: ${esc(a.value)}</p><p>Other file: ${esc(b.value)}</p></div>`).join('')}<div class="menu"><button data-act="both">Keep both as separate files</button><button data-act="combine">Combine</button></div>`, {
+        openSheet(`${sheetTop('Compare versions')}<p>${diff.onlyA.length} cards only in this browser · ${diff.onlyB.length} only in the file · ${diff.changed.length} changed in both</p>${diff.changed.map(([a,b]) => `<div><p>This browser: ${esc(a.value)}</p><p>Other file: ${esc(b.value)}</p></div>`).join('')}<div class="menu"><button data-act="both">Keep both as separate files</button><button data-act="combine">Combine</button></div>`, {
           both: () => downloadCopy(true),
-          combine: async () => { const merged = combine(profile, other); const { stageKeepsakes, commitStaged } = await import('./keepsakeImport');
-            if (read.kind === 'locked') {
-              const staged = await stageKeepsakes((await import('./keepsakeAccess')).keepsakeStore, vault!, other, read.keepsakes());
-              if (staged.problems.length) throw new Error('Keep both copies: some attachments could not be read');
-              await commitStaged((await import('./keepsakeAccess')).keepsakeStore, staged, merged.id!, merged);
+          combine: async () => {
+            try {
+              const merged = combine(profile, other); const { stageKeepsakes, commitStaged } = await import('./keepsakeImport');
+              JSON.stringify(merged); // must be saveable before it replaces anything
+              if (read.kind === 'locked') {
+                const staged = await stageKeepsakes((await import('./keepsakeAccess')).keepsakeStore, vault!, other, read.keepsakes());
+                if (staged.problems.length) throw new Error('Keep both copies: some attachments could not be read');
+                await commitStaged((await import('./keepsakeAccess')).keepsakeStore, staged, merged.id!, merged);
+              }
+              Object.assign(profile, merged); setTarget('browser'); save();
+            } catch (e) {
+              console.error(e);
+              openSheet(`${sheetTop('Compare versions')}<h3 class="sh-title">These versions couldn’t be combined</h3><p>Nothing was changed. Keep both as separate files instead.</p><div class="menu"><button data-act="both">Keep both as separate files</button></div>`, { both: () => downloadCopy(true) });
             }
-            Object.assign(profile, merged); setTarget('browser'); save(); },
+          },
         });
       } catch { alert('This version could not be compared. Download your copy first, then open the other file.'); }
     },
@@ -152,16 +160,47 @@ async function fallBackToDownload(h: FileHandle) {
   await downloadCopy();
 }
 
-export async function downloadCopy(separate = false) {
-  if (!vault) return;
+/** Starts a download of `blob` as `name`. */
+function startDownload(blob: Blob, name: string) {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(await encodeBlob(vault, profile, sealedFor(profile.id!)));
-  a.download = separate ? fileNameFor(profile.name).replace('.you.json', ` (this browser ${new Date().toISOString().slice(0, 10)}).you.json`) : target.kind === 'download' && target.name ? target.name : fileNameFor(profile.name);
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
   document.body.append(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/** Says plainly that a copy couldn't be made. Nothing was changed, and the work is still open. */
+function cannotDownload(e: unknown) {
+  console.error(e);
+  openSheet(`${sheetTop("Couldn't make a copy")}<h3 class="sh-title">The copy couldn’t be made</h3><p>Nothing was changed and your work is still open here. Try again in a moment. If it keeps happening, keep this tab open.</p><div class="menu"><button data-act="close">OK</button></div>`);
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+/** "alex-kim (this browser 2026-11-08).you.json": a copy kept beside the main file. */
+const separateName = (what: string) => fileNameFor(profile.name).replace('.you.json', ` (${what} ${today()}).you.json`);
+
+/** Downloads an encrypted copy of the open You. Returns false (after saying why) if it couldn't. */
+export async function downloadCopy(separate = false): Promise<boolean> {
+  if (!vault) return false;
+  try {
+    const blob = await encodeBlob(vault, profile, sealedFor(profile.id!));
+    startDownload(blob, separate ? separateName('this browser') : target.kind === 'download' && target.name ? target.name : fileNameFor(profile.name));
+  } catch (e) { cannotDownload(e); return false; }
   if (target.kind === 'download') { dirty = false; renderPill(); }
+  return true;
+}
+
+/** Downloads the version another tab saved (encrypted with the same key). Returns its file name, or null. */
+async function downloadOtherTab(): Promise<string | null> {
+  try {
+    const other = await otherTabVersion();
+    if (!other || !vault) return null;
+    const name = separateName('other tab');
+    startDownload(await encodeBlob(vault, other, sealedFor(profile.id!)), name);
+    return name;
+  } catch (e) { cannotDownload(e); return null; }
 }
 
 /** Asks where to save, then starts saving there. Returns false if the person cancelled. */
@@ -218,7 +257,9 @@ export function renderPill() {
   else if (failed) html = `<span class="dot"></span><span>Couldn't save · <b>Try again</b></span>`;
   else if (target.kind === 'download' && dirty) html = `<span class="dot"></span><span>Unsaved changes · <b>Download ${n}</b></span>`;
   else if (saving || dirty) { state = ''; html = `<span class="spin"></span><span>Saving to ${n}…</span>`; }
-  else { state = 'ok'; html = `${ICON.check}<span>${target.kind === 'download' ? 'Downloaded (check your Downloads)' : 'Saved to'} <b>${n}</b></span>`; }
+  // A started download isn't a verified save, so this stays neutral rather than showing a check.
+  else if (target.kind === 'download') { state = 'started'; html = `<span>Download started — check it finished in your Downloads (<b>${n}</b>)</span>`; }
+  else { state = 'ok'; html = `${ICON.check}<span>Saved to <b>${n}</b></span>`; }
   pill.className = 'saved ' + state;
   pill.innerHTML = html;
 }
@@ -253,11 +294,22 @@ export async function pillClick(): Promise<'menu' | 'picker' | 'done'> {
 
 onBrowserSave(renderPill);
 
-onTabConflict(() => openSheet(`${sheetTop('This You was changed in another tab')}<p>Keep a copy of this tab before choosing the newer version.</p><div class="menu"><button data-act="newer">Use the newer version</button><button data-act="ours">Keep this tab�s version</button></div>`, {
-  newer: async () => { await downloadCopy(true); await useNewer(); },
-  ours: async () => { await keepThisTab(); },
+onTabConflict(() => openSheet(`${sheetTop('This You was changed in another tab')}<h3 class="sh-title">Another tab saved newer changes</h3><p>Both versions can be kept. Whichever you choose, the other one is downloaded first as its own file.</p><div class="menu"><button data-act="newer">Use the other tab’s version (download this tab’s first)</button><button data-act="ours">Keep this tab’s version (download the other tab’s first)</button></div>`, {
+  newer: async () => {
+    if (!await downloadCopy(true)) return; // couldn't keep this tab's version: change nothing
+    const name = separateName('this browser');
+    await useNewer();
+    openSheet(`${sheetTop('Using the other tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab now shows the other tab’s version. This tab’s version was downloaded as <b>${esc(name)}</b>. Check it finished in your Downloads; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
+  },
+  ours: async () => {
+    const name = await downloadOtherTab();
+    if (!name) return; // couldn't keep the other version: change nothing
+    await keepThisTab();
+    openSheet(`${sheetTop('Kept this tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab’s version is saved in this browser. The other tab’s version was downloaded as <b>${esc(name)}</b>. Check it finished in your Downloads; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
+  },
 }));
 
 onLeaveFailure(() => new Promise(resolve => openSheet(`${sheetTop("Your latest changes couldn't be saved")}<p>Your work is still here. Download a copy before locking or switching.</p><div class="menu"><button data-act="download">Download before leaving</button><button data-act="stay">Stay here</button></div>`, {
-  download: async () => { await downloadCopy(true); resolve(true); }, stay: () => resolve(false), close: () => resolve(false),
+  // If the copy can't be made, say so and stay unlocked: never lock away the only copy.
+  download: async () => { resolve(await downloadCopy(true)); }, stay: () => resolve(false), close: () => resolve(false),
 })));

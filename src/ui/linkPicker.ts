@@ -57,7 +57,7 @@ export function openLinkPicker(o: Options) {
     openSheet(`${sheetTop('How are they connected?')}
       <p class="hint">Optional. Pick the one that reads right, write your own, or skip it.</p>
       <div class="labels">${labels.map(([fwd], i) => `<button type="button" data-act="label" data-i="${i}">${sentence(fwd)}</button>`).join('')}</div>
-      <div class="fx"><label for="p-own">Your own</label><input id="p-own" placeholder="e.g. recommended by"></div>
+      <div class="fx"><label for="p-own">Your own</label><input id="p-own" autocomplete="off" placeholder="e.g. recommended by"></div>
       <div class="btns"><button class="btn quiet" type="button" data-act="back">Back</button><span class="spacer"></span>
         <button class="btn" type="button" data-act="none">Link without a label</button>
         <button class="btn primary" type="button" data-act="own">Link</button></div>`,

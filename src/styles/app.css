@@ -427,7 +427,10 @@
   body.gated main, body.gated footer, body.gated .hello { display: none; }
   .gate { width: 100%; max-width: 480px; text-align: center; margin-top: -4vh; animation: rise .45s ease both; }
   .gate[hidden] { display: none; }
-  body.home .gate { display: none; }
+  body.home:not(.gated) .gate { display: none; }
+  /* A passphrase asked for while a You is open (opening a locked file): only the question shows. */
+  body.gated #space, body.gated .nudge { display: none; }
+  body.home.gated .gate { margin: 12vh auto 0; }
   .gate-icon { width: 30px; height: 30px; fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; margin-bottom: 14px; }
   .gate h1 { margin: 0 0 10px; }
   .gate-sub { margin: 0 auto 26px; max-width: 40ch; color: var(--soft); font-size: 15px; line-height: 1.5; }
@@ -782,6 +785,14 @@
 .safety-form #plan-secret { display: grid; gap: 8px; }
 .safety-form #plan-secret[hidden] { display: none; }
 .plan-print-frame { position: fixed; width: 1px; height: 1px; border: 0; left: -10000px; }
+/* The private access plan, printed from the app itself (see openPlan in src/ui/safety.ts). */
+#plan-print { display: none; }
+@media print {
+  body.printing-plan > :not(#plan-print) { display: none !important; }
+  body.printing-plan > #plan-print { display: block !important; font: 18px/1.5 system-ui, sans-serif; color: #000; background: #fff; max-width: 42rem; margin: 0; padding: 0; overflow-wrap: anywhere; }
+  #plan-print h1 { font-size: 26px; }
+  #plan-print p { white-space: pre-wrap; }
+}
   /* Keepsakes: photos and files on a card */
   .ks-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
   .ks-thumb {

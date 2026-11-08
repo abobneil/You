@@ -74,7 +74,23 @@ const draftHook = {
   dirty: () => { try { read(); } catch { return true; } return typed() !== typedAtStart; },
   snapshot: () => structuredClone(draft),
   restore: (snap: unknown) => { clearTimeout(dropTimer); draft = structuredClone(snap as Draft); render(true); },
+  stash: () => {
+    try { read(); } catch { /* a half-typed date: keep the rest */ }
+    const d = draft!;
+    d.saved = true; // its stored files now belong to the kept draft
+    clearTimeout(dropTimer);
+    return { kind: 'card', data: JSON.parse(JSON.stringify({ ...d, open: [...d.open], saved: false })) };
+  },
 };
+
+/** Reopens a card draft that was kept when the screen locked. */
+export function resumeDraft(data: unknown) {
+  const d = data as Draft & { open: Section[] };
+  draft = { ...d, open: new Set(d.open || []), youId: profile.id ?? '', saved: false, keepsakes: d.keepsakes || [], links: d.links || [],
+    fields: d.fields || {}, fieldsByKind: d.fieldsByKind || {}, customFields: d.customFields || [] };
+  typedAtStart = ''; // it came back with typing in it
+  render(true);
+}
 
 // Closing without adding the card: its drafted files go too, once the Undo window has passed.
 let dropTimer: ReturnType<typeof setTimeout> | undefined;
@@ -209,8 +225,8 @@ function render(focus = false) {
   openSheet(`${sheetTop(`${esc(a.title)} · new card`)}
     <h3 class="sh-title">Add to ${esc(a.title)}</h3>
     <div class="fx kinds-row"><span class="lab" id="c-kind-lab">What is it?</span><div><div class="kinds" role="group" aria-labelledby="c-kind-lab">${kindChips}</div>${kind.hint ? `<div class="hint kind-hint">${esc(kind.hint)}</div>` : ''}</div></div>
-    ${custom ? `<div class="fx"><label for="c-custom">Name it</label><input id="c-custom" value="${esc(d.custom)}" placeholder="e.g. Eye doctor"></div>
-      ${d.customFields.map((f, i) => `<div class="fx"><label for="custom-label-${i}">Detail label</label><div><input id="custom-label-${i}" data-custom-label="${i}" value="${esc(f.label)}" placeholder="e.g. Location"><select aria-label="Detail type" data-custom-type="${i}"><option value="text" ${f.type === 'text' ? 'selected' : ''}>Text</option><option value="date" ${f.type === 'date' ? 'selected' : ''}>Date</option></select></div></div>`).join('')}
+    ${custom ? `<div class="fx"><label for="c-custom">Name it</label><input id="c-custom" autocomplete="off" value="${esc(d.custom)}" placeholder="e.g. Eye doctor"></div>
+      ${d.customFields.map((f, i) => `<div class="fx"><label for="custom-label-${i}">Detail label</label><div><input id="custom-label-${i}" autocomplete="off" data-custom-label="${i}" value="${esc(f.label)}" placeholder="e.g. Location"><select aria-label="Detail type" data-custom-type="${i}"><option value="text" ${f.type === 'text' ? 'selected' : ''}>Text</option><option value="date" ${f.type === 'date' ? 'selected' : ''}>Date</option></select></div></div>`).join('')}
       <div class="fx"><span class="lab"></span><div><button type="button" class="chip" data-act="custom-detail">+ Add a detail</button></div></div>` : ''}
     ${valueRow}
     ${sinceRow}

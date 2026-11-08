@@ -142,12 +142,18 @@ the backup format. No passphrase or encryption keys are included.
 ## Preservation and concurrent writers
 
 Unknown record fields are retained. Cards that cannot be interpreted are retained verbatim in the
-encrypted `unreadable` array and counted in the who menu. Legacy plaintext files are opened into the
+encrypted `unreadable` array and counted in the who menu. Other entries that can't be used are kept
+there too, wrapped with where they came from: `{ "from": "note" | "revisions" | "keepsakes", "card": <card id>, "value": … }`
+and `{ "from": "kinds" | "links", "value": … }`. Nothing is dropped on load or save.
+
+An optional `drafts` array holds unfinished cards kept when the screen locked by itself
+(`{ "id", "kind": "card", "at", "data" }`); You offers each back after unlocking. Legacy plaintext files are opened into the
 browser; automatic writing back into their original file is never enabled. Choose a new save place
 explicitly to create an encrypted file.
 
-The encrypted record may contain a technical `rev` counter. Browser writers compare the loaded
-encrypted envelope under a per-You Web Lock before replacing it, and announce changes on the `you`
+The encrypted record may contain a technical `rev` counter. Browser writers remember the exact
+encrypted envelope they decrypted (read again at unlock time) and compare it under a per-You Web Lock
+before replacing it (if another tab saved since, nothing is overwritten), and announce changes on the `you`
 BroadcastChannel. File writers serialize snapshots and check modification time, size and SHA-256
 before opening an atomic swap-file writer. A download is reported as started, not verified durable.
 

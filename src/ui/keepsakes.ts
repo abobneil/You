@@ -187,7 +187,7 @@ export function openViewer(c: Card, id: string, back: Reopen, msg = '') {
     <div class="ks-view">${view}</div>
     <p class="hint">${esc(k.name)} · ${esc(fmtSize(k.size))} · added ${esc(fmtISO(k.addedAt))}</p>
     <div class="fx"><label for="ks-alt">Describe it for people who can’t see it</label>
-      <textarea id="ks-alt" rows="2" class="note-input">${esc(k.alt ?? '')}</textarea></div>
+      <textarea id="ks-alt" autocomplete="off" rows="2" class="note-input">${esc(k.alt ?? '')}</textarea></div>
     <p class="ks-msg" role="status" aria-live="polite">${esc(msg)}</p>
     <div class="btns">
       <button class="btn" type="button" data-act="ks-save">Save a copy</button><span class="spacer"></span>

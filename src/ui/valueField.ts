@@ -9,7 +9,8 @@ export function valueFieldHtml(id: string, value: string, kind: KindInfo, placeh
   const f = kind.format ? FORMATS[kind.format] : null;
   const attrs = [
     f?.inputMode ? `inputmode="${f.inputMode}"` : '',
-    `autocomplete="${f?.autocomplete ?? 'off'}"`,
+    // Always off: card values are personal, and browsers keep autofill entries unencrypted.
+    'autocomplete="off"',
     f ? 'spellcheck="false"' : '',
   ].join(' ');
   const choices = kind.choices?.length

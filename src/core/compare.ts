@@ -5,8 +5,12 @@ export function compare(a: Profile, b: Profile) {
   return { onlyA: a.cards.filter(c => !bb.has(c.id)), onlyB: b.cards.filter(c => !aa.has(c.id)), changed: a.cards.filter(c => bb.has(c.id) && !same(c, bb.get(c.id))).map(c => [c, bb.get(c.id)!] as const) };
 }
 /** Keep complete conflicting snapshots as well as earlier wording, including unknown fields. */
-export function combine(a: Profile, b: Profile): Profile {
-  if (a.id !== b.id) throw new Error('Choose two versions of the same You');
+export function combine(liveA: Profile, liveB: Profile): Profile {
+  if (liveA.id !== liveB.id) throw new Error('Choose two versions of the same You');
+  // Work on copies: the result is assigned onto the live record, so it must never contain it.
+  const a = structuredClone(liveA), b = structuredClone(liveB);
+  // Each kept original leaves out its own preserved items; those are carried over once, below.
+  const original = ({ unreadable: _u, ...rest }: Profile) => structuredClone(rest);
   const newerB = (b.updatedAt || '') > (a.updatedAt || '');
   const cards = new Map(a.cards.map(c => [c.id, structuredClone(c)]));
   for (const c of b.cards) {
@@ -21,6 +25,6 @@ export function combine(a: Profile, b: Profile): Profile {
     cards.set(c.id, current);
   }
   return { ...a, ...b, cards: [...cards.values()], links: [...new Map([...a.links, ...b.links].map(l => [l.id, l])).values()],
-    unreadable: [...(a.unreadable || []), ...(b.unreadable || []), { combinedOriginal: a }, { combinedOriginal: b }],
+    unreadable: [...(a.unreadable || []), ...(b.unreadable || []), { combinedOriginal: original(a) }, { combinedOriginal: original(b) }],
     updatedAt: new Date().toISOString(), rev: Math.max(a.rev || 0, b.rev || 0) + 1 };
 }

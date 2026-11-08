@@ -56,3 +56,30 @@ describe('file format', () => {
     expect(fileNameFor('  ')).toBe('you.you.json');
   });
 });
+
+describe('nothing is dropped on load-then-save (S4d)', () => {
+  const src = {
+    id: 'you-norm-1', name: 'Norm Test',
+    kinds: [{ area: 'home', name: 'Boat slip', fields: [{ id: 'slip', label: 'Slip' }] }, { area: 'nowhere', name: 'Bad kind', fields: [] }, { area: 'home', name: 'No fields kind' }],
+    cards: [
+      { id: 'c1', area: 'home', kind: 'Address', value: 'Good card', since: '2000', status: 'active', recordedAt: '2026-01-01T00:00:00Z', revisions: [] },
+      { id: 'c3', area: 'home', kind: 'Pet', value: 'Card with numeric note', since: '', status: 'active', recordedAt: '2026-01-01T00:00:00Z', revisions: [], note: 12345 },
+      { id: 'c4', area: 'home', kind: 'Pet', value: 'Odd keepsake meta', since: '', status: 'active', recordedAt: '2026-01-01T00:00:00Z', revisions: [], keepsakes: [{ id: 'k1', name: 'photo.jpg', type: 'image/jpeg', size: 10, addedAt: '2026-01-01T00:00:00Z' }] },
+    ],
+    links: [{ id: 'l1', a: 'c1', b: 'c3', fwd: 'near', back: '' }, { a: 'c1', b: 'c4', fwd: 'link without id', back: '' }],
+  };
+  it('moves malformed notes, keepsakes, kinds and links to unreadable instead of dropping them', () => {
+    const p = normalize(structuredClone(src));
+    const saved = JSON.stringify(p);
+    for (const text of ['12345', 'photo.jpg', 'Bad kind', 'No fields kind', 'link without id']) expect(saved).toContain(text);
+    expect(p.kinds?.map(k => k.name)).toEqual(['Boat slip']);
+    expect(p.links.map(l => l.id)).toEqual(['l1']);
+    expect(p.unreadable).toHaveLength(5);
+    expect(p.unreadable).toContainEqual({ from: 'note', card: 'c3', value: 12345 });
+  });
+  it('is stable when saved and loaded again', () => {
+    const once = normalize(structuredClone(src));
+    const twice = normalize(JSON.parse(JSON.stringify(once)));
+    expect(twice).toEqual(once);
+  });
+});

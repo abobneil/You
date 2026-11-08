@@ -1,4 +1,4 @@
-import { openSheet, sheetTop } from './sheet';
+import { closeSheet, openSheet, sheetTop } from './sheet';
 import { esc } from './dom';
 // Getting into your data: first visit, returning visit, upgrading old data, and loading a file.
 import { newId } from '../core/cards';
@@ -8,11 +8,11 @@ import { canLeave, eraseBrowserCopy, legacyProfile, profile, setSession, storedE
 import { decode, readFile, readText, UnsupportedVersion, DamagedFile } from '../storage/fileFormat';
 import { keepsakeStore } from '../storage/keepsakeAccess';
 import { commitStaged, describeProblems, discardStaged, stageKeepsakes, type Staged } from '../storage/keepsakeImport';
-import { byRecent, currentId, hasVault, listProfiles, placeLabel } from '../storage/profiles';
+import { byRecent, currentId, hasVault, listProfiles, placeLabel, setCurrent } from '../storage/profiles';
 import { downloadCopy, setTarget } from '../storage/target';
-import { askNewPassphrase, askPassphrase, hideGate, type WhoRow } from './gate';
+import { askNewPassphrase, askPassphrase, backToPrevious, hideGate, type WhoRow } from './gate';
 import { openStoragePicker } from './storagePicker';
-import { addNewYou, switchTo } from './switcher';
+import { addNewYou, switchTo, reloadClean } from './switcher';
 
 /** After the name screen: choose a passphrase, then save for the first time. */
 export async function lockNewData() {
@@ -36,19 +36,23 @@ function whoRow(): WhoRow {
  * or 'landing' if there's nothing to unlock (show the name screen).
  */
 export async function start(): Promise<'home' | 'landing'> {
-  const stored = await storedEnvelope();
+  const slot = currentId();
+  const stored = await storedEnvelope(slot);
   if (stored) {
     let r: ReturnType<typeof readText> | null = null;
     try { r = readText(stored); } catch { /* unreadable: fall through */ }
     if (r?.kind === 'locked') {
-      const env = r.env;
-      const label = listProfiles().find(e => e.id === currentId())?.label ?? '';
+      const label = listProfiles().find(e => e.id === slot)?.label ?? '';
       await askPassphrase('unlock', async p => {
+        // Decrypt the copy as it is now, not as it was when this page loaded: another tab may have saved since.
+        const now = await storedEnvelope(slot);
+        const fresh = now ? readText(now) : null;
+        if (!now || fresh?.kind !== 'locked') throw new DamagedFile('this browser’s copy can’t be read');
         try {
-          const d = await decode(p, env);
+          const d = await decode(p, fresh.env);
           // The browser slot decides which You this is, so its save location and settings stay attached.
-          d.profile.id = currentId() || d.profile.id;
-          await setSession(d.profile, d.vault);
+          d.profile.id = slot || d.profile.id;
+          await setSession(d.profile, d.vault, now);
           return true;
         }
         catch (e) { if (e instanceof WrongPassphrase) return false; throw e; }
@@ -100,7 +104,7 @@ export async function importText(source: Blob | string): Promise<boolean> {
 
   // Every attached file is decrypted and checked before anything here changes.
   let staged: Staged | null = null;
-  const give = async () => { if (staged) await discardStaged(keepsakeStore, staged); hideGate(); return false; };
+  const give = async () => { if (staged) await discardStaged(keepsakeStore, staged); backToPrevious(); return false; };
   if (r.kind === 'locked' && key) {
     try { staged = await stageKeepsakes(keepsakeStore, key, loaded, r.keepsakes()); }
     catch (e) { cannotOpen(e); hideGate(); return false; }
@@ -124,7 +128,21 @@ export async function importText(source: Blob | string): Promise<boolean> {
         anyway: async () => { await downloadCopy(true); resolve(true); },
       }));
       if (!proceed) return give();
-    } else { alert('Open this You from the switcher first, then open the file so its browser version can be kept safely.'); return give(); }
+    } else {
+      // This browser already has this You, locked. Unlock that copy first so the two can be compared.
+      const label = listProfiles().find(e => e.id === loaded.id)?.label || loaded.name || 'this You';
+      const unlockFirst = await new Promise<boolean>(resolve => openSheet(`${sheetTop('Already in this browser')}<h3 class="sh-title">${esc(label)} is already in this browser</h3>
+        <p>The copy in this browser may have newer changes than this file. Nothing has been changed.</p>
+        <p>Unlock the browser copy first. Then You will ask for this file again and show you which is newer, so you can keep both.</p>
+        <div class="menu"><button data-act="unlock">Unlock the browser copy first</button><button data-act="close">Cancel</button></div>`, {
+        unlock: () => resolve(true), close: () => resolve(false),
+      }));
+      if (staged) await discardStaged(keepsakeStore, staged);
+      closeSheet();
+      if (!unlockFirst) { backToPrevious(); return false; }
+      thenOpenFile(loaded.id);
+      return false;
+    }
   }
 
   // The keepsake bytes go in first, so the record never mentions a file that isn't here.
@@ -155,4 +173,22 @@ async function forgot() {
   setTarget('browser');
   await eraseBrowserCopy();
   location.replace(location.pathname);
+}
+
+// "Unlock the browser copy first, then compare": remembered for this tab only (no personal data, just a flag).
+const THEN_OPEN = 'you.thenOpenFile';
+function thenOpenFile(id: string) {
+  try { sessionStorage.setItem(THEN_OPEN, id); } catch { /* unavailable: the person can use "Open a file…" */ }
+  void canLeave().then(ok => { if (ok) { setCurrent(id); reloadClean(); } });
+}
+
+/** After unlocking: if the person was opening a file of this You, ask for it again to compare. */
+export function resumeOpenFile() {
+  let id: string | null = null;
+  try { id = sessionStorage.getItem(THEN_OPEN); sessionStorage.removeItem(THEN_OPEN); } catch { /* unavailable */ }
+  if (!id || id !== profile.id) return false;
+  openSheet(`${sheetTop('Open a file')}<h3 class="sh-title">Now choose the file again</h3><p>The browser copy is unlocked. Choose the file you were opening; You will show which is newer and keep a copy of the other.</p><div class="menu"><button data-act="pick">Choose the file…</button><button data-act="close">Not now</button></div>`, {
+    pick: () => openStoragePicker('open'),
+  });
+  return true;
 }

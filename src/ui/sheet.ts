@@ -4,6 +4,7 @@
 import { $, ICON, announce } from './dom';
 import { canFocus, findByKey, keyOf, type FocusKey } from './focusMemory';
 import { InvalidDate } from './dateInput';
+import { setDraftCheck } from '../state';
 
 type Handler = (el: HTMLElement, e: MouseEvent) => void;
 
@@ -15,6 +16,11 @@ export interface DraftHook {
   snapshot(): unknown;
   /** Reopens the panel with that copy. */
   restore(snapshot: unknown): void;
+  /**
+   * A plain-JSON copy of what was typed, for keeping it (encrypted, in the record) when the
+   * screen locks by itself. Marks the draft as kept, so anything it already stored isn't cleared.
+   */
+  stash?(): { kind: string; data: unknown };
 }
 
 interface Opener { el: HTMLElement | null; key: FocusKey | null }
@@ -81,6 +87,14 @@ function dismiss() { commitField(); if (sheet.open) { sheet.close(); afterClose(
 const commitField = () => { const a = document.activeElement; if (a instanceof HTMLElement && sheetBody.contains(a)) a.blur(); };
 
 export const onSheetClose = (fn: () => void) => { closeListeners.push(fn); };
+/** Typing that isn't saved yet in the open panel, if any. */
+export function openDraft(): DraftHook | null {
+  if (!sheet.open || !draft) return null;
+  try { return draft.dirty() ? draft : null; } catch { return draft; }
+}
+/** Saves a half-typed field the way leaving it would. */
+export const commitOpenField = () => commitField();
+setDraftCheck(() => !!openDraft());
 /** Calls one of the current panel's handlers directly, e.g. from an Enter key. */
 export const act = (name: string) => run(name, sheetBody, new MouseEvent('click'));
 /** Runs a handler. A date that can't be read has already been flagged next to its field, so that just stops it. */

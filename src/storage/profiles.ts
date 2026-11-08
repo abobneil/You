@@ -85,7 +85,15 @@ export const byRecent = (list = listProfiles()) =>
 // With no You chosen yet (e.g. the last one was removed), open the most recent.
 if (!local.get(CURRENT) && listProfiles().length) local.set(CURRENT, byRecent()[0].id);
 
-export function placeLabel(e: ProfileEntry) {
+/**
+ * How a You is shown before unlocking: its name, where it saves, and when it was last opened.
+ * Two Yous with the same name are numbered (in the order they were added) and show the time too.
+ */
+export function placeLabel(e: ProfileEntry, list = listProfiles()) {
   const name = local.get(keyFor(e.id, 'targetName'));
-  return `${e.label} · ${name ? 'saves to ' + name : 'only in this browser'}${e.lastOpened ? ' · last opened ' + new Date(e.lastOpened).toLocaleDateString() : ''}`;
+  const same = list.filter(x => x.label.trim().toLowerCase() === e.label.trim().toLowerCase());
+  const n = same.length > 1 ? ` (${same.findIndex(x => x.id === e.id) + 1})` : '';
+  const when = e.lastOpened ? new Date(e.lastOpened) : null;
+  const opened = when ? ` Â· last opened ${same.length > 1 ? when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : when.toLocaleDateString()}` : '';
+  return `${e.label}${n} Â· ${name ? 'saves to ' + name : 'only in this browser'}${opened}`;
 }
