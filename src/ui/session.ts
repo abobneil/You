@@ -145,8 +145,17 @@ export async function importText(source: Blob | string): Promise<boolean> {
     try { staged = await stageKeepsakes(keepsakeStore, key, loaded, r.keepsakes()); }
     catch (e) { cannotOpen(e); hideGate(); return false; }
     const n = staged.problems.length;
-    if (n && !confirm(`${n === 1 ? 'One attached file' : `${n} attached files`} in this record couldn’t be read:\n\n`
-      + `${describeProblems(staged.problems)}\n\nOpen the rest anyway? Those files will show as unreadable. Choose Cancel to change nothing.`)) return give();
+    if (n) {
+      const problems = staged.problems;
+      const openRest = await new Promise<boolean>(resolve => openSheet(`${sheetTop('Some attached files couldn’t be read')}<h3 class="sh-title">${n === 1 ? 'One attached file' : `${n} attached files`} in this record couldn’t be read</h3>
+        <p class="note-text">${esc(describeProblems(problems))}</p>
+        <p>You can open the rest. Those files will show as unreadable, and the file itself isn’t changed.</p>
+        <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel, change nothing</button><button class="btn primary" type="button" data-act="rest">Open the rest</button></div>`, {
+        rest: () => { closeSheet(); resolve(true); },
+        close: () => { closeSheet(); resolve(false); },
+      }));
+      if (!openRest) return give();
+    }
   }
 
   if (!await canLeave()) return give();
@@ -184,7 +193,10 @@ export async function importText(source: Blob | string): Promise<boolean> {
   // The keepsake bytes go in first, so the record never mentions a file that isn't here.
   if (staged) {
     try { await commitStaged(keepsakeStore, staged, loaded.id, loaded); }
-    catch { alert('This browser couldn’t store the attached files (its storage may be full). Nothing was opened.'); return give(); }
+    catch {
+      openSheet(`${sheetTop('Couldn’t open')}<h3 class="sh-title">This browser couldn’t store the attached files</h3><p data-announce>Its storage may be full. Nothing was opened and nothing here changed.</p><div class="btns"><button class="btn primary" type="button" data-act="close">OK</button></div>`);
+      return give();
+    }
   }
 
   if (key) {
