@@ -46,7 +46,7 @@ const failed = (source: string, what: string) => show(source, { rows: [], notes:
 // ---------- each source ----------
 async function importContacts(files: File[]) {
   const contacts = (await Promise.all(files.map(f => f.text()))).flatMap(parseVcf);
-  show('Contacts', contactRows(contacts));
+  show('Contacts', contactRows(contacts, profile.cards.find(c => c.kind === 'Full name')?.fields?.last || profile.name.trim().split(/\s+/).slice(-1)[0]));
 }
 
 /** Android Chrome's contact picker: no file needed, and only the contacts you pick are shared. */
@@ -64,7 +64,7 @@ async function pickPhoneContacts() {
         addresses: a ? [{ types: ['home'], street: (a.addressLine ?? []).join(', '), unit: '', city: a.city ?? '', state: a.region ?? '', zip: a.postalCode ?? '', country: a.country ?? '' }] : [],
         birthday: '', org: '', title: '' };
     });
-    if (contacts.length) show('Contacts', contactRows(contacts));
+    if (contacts.length) show('Contacts', contactRows(contacts, profile.cards.find(c => c.kind === 'Full name')?.fields?.last || profile.name.trim().split(/\s+/).slice(-1)[0]));
   } catch { /* the person closed the picker */ }
 }
 
@@ -221,7 +221,7 @@ export async function openImportHub(only?: SourceId[]) {
     <div class="sources">${list.map(s => `<div class="source">
       <svg viewBox="0 0 24 24" aria-hidden="true">${s.icon}</svg>
       <div class="src-main">
-        <b>${esc(s.title)}</b><small>${esc(s.desc)}</small><small>Archive limit: 500 MB unpacked, 200 MB per file, 10,000 files.</small>
+        <b>${esc(s.title)}</b><small>${esc(s.desc)}</small>${['linkedin', 'health', 'streaming', 'media'].includes(s.id) ? '<small>Archive limit: 500 MB unpacked, 200 MB per file, 10,000 files.</small>' : ''}
         <details><summary>How to get it</summary><p>${s.how}</p></details>
         <div class="src-actions">${s.actions.map((a, i) => { runners[`${s.id}-${i}`] = a.run;
           return `<button type="button" class="btn${a.primary ? ' primary' : ''}" data-act="run" data-k="${s.id}-${i}">${esc(a.label)}</button>`; }).join('')}</div>

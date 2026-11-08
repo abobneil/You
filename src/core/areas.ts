@@ -186,11 +186,11 @@ export const AREAS: Area[] = [
     icon: '<path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-5h4v5"/>',
     kinds: [
       k('Address', false, { primary: ['street', 'city'], hint: 'Where you live. Moving replaces it, so the places you’ve lived stay in your history.',
-        fields: [f('street', 'Street', { placeholder: '225 Fox Run Dr.' }), f('unit', 'Apt / unit'), f('city', 'City'),
+        fields: [f('street', 'Street', { placeholder: 'e.g. 12 Elm St' }), f('unit', 'Apt / unit'), f('city', 'City'),
           f('state', 'State', { format: 'upper', placeholder: 'NC' }), f('zip', 'ZIP', { format: 'zip' }), f('country', 'Country')],
         titleFrom: x => join(x.street, x.unit), summary: ['city', 'state'] }),
       k('Property', true, { hint: 'A place you own. Add it when you buy; end it when you sell. It doesn’t have to be where you live.',
-        fields: [f('street', 'Street', { placeholder: '48 Oak Ave' }), f('unit', 'Apt / unit'), f('city', 'City'),
+        fields: [f('street', 'Street', { placeholder: 'e.g. 48 Oak Ave' }), f('unit', 'Apt / unit'), f('city', 'City'),
           f('state', 'State', { format: 'upper', placeholder: 'NC' }), f('zip', 'ZIP', { format: 'zip' }), f('country', 'Country'),
           f('use', 'Used as', { choices: ['Primary home', 'Rental', 'Vacation home', 'Land', 'Other'] }),
           f('type', 'Type', { choices: ['House', 'Condo', 'Townhouse', 'Land', 'Other'] }), money('price', 'Purchase price'),

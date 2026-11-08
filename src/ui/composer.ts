@@ -64,6 +64,8 @@ interface Draft {
   /** Whose rows the drafted files are in, so they can be cleared if the card is never added. */
   youId: string;
   saved: boolean;
+  kindMsg?: string;
+  splitDetails?: boolean;
 }
 let draft: Draft | undefined;
 /** What was typed, as it was when the composer opened, to tell whether backing out loses anything. */
@@ -104,23 +106,28 @@ onSheetClose(() => {
 });
 
 export function openComposer(area: AreaId, preset: { kind?: string; replaceId?: string; beforeId?: string; since?: string } = {}) {
-  draft = { note: '', area, kind: preset.kind || firstOpenKind(area), custom: '', customFields: [], value: '', valueDate: '', since: preset.since || '',
+  draft = { note: '', area, kind: preset.kind || '', custom: '', customFields: [], value: '', valueDate: '', since: preset.since || '',
     fields: {}, fieldsByKind: {}, nameTyped: false, mode: preset.beforeId ? 'b:' + preset.beforeId : null, modeOpen: false, replaceId: preset.replaceId, links: [],
     keepsakes: [], keepsakeMsg: '', open: new Set(), moreKinds: false, valueMsg: '', youId: profile.id ?? '', saved: false };
   typedAtStart = typed();
   render(true);
 }
 
-/** Starts on the first suggested kind that has nothing yet, so "Add" doesn't default to replacing. */
-function firstOpenKind(area: AreaId): string {
-  const kinds = areaById(area)!.kinds;
-  return (kinds.find(k => !activeOf(profile, area, k.name).length) ?? kinds[0]).name;
-}
-
 const current = () => draft!;
 const currentKind = (d = current()): KindInfo => d.kind === OTHER
   ? { ...kindOf(d.area, d.custom || 'Note', profile), fields: d.customFields }
-  : kindOf(d.area, d.kind, profile);
+  : d.kind ? kindOf(d.area, d.kind, profile) : { name: 'Value', many: true, dated: false, value: 'text' };
+
+function detailKind(d: Draft): KindInfo {
+  const kind = currentKind(d);
+  if (!kind.titleFrom || !d.value.trim() || d.splitDetails) return kind;
+  const hidden = new Set((kind.fields ?? []).filter(f => {
+    if (kind.name === 'Address' || kind.name === 'Property') return ['street', 'city', 'state'].includes(f.id);
+    if (kind.name === 'Job') return f.id === 'title' || (f.id === 'employer' && / at /i.test(d.value));
+    return !!kind.titleFrom!({ [f.id]: 'part' });
+  }).map(f => f.id));
+  return { ...kind, primary: undefined, fields: kind.fields?.filter(f => !hidden.has(f.id)) };
+}
 
 /** Copies whatever is on screen into the draft. Sections that are closed keep what they had. */
 function read() {
@@ -133,7 +140,10 @@ function read() {
   if (d.value.trim()) d.valueMsg = '';
   if (sheetBody.querySelector('[data-date="vdate"]')) d.valueDate = readDate(sheetBody, 'vdate');
   if (sheetBody.querySelector('[data-date="since"]')) d.since = readDate(sheetBody, 'since');
-  if (sheetBody.querySelector('.details')) d.fields = readDetails(sheetBody, currentKind(), 'cf');
+  if (sheetBody.querySelector('.details')) {
+    const visible = detailKind(d);
+    d.fields = { ...Object.fromEntries(Object.entries(d.fields).filter(([id]) => !visible.fields?.some(f => f.id === id))), ...readDetails(sheetBody, visible, 'cf') };
+  }
 }
 
 /** "Address" → "address"; keeps names like "Driver's license" readable mid-sentence. */
@@ -204,7 +214,7 @@ function render(focus = false) {
       return `<span class="chip">${linkText(l.fwd, o ? kindLabel(o) : '', o ? shownValue(o) : '')}<button type="button" class="x" data-act="drop-link" data-i="${i}"
         aria-label="Remove link to ${esc(o ? `${kindLabel(o)} ${shownValue(o)}` : 'this card')}">×</button></span>`; }).join('');
 
-  const valueLabel = custom ? 'What is it?' : kind.name;
+  const valueLabel = !d.kind ? 'Value' : custom ? 'What is it?' : kind.name;
   const valueRow = isDate
     ? `<div class="fx c-main"><span class="lab" id="c-vdate-lab">${esc(kind.name)}</span><div role="group" aria-labelledby="c-vdate-lab">${dateInputs(d.valueDate, 'vdate')}</div></div>`
     : `<div class="fx c-main"><label for="c-value">${esc(valueLabel)}</label><div>${valueFieldHtml('c-value', d.value, kind,
@@ -220,7 +230,7 @@ function render(focus = false) {
     : '';
 
   const sections = [
-    d.open.has('details') && hasDetails ? `<div class="c-sec">${tagRowHtml(kind, d.tag)}${detailsHtml(kind, d.fields, 'cf')}</div>` : '',
+    d.open.has('details') && hasDetails ? `<div class="c-sec">${tagRowHtml(kind, d.tag)}${detailsHtml(detailKind(d), d.fields, 'cf')}${kind.titleFrom && d.value.trim() && !d.splitDetails ? `<button type="button" class="link-btn" data-act="split-details">${kind.name === 'Address' ? 'Split into street, city…' : 'Edit the parts…'}</button>` : ''}</div>` : '',
     d.open.has('note') ? `<div class="c-sec block">${noteInput('c-note', d.note)}</div>` : '',
     d.open.has('files') || d.keepsakes.length ? `<div class="c-sec block">${attachHtml(draftThumbs(d.keepsakes), d.keepsakeMsg)}</div>` : '',
     d.links.length ? `<div class="c-sec block"><h5>Linked to</h5><div class="chips">${linkChips}</div></div>` : '',
@@ -228,7 +238,7 @@ function render(focus = false) {
 
   openSheet(`${sheetTop(`${esc(a.title)} · new card`)}
     <h3 class="sh-title">Add to ${esc(a.title)}</h3>
-    <div class="fx kinds-row"><span class="lab" id="c-kind-lab">What is it?</span><div><div class="kinds" role="group" aria-labelledby="c-kind-lab">${kindChips}</div>${kind.hint ? `<div class="hint kind-hint">${esc(kind.hint)}</div>` : ''}</div></div>
+    <div class="fx kinds-row"><span class="lab" id="c-kind-lab">What is it?</span><div><div class="kinds" role="group" tabindex="-1" aria-labelledby="c-kind-lab">${kindChips}</div>${d.kindMsg ? `<p class="date-err" role="alert">${esc(d.kindMsg)}</p>` : ''}${kind.hint ? `<div class="hint kind-hint">${esc(kind.hint)}</div>` : ''}</div></div>
     ${custom ? `<div class="fx"><label for="c-custom">Name it</label><input id="c-custom" autocomplete="off" value="${esc(d.custom)}" placeholder="e.g. Eye doctor"></div>
       ${d.customFields.map((f, i) => `<div class="fx"><label for="custom-label-${i}">Detail label</label><div><input id="custom-label-${i}" autocomplete="off" data-custom-label="${i}" value="${esc(f.label)}" placeholder="e.g. Location"><select aria-label="Detail type" data-custom-type="${i}"><option value="text" ${f.type === 'text' ? 'selected' : ''}>Text</option><option value="date" ${f.type === 'date' ? 'selected' : ''}>Date</option></select></div></div>`).join('')}
       <div class="fx"><span class="lab"></span><div><button type="button" class="chip" data-act="custom-detail">+ Add a detail</button></div></div>` : ''}
@@ -245,6 +255,7 @@ function render(focus = false) {
     <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="save">Add</button></div>`,
   {
     // A detail of the person's own: name it here, fill it in under Details.
+    'split-details': () => { read(); d.splitDetails = true; render(); },
     'custom-detail': () => {
       read();
       d.customFields.push({ id: 'detail' + (d.customFields.length + 1), label: '', type: 'text' });
@@ -276,6 +287,7 @@ function render(focus = false) {
       const from = currentKind();
       d.fieldsByKind[d.kind] = d.fields;
       d.kind = b.dataset.kind!;
+      d.kindMsg = ''; d.splitDetails = false;
       d.mode = null;
       d.modeOpen = false;
       d.valueMsg = '';
@@ -286,7 +298,7 @@ function render(focus = false) {
         if (same && d.fields[f.id]) carried[f.id] = d.fields[f.id];
       }
       d.fields = { ...carried, ...d.fieldsByKind[d.kind] };
-      if (!d.nameTyped) d.value = to.titleFrom ? to.titleFrom(d.fields) : '';
+      if (!d.nameTyped && !d.value.trim()) d.value = to.titleFrom ? to.titleFrom(d.fields) : '';
       render();
       (sheetBody.querySelector<HTMLElement>(d.kind === OTHER ? '#c-custom' : '#c-value, [data-date="vdate"] [data-d="y"]'))?.focus();
     },
@@ -361,6 +373,7 @@ function startLink() {
 function saveDraft() {
   read();
   const d = current();
+  if (!d.kind) { d.kindMsg = "Pick what kind of card this is — or 'Something else…'"; render(); sheetBody.querySelector<HTMLElement>('.kinds')?.focus(); return; }
   const kind = currentKind(d);
   const isDate = kind.value === 'date';
   const replacing = !!d.mode?.startsWith('r:');

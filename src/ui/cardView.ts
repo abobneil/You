@@ -56,7 +56,7 @@ export function openCard(id: string, opts: Opts = {}) {
   const details = (kind.fields ?? []).filter(f => c.fields?.[f.id]);
   const extra = Object.keys(c.fields ?? {}).filter(k => !kind.fields?.some(f => f.id === k)); // kept from an earlier kind
   const when = whenText(c, kind);
-  const statusLine = on ? (when ? '' : 'Current') : c.until ? `In your history since ${fmtDate(c.until)}` : 'In your history';
+  const statusLine = on ? (when ? '' : 'Current') : c.until ? `In your history since ${fmtDate(c.until)}` : 'Ended (date unknown)';
 
   const action = (act: string, label: string, explain: string, primary = false) =>
     `<div class="cv-act"><button class="btn${primary ? ' primary' : ''}" type="button" data-act="${act}" aria-describedby="cv-${act}-why">${label}</button>

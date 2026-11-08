@@ -119,7 +119,7 @@ sheet.addEventListener('click', e => {
   run(b.dataset.act!, b, e);
 });
 // Escape: handled here, synchronously, like every other way out.
-sheet.addEventListener('cancel', e => { e.preventDefault(); dismiss(); });
+sheet.addEventListener('cancel', e => { e.preventDefault(); if (handlers.escape) handlers.escape(sheetBody, e as unknown as MouseEvent); else dismiss(); });
 // Enter in a text field (which saves in several panels) must not also "press" whatever button gets
 // focus once the sheet closes, e.g. reopening Add a card straight after adding one.
 sheet.addEventListener('keydown', e => {

@@ -266,6 +266,8 @@ export function renderPill() {
   else { state = 'ok'; html = `${ICON.check}<span>Saved to <b>${n}</b></span>`; }
   pill.className = 'saved ' + state;
   pill.innerHTML = html;
+  pill.title = pill.textContent || '';
+  pill.setAttribute('aria-label', pill.title);
 }
 
 /**

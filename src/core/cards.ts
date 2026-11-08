@@ -24,7 +24,7 @@ export function rangeText(c: Card): string {
     if (c.since) return `${k.dated || !c.replaces ? 'Since' : 'Changed'} ${fmtDate(c.since)}`;
     return 'Date unknown';
   }
-  if (!c.since) return c.until ? `Until ${fmtDate(c.until)}` : 'Ended';
+  if (!c.since) return c.until ? `Until ${fmtDate(c.until)}` : 'Ended (date unknown)';
   return `${fmtDate(c.since)} – ${fmtDate(c.until) || '?'}`;
 }
 
@@ -123,11 +123,11 @@ export function setField(p: Profile, id: string, field: string, value: string, n
 }
 
 /** Moves a card to history without anything replacing it. */
-export function endCard(p: Profile, id: string, until: FuzzyDate, now = new Date().toISOString()) {
+export function endCard(p: Profile, id: string, until: FuzzyDate, _now = new Date().toISOString()) {
   const c = byId(p, id);
   if (!c || c.status !== 'active') return;
   c.status = 'past';
-  c.until = until || thisMonth(now);
+  c.until = until;
 }
 
 /** Undo "This ended" for a card that wasn't replaced. */
