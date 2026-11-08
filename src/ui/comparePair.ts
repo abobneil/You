@@ -3,7 +3,8 @@
 // chooses: keep both as separate files (each saved untouched, under a name that tells them apart) or
 // combine them into one, which they then save through the usual picker. Nothing changes before that choice.
 import { combine } from '../core/compare';
-import type { Profile } from '../core/types';
+import type { Card, Profile } from '../core/types';
+import { shownValue } from './sensitive';
 import { keepBothNames, openCopy, pairProblem, pairSummary, type OpenedCopy } from '../storage/filePair';
 import { downloadCopy } from '../storage/target';
 import { profile, save, vault } from '../state';
@@ -73,15 +74,15 @@ export function openComparePair() {
 function showComparison(a: OpenedCopy, b: Side) {
   const first = a.fileName, second = nameOf(b);
   const d = pairSummary(a.profile, b.profile, first, second);
-  const list = (cards: { value: string; kind: string }[]) => cards.length
-    ? `<ul class="pair-list">${cards.slice(0, 20).map(c => `<li>${esc(c.kind)}: ${esc(c.value)}</li>`).join('')}${cards.length > 20 ? `<li>…and ${cards.length - 20} more</li>` : ''}</ul>` : '';
+  const list = (cards: Card[]) => cards.length
+    ? `<ul class="pair-list">${cards.slice(0, 20).map(c => `<li>${esc(c.kind)}: ${esc(shownValue(c))}</li>`).join('')}${cards.length > 20 ? `<li>…and ${cards.length - 20} more</li>` : ''}</ul>` : '';
   // Combining puts the result in this browser, so it needs this You to be the one that's open.
   const canCombine = !!vault && profile.id === a.profile.id;
   openSheet(`${sheetTop('Compare two copies')}<h3 class="sh-title">What’s different</h3>
     <p data-announce>${esc(d.text)}</p>
     ${d.onlyA.length ? `<h4 class="pair-h">Only in ${esc(first)}</h4>${list(d.onlyA)}` : ''}
     ${d.onlyB.length ? `<h4 class="pair-h">Only in ${esc(second)}</h4>${list(d.onlyB)}` : ''}
-    ${d.changed.length ? `<h4 class="pair-h">Changed in both</h4><ul class="pair-list">${d.changed.slice(0, 20).map(([x, y]) => `<li>${esc(first)}: ${esc(x.value)}<br>${esc(second)}: ${esc(y.value)}</li>`).join('')}${d.changed.length > 20 ? `<li>…and ${d.changed.length - 20} more</li>` : ''}</ul>` : ''}
+    ${d.changed.length ? `<h4 class="pair-h">Changed in both</h4><ul class="pair-list">${d.changed.slice(0, 20).map(([x, y]) => `<li>${esc(first)}: ${esc(shownValue(x))}<br>${esc(second)}: ${esc(shownValue(y))}</li>`).join('')}${d.changed.length > 20 ? `<li>…and ${d.changed.length - 20} more</li>` : ''}</ul>` : ''}
     ${d.other.length ? `<h4 class="pair-h">Other differences</h4><ul class="pair-list">${d.other.map(x => `<li>${esc(x.replace('the first copy', first).replace('the second copy', second))}</li>`).join('')}</ul>${a.profile.name !== b.profile.name ? `<p class="hint">Combining keeps the name of the You that’s open here (${esc(profile.name)}); the other name is kept in this You, labeled “kept from another copy”.</p>` : ''}` : ''}
     <p class="hint">Keep both saves each copy as its own file, exactly as it is. Combine into one keeps every card from both, with earlier wording kept in each card’s history${isBrowser(b) ? '' : ', and adds this browser’s cards too'}.</p>
     ${canCombine ? '' : '<p class="hint">To combine, open this You first (load one of the files), then compare again. Keep both works now.</p>'}
