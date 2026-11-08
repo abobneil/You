@@ -66,5 +66,5 @@ export function safeMessage(e: unknown): string {
   }
   if (name === 'NetworkError') return 'Couldn’t reach Audible. Check the internet connection and try again.';
   if (name === 'ShapeError') return 'Audible answered in an unexpected way, so nothing was imported. Try again later.';
-  return e instanceof Error && /Windows|keyring|YOU_AUDIBLE|connection|Connect again/i.test(e.message) ? e.message : 'Something went wrong talking to Audible.';
+  return e instanceof Error && /Windows|keyring|YOU_AUDIBLE|connection|Connect again/i.test(e.message) ? e.message : 'Something unexpected went wrong talking to Audible. Try again; if it keeps happening, the terminal running You shows where it failed.';
 }

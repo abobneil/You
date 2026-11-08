@@ -49,6 +49,11 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       default: return reply(res, 404, { error: 'Unknown action.' });
     }
   } catch (e) {
+    // For the terminal running You: the error type and where it came from, never its message, which
+    // could quote a response or a saved credential.
+    const err = e as { name?: string; code?: unknown; stack?: string };
+    const at = err?.stack?.split('\n').slice(1, 4).map(l => l.trim()).join(' | ') ?? '';
+    console.warn(`[you/audible] ${action} failed: ${err?.name ?? typeof e}${err?.code ? ` (${String(err.code)})` : ''} ${at}`);
     return reply(res, 400, { error: safeMessage(e) });
   }
 }
