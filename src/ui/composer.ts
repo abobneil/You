@@ -1,7 +1,7 @@
 // "Add a card": kind, value, since-date, replace-or-alongside, and links.
 import { areaById, kindLabel, kindOf, tagOf } from '../core/areas';
 import { activeOf, addCard, addCardBefore, addLink, byId, defaultMode } from '../core/cards';
-import { fmtDate } from '../core/dates';
+import { startKey, endKey, fmtDate } from '../core/dates';
 import type { AreaId, FuzzyDate } from '../core/types';
 import { profile, save } from '../state';
 import { dateInputs, readDate } from './dateInput';
@@ -39,8 +39,8 @@ interface Draft {
 }
 let draft: Draft;
 
-export function openComposer(area: AreaId, preset: { kind?: string; replaceId?: string } = {}) {
-  draft = { area, kind: preset.kind || firstOpenKind(area), custom: '', value: '', valueDate: '', since: '',
+export function openComposer(area: AreaId, preset: { kind?: string; replaceId?: string; since?: string } = {}) {
+  draft = { area, kind: preset.kind || firstOpenKind(area), custom: '', value: '', valueDate: '', since: preset.since || '',
     fields: {}, fieldsByKind: {}, nameTyped: false, mode: null, replaceId: preset.replaceId, links: [] };
   render(true);
 }
@@ -162,6 +162,8 @@ function render(focus = false) {
         since = draft.valueDate; // a birthday sits at that date on the timeline
       }
       if (!value) return (sheetBody.querySelector<HTMLElement>('.details input') ?? $<HTMLInputElement>('#c-value', sheetBody)).focus();
+      const related = byId(profile, draft.mode?.slice(2));
+      if (since && related && ((replacing && related.since && endKey(since) < startKey(related.since)) || (before && related.since && endKey(related.since) < startKey(since)))) { alert('The end must be after the start. Check the dates before adding this card.'); return; }
       const input = { area: draft.area, kind: name, value, since, tag: draft.tag, fields: draft.fields };
       const c = before
         ? addCardBefore(profile, input, draft.mode!.slice(2))

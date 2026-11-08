@@ -1,7 +1,7 @@
 // One card, opened: correct it, link it, replace it, end it, or (rarely) remove it.
 import { areaById, kindLabel, kindOf } from '../core/areas';
 import { atTheTime, byId, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink, setField } from '../core/cards';
-import { fmtDate, fmtISO, thisMonth } from '../core/dates';
+import { startKey, endKey, fmtDate, fmtISO, thisMonth } from '../core/dates';
 import { profile, save } from '../state';
 import { dateInputs, readDate } from './dateInput';
 import { esc, linkText } from './dom';
@@ -18,7 +18,7 @@ import { closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
 export function openCard(id: string, opts: { ending?: boolean } = {}) {
   const c = byId(profile, id);
   if (!c) return;
-  if (location.hash.slice(1).split('/')[0] !== c.area) location.hash = '#' + c.area;
+  if (!/^#\/?life(?:\/|$)/.test(location.hash) && location.hash.slice(1).split('/')[0] !== c.area) location.hash = '#' + c.area;
   const a = areaById(c.area)!;
   const kind = kindOf(c.area, c.kind);
   const isDate = kind.value === 'date';
@@ -72,7 +72,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     replace: () => openComposer(c.area, { kind: c.kind, replaceId: c.id }),
     end: () => openCard(id, { ending: true }),
     'end-cancel': () => openCard(id),
-    'end-confirm': () => { endCard(profile, id, readDate(sheetBody, 'end')); save(); openCard(id); },
+    'end-confirm': () => { const end = readDate(sheetBody, 'end'); if (c.since && end && endKey(end) < startKey(c.since)) { alert('The end must be after the start.'); return; } endCard(profile, id, end); save(); openCard(id); },
     reopen: () => { reopenCard(profile, id); save(); openCard(id); },
     remove: () => {
       if (!confirm('Remove this card?\n\nOnly do this for a card added by mistake. To record a real change, use Replace or This ended so it stays in your history.')) return;
@@ -114,7 +114,10 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
   sheetBody.querySelectorAll<HTMLElement>('[data-date="since"], [data-date="until"]').forEach(el =>
     el.addEventListener('change', () => {
       const key = el.dataset.date as 'since' | 'until';
-      c[key] = readDate(sheetBody, key);
+      const d = readDate(sheetBody, key);
+      const since = key === 'since' ? d : c.since, until = key === 'until' ? d : c.until;
+      if (since && until && endKey(until) < startKey(since)) { alert('The end must be after the start.'); openCard(id); return; }
+      c[key] = d;
       save();
     }));
 }

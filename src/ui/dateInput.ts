@@ -1,4 +1,4 @@
-import { MONTHS, fuzzyFromParts } from '../core/dates';
+import { MONTHS, fuzzyFromParts, isValidDate } from '../core/dates';
 import type { FuzzyDate } from '../core/types';
 import { $, esc } from './dom';
 
@@ -24,6 +24,11 @@ export function dateInputs(value: FuzzyDate | undefined, key: string): string {
 export function readDate(root: ParentNode, key: string): FuzzyDate {
   const el = root.querySelector(`[data-date="${key}"]`);
   if (!el) return '';
+  const year = $<HTMLInputElement>('[data-d="y"]', el).value.trim();
+  const month = $<HTMLElement>('[data-d="m"]', el).dataset.value || '';
+  const day = $<HTMLInputElement>('[data-d="d"]', el).value.trim();
+  const raw = year + (month ? '-' + month : '') + (day ? '-' + day.padStart(2, '0') : '');
+  if (raw && !isValidDate(raw)) { alert('Please enter a real date. A year alone is enough.'); throw new Error('Invalid calendar date'); }
   return fuzzyFromParts(
     $<HTMLInputElement>('[data-d="y"]', el).value,
     $<HTMLElement>('[data-d="m"]', el).dataset.value ?? '',

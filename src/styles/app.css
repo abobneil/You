@@ -749,3 +749,25 @@
   }
   .aud-url:focus { border-color: var(--ink); }
   .aud-msg:empty { display: none; }
+
+.life-entry { padding: 12px 18px; text-decoration: none; }
+#life { margin-top: 24px; }
+.life-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 18px 0; }
+.life-tools form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.life-tools input[name="year"] { width: 6em; font: inherit; }
+.life-tools select { max-width: 100%; font: inherit; color: var(--ink); background: var(--bg); }
+.life-year { display: grid; grid-template-columns: 4em 1fr; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }
+#life ul { list-style: none; margin: 0; padding: 0; }
+.life-card { display: block; text-align: left; width: 100%; padding: 12px 0; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--ink); font: inherit; cursor: pointer; overflow-wrap: anywhere; }
+.life-card b, .life-card span { display: block; }
+.life-card span { color: var(--soft); font-size: .875em; margin-top: 4px; }
+#life h3 { margin-top: 28px; }
+#life summary { cursor: pointer; padding: 10px 0; }
+#life :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media print {
+  body { background: white !important; color: black !important; }
+  body > :not(#space), #space > :not(#life), #life > :not(h2):not(.life-reading) { display: none !important; }
+  #space, #life { display: block !important; margin: 0; padding: 0; width: 100%; max-width: none; }
+  .life-card, .life-card span { color: black; }
+  .life-card { break-inside: avoid; }
+}
