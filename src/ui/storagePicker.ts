@@ -69,9 +69,12 @@ function openStorageMenu() {
     safe: openSafety,
     change: () => openStoragePicker('save'),
     forget: () => {
-      if (!confirm(`Stop saving to ${target.name}?\n\nThe file stays where it is. Your data stays in this browser.`)) return;
-      setTarget('browser');
-      closeSheet();
+      // A themed question in the sheet itself, not the browser's own confirm box.
+      openSheet(`${sheetTop('Where your data is kept')}<h3 class="sh-title">Stop saving to ${esc(target.name)}?</h3>
+        <p>The file stays where it is. Your data stays in this browser.</p>
+        <div class="btns"><button class="btn quiet" type="button" data-act="close">Keep saving</button><button class="btn primary" type="button" data-act="stop">Stop using this file</button></div>`, {
+        stop: () => { setTarget('browser'); closeSheet(); },
+      });
     },
   });
 }

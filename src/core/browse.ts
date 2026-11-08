@@ -10,7 +10,9 @@ export function originOf(c: Card): string {
   return synced || c.source?.from || '';
 }
 
-export const yearOf = (c: Card) => cardStart(c).slice(0, 4) || 'Date unknown';
+/** The label for cards with no life date. They are never placed by when they were recorded. */
+export const UNKNOWN_YEAR = 'Date unknown';
+export const yearOf = (c: Card) => (c.since ? cardStart(c).slice(0, 4) : UNKNOWN_YEAR);
 
 /** How much a card was played: plays for music, episodes for shows and podcasts. */
 export const playsOf = (c: Card) => Number((c.fields?.plays ?? c.fields?.episodes ?? '').replace(/\D/g, '')) || 0;
@@ -18,9 +20,11 @@ export const playsOf = (c: Card) => Number((c.fields?.plays ?? c.fields?.episode
 export type Sort = 'recent' | 'oldest' | 'az' | 'plays';
 
 export function sortCards(cards: Card[], sort: Sort): Card[] {
+  // Unknown life dates go last in both date orders; recorded time only breaks ties.
+  const unknown = (a: Card, b: Card) => Number(!a.since) - Number(!b.since);
   const by: Record<Sort, (a: Card, b: Card) => number> = {
-    recent: (a, b) => cardStart(b).localeCompare(cardStart(a)) || b.recordedAt.localeCompare(a.recordedAt),
-    oldest: (a, b) => cardStart(a).localeCompare(cardStart(b)) || a.recordedAt.localeCompare(b.recordedAt),
+    recent: (a, b) => unknown(a, b) || (a.since && b.since ? cardStart(b).localeCompare(cardStart(a)) : 0) || b.recordedAt.localeCompare(a.recordedAt),
+    oldest: (a, b) => unknown(a, b) || (a.since && b.since ? cardStart(a).localeCompare(cardStart(b)) : 0) || a.recordedAt.localeCompare(b.recordedAt),
     az: (a, b) => a.value.localeCompare(b.value, undefined, { sensitivity: 'base', numeric: true }),
     plays: (a, b) => playsOf(b) - playsOf(a) || by.recent(a, b),
   };
@@ -44,11 +48,12 @@ export function groupByOrigin(cards: Card[]): { origin: string; cards: Card[] }[
     .sort((a, b) => (a.origin === '' ? -1 : b.origin === '' ? 1 : b.cards.length - a.cards.length));
 }
 
-/** Cards folded by year, keeping the order they came in. */
+/** Cards folded by year, keeping the order they came in. Cards with no life date get their own group, last. */
 export function groupByYear(cards: Card[]): { year: string; cards: Card[] }[] {
   const by = new Map<string, Card[]>();
   for (const c of cards) { const y = yearOf(c); by.set(y, [...(by.get(y) ?? []), c]); }
-  return [...by].map(([year, list]) => ({ year, cards: list }));
+  return [...by].map(([year, list]) => ({ year, cards: list }))
+    .sort((a, b) => Number(a.year === UNKNOWN_YEAR) - Number(b.year === UNKNOWN_YEAR));
 }
 
 /**

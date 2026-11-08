@@ -46,7 +46,7 @@ export function scanCamera(o: { title: string; hint: string; formats: Formats; a
     openSheet(`${sheetTop(esc(o.title))}
       <p class="hint">${esc(o.hint)}</p>
       <div class="scan"><video id="scan-video" playsinline muted></video><div class="scan-frame"></div></div>
-      <p class="hint" id="scan-status">Starting the camera…</p>
+      <p class="hint" id="scan-status" role="status" aria-live="polite">Starting the camera…</p>
       <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button></div>`);
     document.getElementById('sheet')!.addEventListener('close', () => finish(null), { once: true });
 

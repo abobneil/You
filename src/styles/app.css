@@ -756,13 +756,29 @@
 
 /* Notes: the person's own words keep their line breaks. */
 .note-text { white-space: pre-wrap; overflow-wrap: anywhere; }
-.note-input { width: 100%; resize: vertical; }
+.note-input {
+  display: block; width: 100%; box-sizing: border-box; resize: vertical; min-height: 80px;
+  font: inherit; font-size: 15px; line-height: 1.5; color: var(--ink); caret-color: var(--accent);
+  background: transparent; border: 0; border-bottom: 1px solid var(--edge); border-radius: 0; padding: 4px 0; outline: none;
+}
+.note-input:focus { border-bottom-color: var(--ink); }
+.note-lab { display: block; margin-bottom: 4px; font-size: 12px; color: var(--soft); }
 .life-entry { padding: 12px 18px; text-decoration: none; }
 #life { margin-top: 24px; }
 .life-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 18px 0; }
 .life-tools form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.life-tools input[name="year"] { width: 6em; font: inherit; }
-.life-tools select { max-width: 100%; font: inherit; color: var(--ink); background: var(--bg); }
+.life-tools input, .life-tools select {
+  font: inherit; font-size: 15px; color: var(--ink); caret-color: var(--accent);
+  background: transparent; border: 0; border-bottom: 1px solid var(--edge); border-radius: 0; padding: 4px 0; min-width: 0; max-width: 100%;
+}
+.life-tools input:focus, .life-tools select:focus { border-bottom-color: var(--ink); }
+.life-tools select { cursor: pointer; }
+.life-tools select option { background: var(--bg); color: var(--ink); }
+.life-tools input[name="year"] { width: 4.5em; }
+.life-tools label { font-size: 12px; color: var(--soft); display: inline-flex; align-items: baseline; gap: 8px; }
+.life-kinds { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; }
+.life-scope { flex-basis: 100%; margin: 0; font-size: 13px; color: var(--soft); }
+#life .dhead h2 { margin: 0; }
 .life-year { display: grid; grid-template-columns: 4em 1fr; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }
 #life ul { list-style: none; margin: 0; padding: 0; }
 .life-card { display: block; text-align: left; width: 100%; padding: 12px 0; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--ink); font: inherit; cursor: pointer; overflow-wrap: anywhere; }
@@ -773,7 +789,7 @@
 #life :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 @media print {
   body { background: white !important; color: black !important; }
-  body > :not(#space), #space > :not(#life), #life > :not(h2):not(.life-reading) { display: none !important; }
+  body > :not(#space), #space > :not(#life), #life > :not(.dhead):not(.life-reading) { display: none !important; }
   #space, #life { display: block !important; margin: 0; padding: 0; width: 100%; max-width: none; }
   .life-card, .life-card span { color: black; }
   .life-card { break-inside: avoid; }
@@ -951,7 +967,8 @@ html { scroll-padding-top: 76px; scroll-padding-bottom: 24px; }
   .sh-close { width: 44px; height: 44px; margin: -6px -10px -6px 0; }
   .enter { width: 44px; height: 44px; bottom: 9px; }
   .crow { min-height: 44px; align-items: center; }
-  .kadd { width: 32px; height: 32px; }
+  .kadd { width: 44px; height: 44px; }
+  .ghost { min-height: 44px; display: inline-flex; align-items: center; }
   .theme { width: 44px; height: 44px; top: 14px; right: 14px; }
   .who-btn { width: 40px; height: 40px; }
 }
@@ -959,3 +976,36 @@ html { scroll-padding-top: 76px; scroll-padding-bottom: 24px; }
 
 .who-btn { width: auto; padding-inline: 10px; border-radius: 16px; white-space: nowrap; }
 .saved { white-space: normal; }
+
+/* Native checkboxes and radios take the coral accent, not the browser's blue (both themes). */
+:root { accent-color: var(--accent); }
+
+/* Disclosure summaries (import review, sources, life groups) are at least 24px tall to tap. */
+:where(details) > summary { min-height: 24px; padding-block: 3px; box-sizing: border-box; }
+
+/* The "Nice start" hint steps aside while a sheet is open. */
+.nudge.behind { display: none; }
+
+/* A failed save never looks like the ordinary pill on a phone: short, visible words. */
+.saved.fail, .saved.failed, .saved.err { border-color: var(--accent); }
+@media (max-width: 560px) {
+  .saved.fail > span:last-child, .saved.failed > span:last-child, .saved.err > span:last-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .saved.fail::after, .saved.failed::after, .saved.err::after { content: "Not saved"; color: var(--ink); font-weight: 500; }
+}
+
+/* Passphrase fields outside the passphrase screen: the same Show/Hide button. */
+.pass-field { position: relative; }
+.pass-field input { padding-right: 44px !important; }
+.pass-field .peek { top: 50%; bottom: auto; transform: translateY(-50%); width: 40px; height: 36px; }
+.pass-field .peek:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* Compare two copies */
+.safety-form fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
+.safety-form legend { padding: 0; margin-bottom: 4px; font-weight: 500; }
+.safety-form #pair-b-file { display: grid; gap: 8px; }
+.safety-form #pair-b-file[hidden] { display: none; }
+.pair-choice { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.pair-h { margin: 16px 0 4px; font-size: 12px; font-weight: 600; color: var(--soft); }
+.pair-list { margin: 0; padding-left: 18px; overflow-wrap: anywhere; }
+.pair-list li { margin: 4px 0; }
+.safety-form input[type=radio] { width: auto; margin: 0; }

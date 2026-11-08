@@ -17,7 +17,11 @@ nameInput.focus();
 document.addEventListener('keydown', e => {
   const b = document.body.classList;
   if (b.contains('home') || b.contains('gated') || document.querySelector('dialog[open]')) return;
-  if (document.activeElement !== nameInput && e.key.length === 1 && !e.metaKey && !e.ctrlKey) nameInput.focus();
+  if (document.activeElement === nameInput || e.key.length !== 1 || e.key === ' ' || e.metaKey || e.ctrlKey || e.altKey) return;
+  // Keys pressed on a button, link or field belong to it (Space activates "or load your data").
+  const t = e.target instanceof Element ? e.target : null;
+  if (t?.closest('button, a, input, select, textarea, summary, [role], [contenteditable], dialog, [tabindex]')) return;
+  nameInput.focus();
 });
 
 const duplicateHint = document.createElement('p');
@@ -44,7 +48,13 @@ function submit() {
   hello.innerHTML = 'Nice to meet you, <span></span>.';
   hello.querySelector('span')!.textContent = v;
   document.body.classList.add('done');
-  setTimeout(() => emit('named'), 1600);
+  // A short greeting, never a wait: reduced motion skips it, and Enter, Space or a click moves on now.
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let gone = false;
+  const go = () => { if (gone) return; gone = true; clearTimeout(timer); document.removeEventListener('keydown', key, true); document.removeEventListener('pointerdown', go, true); emit('named'); };
+  const key = (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
+  const timer = setTimeout(go, still ? 0 : 600);
+  if (!still) setTimeout(() => { if (!gone) { document.addEventListener('keydown', key, true); document.addEventListener('pointerdown', go, true); } }, 150);
 }
 
 // When other Yous live in this browser, offer a way back to them.

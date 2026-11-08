@@ -30,5 +30,9 @@ nudge.addEventListener('click', e => {
   if (b.dataset.n === 'choose') openStoragePicker('save');
 });
 
+// While any sheet is open the hint steps aside, so it never competes with the sheet's own action.
+const sheet = document.getElementById('sheet');
+if (sheet) new MutationObserver(() => nudge.classList.toggle('behind', sheet.hasAttribute('open'))).observe(sheet, { attributes: true, attributeFilter: ['open'] });
+
 on('card-added', maybeNudge);
 onTargetChange(() => { if (target.kind !== 'browser') nudge.hidden = true; });
