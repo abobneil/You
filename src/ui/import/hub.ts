@@ -42,7 +42,7 @@ function pick(accept: string, multiple: boolean, then: (files: File[]) => void |
 }
 
 /** A file that couldn't be imported gets a plain error sheet, not an empty review. Nothing was changed. */
-const failed = (source: string, what: string) => openSheet(`${sheetTop(`Import · ${esc(source)}`)}<h3 class="sh-title">This couldn’t be imported</h3><p data-announce>${esc(what)}</p><p class="hint">Nothing in your record was changed.</p><div class="btns"><button class="btn primary" type="button" data-act="close">OK</button></div>`);
+const failed = (source: string, what: string) => openSheet(`${sheetTop(`Import · ${esc(source)}`)}<h3 class="sh-title">This couldn’t be imported</h3><p data-announce>${esc(what)}</p>${/Nothing was changed/.test(what) ? '' : '<p class="hint">Nothing in your record was changed.</p>'}<div class="btns"><button class="btn primary" type="button" data-act="close">OK</button></div>`);
 
 // ---------- each source ----------
 async function importContacts(files: File[]) {
