@@ -1,5 +1,6 @@
 import { isAreaId } from './areas';
 import { newId } from './cards';
+import { normalizeKeepsakes } from './keepsakes';
 import type { Card, Profile } from './types';
 
 export const emptyProfile = (): Profile => ({ name: '', cards: [], links: [] });
@@ -13,7 +14,7 @@ export function normalize(raw: unknown): Profile {
   const p: Profile = {
     ...(typeof r.id === 'string' && r.id ? { id: r.id } : {}),
     name: typeof r.name === 'string' ? r.name : '',
-    cards: Array.isArray(r.cards) ? r.cards.filter(isCard).map(c => ({ ...c, note: typeof c.note === 'string' ? c.note : undefined, revisions: c.revisions ?? [] })) : [],
+    cards: Array.isArray(r.cards) ? r.cards.filter(isCard).map(normalizeCard) : [],
     links: Array.isArray(r.links) ? r.links.filter((l: any) => l && l.id && l.a && l.b) : [],
     updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : undefined,
   };
@@ -29,6 +30,13 @@ export function normalize(raw: unknown): Profile {
     }
   }
   return p;
+}
+
+function normalizeCard(c: Card): Card {
+  const out: Card = { ...c, note: typeof c.note === 'string' ? c.note : undefined, revisions: c.revisions ?? [] };
+  const ks = normalizeKeepsakes(c.keepsakes);
+  if (ks) out.keepsakes = ks; else delete out.keepsakes;
+  return out;
 }
 
 function isCard(c: any): c is Card {

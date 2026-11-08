@@ -8,16 +8,24 @@ passphrase and standard tools. It is the contract the app writes and reads.
 | Version | Status | Shape |
 |---|---|---|
 | 1 | legacy, read-only | Plain JSON `{ app: 'you', version: 1, savedAt, profile }` (unencrypted, from before encryption). Opened and re-saved as the current version. |
-| 2 | read and written until keepsakes exist | One encrypted envelope (below), no keepsakes. |
-| 3 | current | Envelope plus a `keepsakes` array of separately encrypted files. |
+| 2 | read and written when no card has a keepsake | One encrypted envelope (below), no keepsakes. |
+| 3 | written once any card has a keepsake (removed ones included) | Envelope plus a `keepsakes` array of separately encrypted files. |
 
 A reader must reject versions it doesn't know rather than guess. The app never overwrites a file it
 can't fully read.
 
+The app's own browser copy (IndexedDB database `you-data`) is not a file: its `records` store holds
+the record as a version 2 envelope, and its `keepsakes` store holds each keepsake's encrypted bytes as
+`{ iv, data }` raw bytes under the key `<you id>/<keepsake id>`, encrypted exactly as in a version 3
+file. Keepsake bytes are written before the record that mentions them.
+
 ## Envelope (versions 2 and 3)
 
 The file is UTF-8 JSON. Version 3 is written one keepsake per line so it can be read in pieces, but
-it is also a single valid JSON document: `json.load` in Python reads it whole.
+it is also a single valid JSON document: `json.load` in Python reads it whole. The app writes exactly
+the line layout below (the `"keepsakes":[` line on its own, then one entry per line, then `]}`) and
+reads files over 50 MB line by line on that layout; smaller files are parsed whole, so any valid JSON
+layout opens.
 
 ```json
 {"app":"you","version":3,
@@ -36,7 +44,12 @@ it is also a single valid JSON document: `json.load` in Python reads it whole.
   16-byte tag (Web Crypto layout). No additional authenticated data.
 - **Keepsakes:** each is `AES-256-GCM(key, its own random iv, original file bytes)` with additional
   authenticated data = the UTF-8 bytes of its `id`, so a keepsake can't be swapped onto another entry.
-- Every save uses fresh random IVs.
+- Every save of the record uses a fresh random IV. A keepsake keeps the IV it was sealed with when it
+  was attached; a replaced file is a new keepsake with a new id and a new IV.
+- Only keepsakes whose bytes are present are written. An entry whose id no card mentions, a repeated
+  id or an IV that isn't 12 bytes makes the file unreadable; a keepsake that fails to decrypt, whose
+  SHA-256 doesn't match its card's metadata, or that is missing is reported by name before anything
+  is replaced.
 - Limits a reader should enforce before work: iterations between 100,000 and 10,000,000; salt 16
   bytes; IVs 12 bytes.
 
@@ -66,7 +79,8 @@ Card = {
   replacedBy?: string;   // card id that took over from this one
   source?: { from: string; at: string };     // where an imported card came from, and when
   imports?: { [source: string]: { id: string; at: string; fields: {[k: string]: string} } };
-  revisions: { field?: string; value: string; at: string }[];  // earlier wording; field absent = main value, 'note' = note
+  revisions: { field?: string; value: string; at: string }[];  // earlier wording; field absent = main value, 'note' = note,
+                                                                 // 'keepsake:<id>:alt' = a keepsake's earlier description
   keepsakes?: Keepsake[];
 }
 Keepsake = {
@@ -78,6 +92,7 @@ Keepsake = {
   alt?: string;          // description for screen readers
   addedAt: string;
   removedAt?: string;    // removed keepsakes stay in the file as history
+  replacedBy?: string;   // id of the keepsake that replaced this one
 }
 Link = { id: string; a: string; b: string; fwd: string; back: string }  // fwd reads from a, back from b
 ```

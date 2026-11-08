@@ -1,7 +1,8 @@
 import { noteInput, autosizeNote } from './note';
 // "Add a card": kind, value, since-date, replace-or-alongside, and links.
 import { areaById, kindLabel, kindOf, tagOf } from '../core/areas';
-import { activeOf, addCard, addCardBefore, addLink, byId, defaultMode } from '../core/cards';
+import { activeOf, addCard, addCardBefore, addKeepsake, addLink, byId, defaultMode } from '../core/cards';
+import type { Keepsake } from '../core/keepsakes';
 import { fmtDate } from '../core/dates';
 import type { AreaId, FuzzyDate } from '../core/types';
 import { profile, save } from '../state';
@@ -13,7 +14,9 @@ import { attachValueField, valueFieldHtml } from './valueField';
 import { shownValue } from './sensitive';
 import { tagRowHtml } from './tags';
 import { maskValue } from '../core/formats';
-import { act, closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
+import { act, closeSheet, onSheetClose, openSheet, sheetBody, sheetTop } from './sheet';
+import { attachHtml, busy, draftThumbs, keepFiles, pickFiles, showPictures } from './keepsakes';
+import { dropRows } from '../storage/keepsakeAccess';
 import { attachDetails, detailsHtml, readDetails } from './details';
 
 const OTHER = '__other';
@@ -39,12 +42,26 @@ interface Draft {
   mode: string | null;
   replaceId?: string;
   links: { id: string; fwd: string; back: string }[];
+  /** Files attached before the card exists. Their encrypted bytes are already stored. */
+  keepsakes: Keepsake[];
+  keepsakeMsg: string;
+  /** Whose rows the drafted files are in, so they can be cleared if the card is never added. */
+  youId: string;
+  saved: boolean;
 }
-let draft: Draft;
+let draft: Draft | undefined;
+
+// Closing without adding the card: its drafted files go too.
+onSheetClose(() => {
+  if (!draft || draft.saved || !draft.keepsakes.length) return;
+  dropRows(draft.youId, draft.keepsakes.map(k => k.id));
+  draft.keepsakes = [];
+});
 
 export function openComposer(area: AreaId, preset: { kind?: string; replaceId?: string } = {}) {
   draft = { note: '', noteOpen: false, area, kind: preset.kind || firstOpenKind(area), custom: '', value: '', valueDate: '', since: '',
-    fields: {}, fieldsByKind: {}, nameTyped: false, mode: null, replaceId: preset.replaceId, links: [] };
+    fields: {}, fieldsByKind: {}, nameTyped: false, mode: null, replaceId: preset.replaceId, links: [],
+    keepsakes: [], keepsakeMsg: '', youId: profile.id ?? '', saved: false };
   render(true);
 }
 
@@ -55,6 +72,7 @@ function firstOpenKind(area: AreaId): string {
 }
 
 function read() {
+  const draft = current();
   draft.note = sheetBody.querySelector<HTMLTextAreaElement>('#c-note')?.value ?? draft.note;
   draft.custom = sheetBody.querySelector<HTMLInputElement>('#c-custom')?.value.trim() ?? draft.custom;
   const v = sheetBody.querySelector<HTMLInputElement>('#c-value');
@@ -64,9 +82,11 @@ function read() {
   if (sheetBody.querySelector('.details')) draft.fields = readDetails(sheetBody, currentKind(), 'cf');
 }
 
-const currentKind = () => kindOf(draft.area, draft.kind === OTHER ? (draft.custom || 'Note') : draft.kind);
+const current = () => draft!;
+const currentKind = (d = current()) => kindOf(d.area, d.kind === OTHER ? (d.custom || 'Note') : d.kind);
 
 function render(focus = false) {
+  const draft = current();
   const a = areaById(draft.area)!;
   const custom = draft.kind === OTHER;
   const kind = kindOf(draft.area, custom ? (draft.custom || 'Note') : draft.kind);
@@ -111,6 +131,7 @@ function render(focus = false) {
     ${custom ? `<div class="fx"><label for="c-custom">Name it</label><input id="c-custom" value="${esc(draft.custom)}" placeholder="e.g. Eye doctor"></div>` : ''}
     ${valueRow}
     <div class="block">${draft.noteOpen ? noteInput('c-note', draft.note) : '<button class="chip" type="button" data-act="note">+ Add a note</button>'}</div>
+    <div class="block">${attachHtml(draftThumbs(draft.keepsakes), draft.keepsakeMsg)}</div>
     ${tagRowHtml(kind, draft.tag)}
     ${detailsHtml(kind, draft.fields, 'cf')}
     ${modeRow}
@@ -141,6 +162,28 @@ function render(focus = false) {
       (sheetBody.querySelector<HTMLElement>(draft.kind === OTHER ? '#c-custom' : '#c-value, [data-date="vdate"] .mbtn'))?.focus();
     },
     mode: b => { read(); draft.mode = b.dataset.mode!; render(); },
+    'ks-add': async () => {
+      read();
+      const files = await pickFiles();
+      if (!files.length) return;
+      busy(sheetBody);
+      const { added, reasons } = await keepFiles(files);
+      if (draft !== current()) return dropRows(draft.youId, added.map(k => k.id)); // the sheet moved on meanwhile
+      draft.keepsakes.push(...added);
+      draft.keepsakeMsg = reasons.join(' ');
+      render();
+      sheetBody.querySelector<HTMLElement>('[data-act="ks-add"]')?.focus();
+    },
+    'ks-drop': b => {
+      read();
+      const i = draft.keepsakes.findIndex(k => k.id === b.dataset.ks);
+      if (i < 0) return;
+      const [gone] = draft.keepsakes.splice(i, 1);
+      dropRows(draft.youId, [gone.id]);
+      draft.keepsakeMsg = `Took out “${gone.name}”.`;
+      render();
+      sheetBody.querySelector<HTMLElement>('[data-act="ks-add"]')?.focus();
+    },
     tag: b => { read(); draft.tag = b.dataset.tag; render(); },
     'drop-link': b => { read(); draft.links.splice(+b.dataset.i!, 1); render(); },
     'add-link': () => {
@@ -174,6 +217,8 @@ function render(focus = false) {
         : addCard(profile, input, replacing ? draft.mode!.slice(2) : undefined);
       if (!c) return;
       for (const l of draft.links) addLink(profile, c.id, l.id, l.fwd, l.back);
+      for (const k of draft.keepsakes) addKeepsake(profile, c.id, k);
+      draft.saved = true;
       save();
       closeSheet();
       emit('card-added');
@@ -181,6 +226,7 @@ function render(focus = false) {
   });
 
   autosizeNote(sheetBody);
+  showPictures(sheetBody, draft.keepsakes);
   attachValueField(sheetBody, 'c-value', kind);
   // The name builds itself from the details until it's typed by hand (clearing it hands it back).
   const nameInput = sheetBody.querySelector<HTMLInputElement>('#c-value');

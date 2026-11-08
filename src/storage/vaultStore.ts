@@ -5,7 +5,7 @@ export interface VaultStore {
   del(id: string): Promise<void>;
   clear(): Promise<void>;
 }
-function open(): Promise<IDBDatabase> {
+export function openYouData(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const r = indexedDB.open('you-data', 1);
     r.onupgradeneeded = () => {
@@ -17,15 +17,16 @@ function open(): Promise<IDBDatabase> {
     r.onblocked = () => reject(new Error('Storage blocked'));
   });
 }
-async function run<T>(mode: IDBTransactionMode, action: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  const db = await open();
+export async function runIn<T>(store: 'records' | 'keepsakes', mode: IDBTransactionMode, action: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  const db = await openYouData();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction('records', mode);
-    const r = action(tx.objectStore('records'));
+    const tx = db.transaction(store, mode);
+    const r = action(tx.objectStore(store));
     tx.oncomplete = () => { db.close(); resolve(r.result); };
     tx.onabort = tx.onerror = () => { db.close(); reject(tx.error || r.error || new Error('Storage blocked')); };
   });
 }
+const run = <T>(mode: IDBTransactionMode, action: (s: IDBObjectStore) => IDBRequest<T>) => runIn('records', mode, action);
 export const vaultStore: VaultStore = {
   get: async id => (await run('readonly', s => s.get(id))) ?? null,
   set: async (id, value) => { await run('readwrite', s => s.put(value, id)); },

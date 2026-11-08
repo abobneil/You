@@ -1,3 +1,4 @@
+import { deleteYouKeepsakes, idbKeepsakeStore } from './keepsakeStore';
 import { migrateVault, vaultStore } from './vaultStore';
 // Several Yous can live in one browser, each with its own passphrase, data and save location.
 // The list keeps only an id and a label (the person's name) so the right one can be picked
@@ -47,9 +48,10 @@ export function upsertProfile(id: string, label: string) {
   saveIndex(list);
 }
 
-/** Removes a You from this browser: its encrypted copy and settings. Saved files are untouched. */
+/** Removes a You from this browser: its encrypted copy, keepsakes and settings. Saved files are untouched. */
 export async function removeProfile(id: string) {
   await vaultStore.del(id);
+  await deleteYouKeepsakes(idbKeepsakeStore, id);
   saveIndex(listProfiles().filter(e => e.id !== id));
   for (const k of ['vault', 'target', 'targetName', 'nudged'] as PerYou[]) local.remove(keyFor(id, k));
   if (currentId() === id) setCurrent(listProfiles()[0]?.id ?? '');

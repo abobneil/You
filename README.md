@@ -54,7 +54,7 @@ Everything is encrypted with the person's passphrase before it's written anywher
 - The key comes from PBKDF2-SHA-256 with 600,000 rounds and a random salt, and is used for AES-256-GCM with a fresh random IV on every save. All of it uses the browser's built-in Web Crypto, with no extra libraries.
 - The key lives only in memory. Every visit starts at the unlock screen.
 - A wrong passphrase fails AES-GCM's integrity check. There is **no recovery**. "Forgot it?" offers to erase this browser's copy and start over; saved files are untouched.
-- Files and the browser copy share one format (`version: 2`, see `src/core/crypto.ts`). Unencrypted `version: 1` files and data from before encryption are locked with a new passphrase when opened.
+- The file format is documented in [docs/FORMAT.md](docs/FORMAT.md), with a short Python script that reads a file without the app. A record with no keepsakes is saved as `version: 2` (one encrypted envelope); once a card has a photo or document attached, the file is `version: 3`, which adds a `keepsakes` array with each file encrypted separately, one per line, so large files are written and read in pieces (`src/storage/fileFormat.ts`). Opening a file checks every keepsake's SHA-256 before anything in the browser changes, and unknown versions are refused. In the browser, the record stays a `version: 2` envelope and each keepsake's encrypted bytes sit in their own IndexedDB row. Unencrypted `version: 1` files and data from before encryption are locked with a new passphrase when opened.
 
 ## Several Yous on one browser
 

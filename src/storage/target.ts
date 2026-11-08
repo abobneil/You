@@ -4,7 +4,8 @@
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
 import { browserSaveState, onBrowserSave, persist, profile, vault } from '../state';
 import { $, ICON, esc } from '../ui/dom';
-import { encode, fileNameFor } from './fileFormat';
+import { encodeBlob, encodeFile, fileNameFor } from './fileFormat';
+import { sealedFor } from './keepsakeAccess';
 import { idb } from './idb';
 import { local } from './local';
 import { currentId, keyFor } from './profiles';
@@ -16,7 +17,7 @@ type Perm = 'granted' | 'denied' | 'prompt';
 export interface FileHandle {
   name: string;
   getFile(): Promise<File>;
-  createWritable(): Promise<{ write(data: string): Promise<void>; close(): Promise<void> }>;
+  createWritable(): Promise<{ write(data: string | Blob): Promise<void>; close(): Promise<void>; abort?(): Promise<void> }>;
   queryPermission(o: { mode: 'readwrite' }): Promise<Perm>;
   requestPermission(o: { mode: 'readwrite' }): Promise<Perm>;
 }
@@ -84,8 +85,16 @@ export async function writeFile(): Promise<boolean> {
   if (!handle || !vault) return false;
   saving = true; failed = false; renderPill();
   try {
+    // Written in pieces (one keepsake at a time), never as one giant string.
+    // Nothing replaces the file on disk until close() succeeds.
+    const p = structuredClone(profile);
     const out = await handle.createWritable();
-    await out.write(await encode(vault, profile));
+    try {
+      for await (const part of encodeFile(vault, p, sealedFor(p.id!))) await out.write(part);
+    } catch (e) {
+      try { await out.abort?.(); } catch { /* already closed */ }
+      throw e;
+    }
     await out.close();
     dirty = false;
   } catch (e) {
@@ -112,7 +121,7 @@ async function fallBackToDownload(h: FileHandle) {
 export async function downloadCopy() {
   if (!vault) return;
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([await encode(vault, profile)], { type: 'application/json' }));
+  a.href = URL.createObjectURL(await encodeBlob(vault, profile, sealedFor(profile.id!)));
   a.download = target.kind === 'download' && target.name ? target.name : fileNameFor(profile.name);
   document.body.append(a);
   a.click();
@@ -139,13 +148,13 @@ export async function chooseSaveFile(): Promise<boolean> {
 }
 
 /**
- * Asks for an existing file and hands its text to `importText` (which may ask for the passphrase).
+ * Asks for an existing file and hands it to `importFile` (which may ask for the passphrase).
  * If that succeeds, keeps saving back into the same file. Returns false if cancelled.
  */
-export async function chooseOpenFile(importText: (text: string) => Promise<boolean>): Promise<boolean> {
+export async function chooseOpenFile(importFile: (file: Blob) => Promise<boolean>): Promise<boolean> {
   try {
     const [h] = await w.showOpenFilePicker!({ types: FILE_TYPES });
-    if (!(await importText(await (await h.getFile()).text()))) return false;
+    if (!(await importFile(await h.getFile()))) return false;
     await idb.set(handleKey(), h);
     setTarget('file', h.name);
     handle = h;

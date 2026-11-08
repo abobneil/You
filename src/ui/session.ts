@@ -3,7 +3,9 @@ import { newId } from '../core/cards';
 import { WrongPassphrase, type Vault } from '../core/crypto';
 import type { Profile } from '../core/types';
 import { canLeave, eraseBrowserCopy, legacyProfile, profile, setSession, storedEnvelope } from '../state';
-import { decode, readText } from '../storage/fileFormat';
+import { decode, readFile, readText, UnsupportedVersion, DamagedFile } from '../storage/fileFormat';
+import { keepsakeStore } from '../storage/keepsakeAccess';
+import { commitStaged, describeProblems, discardStaged, stageKeepsakes, type Staged } from '../storage/keepsakeImport';
 import { byRecent, currentId, hasVault, listProfiles } from '../storage/profiles';
 import { setTarget } from '../storage/target';
 import { askNewPassphrase, askPassphrase, hideGate, type WhoRow } from './gate';
@@ -72,10 +74,12 @@ export async function start(): Promise<'home' | 'landing'> {
   return 'landing';
 }
 
-/** Loads a file's contents, asking for its passphrase (or a new one) as needed. False if cancelled or invalid. */
-export async function importText(text: string): Promise<boolean> {
+const cannotOpen = (e: unknown) => alert(e instanceof UnsupportedVersion || e instanceof DamagedFile ? e.message : 'That file doesn’t look like your You data.');
+
+/** Loads a file, asking for its passphrase (or a new one) as needed. False if cancelled or invalid. */
+export async function importText(source: Blob | string): Promise<boolean> {
   let r: ReturnType<typeof readText>;
-  try { r = readText(text); } catch { alert('That file doesn’t look like your You data.'); return false; }
+  try { r = typeof source === 'string' ? readText(source) : await readFile(source); } catch (e) { cannotOpen(e); return false; }
 
   let loaded: Profile;
   let key: Vault | null = null;
@@ -92,7 +96,18 @@ export async function importText(text: string): Promise<boolean> {
     loaded = r.profile;
   }
 
-  if (!await canLeave()) { hideGate(); return false; }
+  // Every attached file is decrypted and checked before anything here changes.
+  let staged: Staged | null = null;
+  const give = async () => { if (staged) await discardStaged(keepsakeStore, staged); hideGate(); return false; };
+  if (r.kind === 'locked' && key) {
+    try { staged = await stageKeepsakes(keepsakeStore, key, loaded, r.keepsakes()); }
+    catch (e) { cannotOpen(e); hideGate(); return false; }
+    const n = staged.problems.length;
+    if (n && !confirm(`${n === 1 ? 'One attached file' : `${n} attached files`} in this record couldn’t be read:\n\n`
+      + `${describeProblems(staged.problems)}\n\nOpen the rest anyway? Those files will show as unreadable. Choose Cancel to change nothing.`)) return give();
+  }
+
+  if (!await canLeave()) return give();
 
   // Files from before Yous had ids become a new You, never a silent overwrite of the open one.
   loaded.id = loaded.id || newId();
@@ -100,10 +115,13 @@ export async function importText(text: string): Promise<boolean> {
   // The same You may already be on this browser, possibly with newer changes.
   if (await hasVault(loaded.id)) {
     const label = listProfiles().find(e => e.id === loaded.id)?.label || loaded.name;
-    if (!confirm(`${label} is already on this browser.\n\nReplace the copy here with this file? Choose Cancel to keep the copy here.`)) {
-      hideGate();
-      return false;
-    }
+    if (!confirm(`${label} is already on this browser.\n\nReplace the copy here with this file? Choose Cancel to keep the copy here.`)) return give();
+  }
+
+  // The keepsake bytes go in first, so the record never mentions a file that isn't here.
+  if (staged) {
+    try { await commitStaged(keepsakeStore, staged, loaded.id, loaded); }
+    catch { alert('This browser couldn’t store the attached files (its storage may be full). Nothing was opened.'); return give(); }
   }
 
   if (key) {

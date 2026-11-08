@@ -19,6 +19,8 @@ export interface Keepsake {
   addedAt: string;
   /** Removed keepsakes stay in the record as history. */
   removedAt?: string;
+  /** The keepsake that took over from this one, when it was replaced. */
+  replacedBy?: string;
 }
 
 export type KeepsakeType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' | 'image/heic' | 'application/pdf';
@@ -47,11 +49,17 @@ export function sniff(b: Uint8Array): KeepsakeType | null {
 
 export type CheckResult = { ok: true; type: KeepsakeType } | { ok: false; reason: string };
 
+/** Refuses empty and oversized files before their bytes are even read. */
+export function checkSize(name: string, size: number): { ok: false; reason: string } | null {
+  if (!size) return { ok: false, reason: `“${name}” is empty, so there's nothing to keep.` };
+  if (size > MAX_KEEPSAKE_BYTES) return { ok: false, reason: `“${name}” is ${Math.ceil(size / 1048576)} MB. Files can be up to 25 MB.` };
+  return null;
+}
+
 /** Plain-language verdict on a chosen file, before anything is stored. */
 export function checkFile(name: string, bytes: Uint8Array): CheckResult {
-  if (!bytes.length) return { ok: false, reason: `“${name}” is empty, so there's nothing to keep.` };
-  if (bytes.length > MAX_KEEPSAKE_BYTES)
-    return { ok: false, reason: `“${name}” is ${(bytes.length / 1048576).toFixed(0)} MB. Files can be up to 25 MB.` };
+  const size = checkSize(name, bytes.length);
+  if (size) return size;
   const type = sniff(bytes);
   if (!type) return { ok: false, reason: `“${name}” isn't a photo or PDF You can keep. ${LIMIT_TEXT}` };
   return { ok: true, type };

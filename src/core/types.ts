@@ -1,3 +1,5 @@
+import type { Keepsake } from './keepsakes';
+
 export type AreaId = 'about' | 'health' | 'work' | 'money' | 'home' | 'people' | 'interests' | 'goals';
 
 /**
@@ -42,6 +44,8 @@ export interface Card {
   imports?: Record<string, { id: string; at: string; fields: Record<string, string> }>;
   /** Earlier wording, kept when a typo is corrected. */
   revisions: Revision[];
+  /** Photos and documents attached to this card. Removed ones stay as history. */
+  keepsakes?: Keepsake[];
 }
 
 /** A connection between two cards. `fwd` reads from card a, `back` reads from card b. */

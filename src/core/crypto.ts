@@ -8,7 +8,8 @@ export const DEFAULT_ITERATIONS = 600_000;
 
 export interface Envelope {
   app: 'you';
-  version: 2;
+  /** 2: the record alone. 3: a file that also carries keepsakes (see docs/FORMAT.md). */
+  version: 2 | 3;
   kdf: { name: 'PBKDF2'; hash: 'SHA-256'; iterations: number; salt: string };
   cipher: { name: 'AES-GCM'; iv: string };
   data: string;
@@ -54,7 +55,10 @@ export const createVault = (passphrase: string, iterations = DEFAULT_ITERATIONS)
   deriveVault(passphrase, crypto.getRandomValues(new Uint8Array(16)), iterations);
 
 /** Encrypts text into an envelope (as a JSON string). Every call uses a new random IV. */
-export async function seal(vault: Vault, plaintext: string): Promise<string> {
+export const seal = async (vault: Vault, plaintext: string): Promise<string> => JSON.stringify(await sealEnvelope(vault, plaintext));
+
+/** Encrypts text into an envelope object. Every call uses a new random IV. */
+export async function sealEnvelope(vault: Vault, plaintext: string): Promise<Envelope> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const data = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, vault.key, enc.encode(plaintext)));
   const env: Envelope = {
@@ -63,12 +67,12 @@ export async function seal(vault: Vault, plaintext: string): Promise<string> {
     cipher: { name: 'AES-GCM', iv: toB64(iv) },
     data: toB64(data),
   };
-  return JSON.stringify(env);
+  return env;
 }
 
 export function isEnvelope(x: unknown): x is Envelope {
   const e = x as Envelope;
-  return !!e && e.app === 'you' && e.version === 2 && e.kdf?.name === 'PBKDF2' && e.cipher?.name === 'AES-GCM' && typeof e.data === 'string';
+  return !!e && e.app === 'you' && (e.version === 2 || e.version === 3) && e.kdf?.name === 'PBKDF2' && e.cipher?.name === 'AES-GCM' && typeof e.data === 'string';
 }
 
 /** Decrypts with an already-unlocked key (same salt). Throws WrongPassphrase if it doesn't fit. */
