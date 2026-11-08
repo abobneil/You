@@ -1,11 +1,12 @@
 /// <reference types="node" />
 import { describe, it, expect, vi } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
-import { f1Alex, f2 } from '../../scripts/fixtures';
+import { f1Alex as rawF1, f2 as rawF2 } from '../../scripts/fixtures';
 import { buildReadable } from './readableExport';
 import { overlap } from './life';
 import { sha256Hex } from './keepsakes';
 import type { Profile } from './types';
+// The fixture generator has its own plain types; they describe the same saved shape.const f1Alex = () => rawF1() as unknown as Profile;const f2 = () => rawF2() as unknown as Profile;
 
 describe('readable copies', () => {
   it.each([f1Alex, f2])('keeps every period card and its exact dates and notes', async fixture => {

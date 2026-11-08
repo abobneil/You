@@ -1,9 +1,10 @@
+import { local } from '../storage/local';
 import { openSafety } from './safety';
 import { downloadCopy } from '../storage/target';
 // Switching between Yous on this browser. Switching, adding and locking reload the page,
 // so the previous You's data and key are gone from memory.
 import { canLeave, eraseBrowserCopy, profile, vault } from '../state';
-import { byRecent, currentId, setCurrent, startNew } from '../storage/profiles';
+import { byRecent, currentId, placeLabel, setCurrent, startNew } from '../storage/profiles';
 import { $, esc } from './dom';
 import { closeSheet, openSheet, sheetTop } from './sheet';
 
@@ -27,9 +28,10 @@ export function openSwitcher() {
       const isCur = e.id === cur;
       return `<li><button type="button" data-act="pick" data-id="${esc(e.id)}" class="${isCur ? 'on' : ''}">
         <span class="av">${esc(initial(e.label))}</span>
-        <span class="yn"><b>${esc(e.label || 'Locked You')}</b><small>${isCur ? (unlocked ? 'Open now' : 'Selected') : 'Switch'}</small></span>
+        <span class="yn"><b>${esc(placeLabel(e))}</b><small>${isCur ? (unlocked ? 'Open now' : 'Selected') : 'Switch'}</small></span>
       </button></li>`;
     }).join('')}</ul>
+    ${unlocked ? `<p class="hint">${profile.unreadable?.length ? `${profile.unreadable.length} item(s) couldn't be read and are kept as-is.` : ''}</p><label>Lock after no interaction <select id="lock-time">${[5,15,60,0].map(n => `<option value="${n}" ${n === timeoutMinutes() ? 'selected' : ''}>${n ? n + ' minutes' : 'Never'}</option>`).join('')}</select></label>` : ''}
     <div class="menu"><button type="button" data-act="safe">Keep it safe</button>
       <button type="button" data-act="new">+ Add a new You</button>
       ${unlocked ? `<button type="button" data-act="lock">Lock ${name}</button>
@@ -52,6 +54,21 @@ export function openSwitcher() {
     },
   });
 }
+
+function timeoutMinutes() { return Number(local.get('you.timeout.' + profile.id) ?? 15); }
+let lastInteraction = Date.now(), hiddenAt = 0, locking = false;
+async function checkLock() {
+  const minutes = timeoutMinutes();
+  if (!vault || !minutes || locking || Date.now() - lastInteraction < minutes * 60000) return;
+  locking = true; await lockNow(); locking = false; lastInteraction = Date.now();
+}
+for (const event of ['pointerdown', 'keydown', 'input']) document.addEventListener(event, () => { lastInteraction = Date.now(); }, { passive: true });
+document.addEventListener('change', e => { const el = e.target as HTMLSelectElement; if (el.id === 'lock-time') local.set('you.timeout.' + profile.id, el.value); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) hiddenAt = Date.now();
+  else if (hiddenAt && timeoutMinutes() && Date.now() - hiddenAt >= timeoutMinutes() * 60000) { lastInteraction = hiddenAt; void checkLock(); }
+});
+setInterval(() => { void checkLock(); }, 15000);
 
 // The round initial button in the home screen's top bar.
 const btn = $('#who-btn');

@@ -15,12 +15,15 @@ export function normalize(raw: unknown): Profile {
   const p: Profile = {
     ...future,
     ...(Array.isArray(r.kinds) ? { kinds: r.kinds.filter((k: any) => k && isAreaId(k.area) && typeof k.name === 'string' && Array.isArray(k.fields)) } : {}),
+    unreadable: [...(Array.isArray(r.unreadable) ? r.unreadable : []), ...(Array.isArray(r.cards) ? r.cards.filter(c => !isCard(c)) : [])],
     ...(typeof r.id === 'string' && r.id ? { id: r.id } : {}),
     name: typeof r.name === 'string' ? r.name : '',
     cards: Array.isArray(r.cards) ? r.cards.filter(isCard).map(normalizeCard) : [],
     links: Array.isArray(r.links) ? r.links.filter((l: any) => l && l.id && l.a && l.b) : [],
     updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : undefined,
   };
+  if (!p.unreadable?.length) delete p.unreadable;
+  delete (p as any).areas;
   if (r.areas && typeof r.areas === 'object') {
     for (const [area, rows] of Object.entries(r.areas as Record<string, { label?: string; value?: string }[]>)) {
       if (!isAreaId(area) || !Array.isArray(rows)) continue;

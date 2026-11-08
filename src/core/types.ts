@@ -65,6 +65,9 @@ export interface CustomKind {
 
 export interface Profile {
   kinds?: CustomKind[];
+  unreadable?: unknown[];
+  rev?: number;
+  [key: string]: unknown;
   /** Stable id for this You, so a file loaded later matches the same You in the browser. */
   id?: string;
   name: string;
