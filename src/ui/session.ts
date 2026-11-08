@@ -8,7 +8,7 @@ import { canLeave, eraseBrowserCopy, legacyProfile, profile, setSession, storedE
 import { decode, readFile, readText, UnsupportedVersion, DamagedFile } from '../storage/fileFormat';
 import { keepsakeStore } from '../storage/keepsakeAccess';
 import { commitStaged, describeProblems, discardStaged, stageKeepsakes, type Staged } from '../storage/keepsakeImport';
-import { byRecent, currentId, hasVault, listProfiles, placeLabel, setCurrent } from '../storage/profiles';
+import { byRecent, currentId, hasVault, listProfiles, placeLabel, setCurrent, startNew } from '../storage/profiles';
 import { downloadCopy, setTarget } from '../storage/target';
 import { askNewPassphrase, askPassphrase, backToPrevious, hideGate, type WhoRow } from './gate';
 import { openStoragePicker } from './storagePicker';
@@ -29,6 +29,25 @@ function whoRow(): WhoRow {
     pick: id => { if (id !== cur) switchTo(id); },
     add: addNewYou,
   };
+}
+
+/** Explains that this browser's copy can't be read, keeps it, and offers it as a file for safekeeping. */
+function damagedBrowserCopy(slot: string, stored: string) {
+  startNew();
+  const label = listProfiles().find(e => e.id === slot)?.label || 'This You';
+  openSheet(`${sheetTop('Couldn’t open')}<h3 class="sh-title">${esc(label)}’s copy in this browser can’t be read</h3>
+    <p>It may be damaged. It has been kept exactly as it is, and nothing will be saved over it.</p>
+    <p class="hint">If you have a saved file, open that instead. You can also save this copy as a file to keep it, or start a new You.</p>
+    <div class="menu"><button data-act="open">Open a saved file</button><button data-act="keep">Save this copy as a file</button><button data-act="close">Start a new You</button></div>`, {
+    open: () => { closeSheet(); openStoragePicker('open'); },
+    keep: () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([stored], { type: 'application/json' }));
+      a.download = `${label} (copy that couldn't be read).you.json`;
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    },
+  });
 }
 
 /**
@@ -67,6 +86,10 @@ export async function start(): Promise<'home' | 'landing'> {
       hideGate();
       return 'home';
     }
+    // A copy is here but can't be read (damaged, or changed outside You). Keep it untouched under its own id,
+    // and make sure anything started now gets a new id so it can never be written over that copy.
+    damagedBrowserCopy(slot, stored);
+    return 'landing';
   }
   const legacy = legacyProfile();
   if (legacy) {
