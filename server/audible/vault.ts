@@ -18,7 +18,7 @@ import { join } from 'node:path';
 export type Name = 'us' | 'pending';
 
 export interface Store {
-  kind: 'windows' | 'keyring' | 'file';
+  kind: 'windows' | 'keychain' | 'keyring' | 'file';
   /** How the connection is protected, for people: "locked to your Windows account". */
   describe: string;
   read(name: Name): Promise<string | null>;
@@ -79,6 +79,31 @@ function windowsStore(): Store {
   };
 }
 
+// macOS security's interactive mode accepts secrets over stdin, never process arguments.
+function macStore(): Store {
+  const command = (verb: string, name: Name, value = '') => run('/usr/bin/security', ['-i'],
+    `${verb} -s you-audible -a ${name}${value ? ` -w "${B64 + Buffer.from(value).toString('base64')}"` : ''}\n`);
+  return {
+    kind: 'keychain', describe: 'in your macOS Keychain',
+    async read(name) {
+      const r = await run('/usr/bin/security', ['find-generic-password', '-s', 'you-audible', '-a', name, '-w']);
+      if (r.code === 44) return null;
+      if (r.code !== 0) throw new Error('The macOS Keychain could not be read.');
+      const text = r.stdout.trim();
+      return text.startsWith(B64) ? Buffer.from(text.slice(B64.length), 'base64').toString('utf8') : text;
+    },
+    async write(name, text) {
+      await command('add-generic-password -U', name, text);
+      if (await this.read(name) !== text) throw new Error('The macOS Keychain could not save the connection.');
+    },
+    async remove(name) {
+      const r = await run('/usr/bin/security', ['delete-generic-password', '-s', 'you-audible', '-a', name]);
+      if (r.code !== 0 && r.code !== 44) throw new Error('The macOS Keychain could not remove the connection.');
+    },
+    async has(name) { return (await this.read(name)) !== null; },
+  };
+}
+
 // ---------- Linux desktop: Secret Service keyring ----------
 
 const attrs = (name: Name) => ['service', 'you-audible', 'key', name];
@@ -107,7 +132,10 @@ function keyringStore(): Store {
       const r = await run('secret-tool', ['store', `--label=You: Audible connection (${name})`, ...attrs(name)], B64 + Buffer.from(text, 'utf8').toString('base64'));
       if (r.code !== 0) throw new Error('The system keyring couldn’t save the Audible connection.');
     },
-    async remove(name) { await run('secret-tool', ['clear', ...attrs(name)]); },
+    async remove(name) {
+      const r = await run('secret-tool', ['clear', ...attrs(name)]);
+      if (r.code !== 0 && !(r.code === 1 && !r.stderr.trim())) throw new Error('The system keyring could not remove the connection.');
+    },
     async has(name) { return (await this.read(name)) !== null; },
   };
 }
@@ -164,6 +192,7 @@ export function store(): Promise<Store> {
   return chosen ??= (async () => {
     if (process.env.YOU_AUDIBLE_STORE === 'file') return fileStore();
     if (process.platform === 'win32') return windowsStore();
+    if (process.platform === 'darwin') return macStore();
     if (await keyringAvailable()) return keyringStore();
     return fileStore();
   })();

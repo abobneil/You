@@ -79,24 +79,28 @@ The barcode reader (zxing, WebAssembly) and the importers load only when used. N
 
 ### Audible
 
-Audible has no public API, so You connects the way the Audible iPhone app does: sign in to Amazon on Amazon's own page, then register this computer as an Audible device. Requests are signed with the device key Amazon issues. The code is in `server/audible/` (TypeScript, Node) and runs only on your computer:
+1. Download [the helper](downloads/you-audible-helper.zip), install Node 22.18 or newer from nodejs.org, and extract the whole zip.
+2. Double-click **You Audible helper.cmd** (Windows) or **You Audible helper.command** (macOS). Keep its window open. It opens You without a developer server. macOS may require approval in System Settings.
+3. In **Import > Audible**, choose **Connect Audible**, approve the traffic explanation and sign in on Amazon. **Sync from Audible** reads your library for review. **Disconnect** deletes local authorization. Close the window to stop the helper.
 
-- **In the app** (`npm run dev` or `npm run preview`): **Import… → Audible → Connect Audible**, then **Sync from Audible** whenever you like. The page talks to local endpoints under `/__you/audible/`, which refuse anything that isn't a same-origin request from You on `localhost`. A published copy of You is static files, has no such endpoints, and offers the file import instead.
-- **From a terminal:** `npm run audible -- connect`, `npm run audible -- export` (writes `exports/audible.you-import.json`, which git ignores), `npm run audible -- status`, `npm run audible -- disconnect`. Add `--active-only` to leave out returned titles.
+Or import an export file with **Choose Audible JSON**, even if the helper or provider is unavailable. This release requires installed Node; it is not a self-contained executable. Only the US store is supported; Audible can change its private interface.
 
-The connection is kept on the computer running You, in the best place available. It's never part of your You data, the repository, or any output:
+After permission, sign-in opens `www.amazon.com`, registration contacts `api.amazon.com`, and read-only library, completion, ownership and saved-position requests contact `api.audible.com` (or its DNS-published `d*.cloudfront.net` fallback). Passwords are entered only on Amazon. Credentials remain on this computer, outside your record, repository and library responses.
 
-| System | Where | Protection |
-|---|---|---|
-| Windows | `%LOCALAPPDATA%\YouAudible` | Windows DPAPI: only your Windows account can read it |
-| Linux desktop | The system keyring (GNOME Keyring, KWallet…) via `secret-tool` | Unlocked when you log in |
-| Linux server, macOS, anything else | `~/.config/you-audible` (or `$XDG_CONFIG_HOME`) | Folder `0700`, file `0600`, like SSH keys. Set `YOU_AUDIBLE_PASSPHRASE` to also encrypt it (scrypt + AES-256-GCM) |
+| System | Storage |
+|---|---|
+| Windows | DPAPI under `%LOCALAPPDATA%/YouAudible`, locked to your Windows account |
+| macOS | macOS Keychain |
+| Linux desktop | libsecret / system keyring via secret-tool |
+| Disclosed fallback | `~/.config/you-audible` (or XDG_CONFIG_HOME), folder 0700, files 0600. Not encrypted unless YOU_AUDIBLE_PASSPHRASE is configured (scrypt + AES-GCM). |
 
-`YOU_AUDIBLE_STORE=file` forces the private file. Only read-only library and saved-position requests are made. If the normal route to `api.audible.com` fails to connect, requests go through the CloudFront address Audible's DNS publishes, with the original Host header and normal certificate checks. Only the US store is supported. Tested on Windows 11 and on Linux (Debian, Node 24), including a live export.
+#### For developers
 
-Audible's reading status, ownership and saved position appear as separate Book details, and an existing Goodreads or manual Status is kept. Syncing again refreshes imported details that you haven't changed, records the old values in the card's history, and flags nothing when nothing changed. Missing titles never delete cards. **Owned** means Audible reports a purchase with indefinite listening rights; **Likely owned** has incomplete rights evidence; **Subscription** is kept separate.
+CLI: `npm run audible -- connect`, `export`, `status`, `disconnect`. Export writes personal plaintext to ignored `exports/`; delete it after importing. `YOU_AUDIBLE_STORE=file` forces the fallback.
 
-This uses Audible's private app interface (the same one the community `audible` Python library uses, version 0.13.1, which this code was checked against), so Audible can change it without notice.
+Build with `npm run build` then `npm run build:helper`. Set `YOU_APP_URL` to the deployed HTTPS app URL for production releases. No production hostname is assigned in this repository; the default package targets `http://127.0.0.1:4173`. Ship `dist/downloads/you-audible-helper.zip` with the static site. The helper binds only to `127.0.0.1:49631`, serves only API routes and allows exactly the configured app origin plus preview. Browser local-network permission may be required. Users need no npm install or source checkout.
+
+SEA was not achieved: postject was unavailable and this Node has no built-in --build-sea. The package uses double-click launchers with bundled JavaScript instead.
 
 ## Card rules
 

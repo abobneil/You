@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { offlineShell } from './docs/offline';
 import { youAudible } from './server/audible/plugin.ts';
 
-const CSP = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self' https://vpic.nhtsa.dot.gov; worker-src 'self' blob:; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; manifest-src 'self'";
+const CSP = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self' https://vpic.nhtsa.dot.gov http://127.0.0.1:49631; worker-src 'self' blob:; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; manifest-src 'self'";
 
 export default defineConfig({
   // Relative paths so the built site works from any static host or folder.

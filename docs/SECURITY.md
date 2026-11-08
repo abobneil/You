@@ -17,7 +17,7 @@ WebAssembly compilation needs wasm-unsafe-eval; ordinary eval remains prohibited
 
 Searched src, index.html, public and dist for HTTP(S), CDN, fonts and analytics.
 The VIN fetch uses exactly https://vpic.nhtsa.dot.gov, after confirmation. Audible
-uses same-origin /__you/audible/ endpoints only on the local helper. Its Amazon URL
+uses loopback /__you/audible/ endpoints on the local helper. Its Amazon URL
 is an explicit sign-in link, validated as HTTPS www.amazon.com. Other source URLs
 are test fixtures or SVG namespace identifiers, not requests. There are no remote
 fonts or analytics. ZXing embeds a jsDelivr default URL in its library bundle, but
@@ -46,3 +46,11 @@ No installed Playwright browser harness was available. Landing → create → ho
 area → import hub CSP behavior and the actual request trace remain unverified in a
 headless browser. Static build inspection verifies CSP precedes scripts, scripts
 are external, styles are external, and local WASM exists. No browser pass is claimed.
+
+Audible standalone helper: CSP permits http://127.0.0.1:49631. The API binds only
+to IPv4 loopback and validates Host with its port. Exact configured app-origin
+CORS plus custom-header preflight protects static deployments. Vite endpoints
+require same-origin fetch metadata; the standalone API permits cross-site metadata
+only for the configured app origin and preview (remote pages necessarily send it).
+POST without Origin or fetch metadata is rejected. Disconnect deletes local vault
+entries. Credentials and provider diagnostics are withheld from error logs.

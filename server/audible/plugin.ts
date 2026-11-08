@@ -1,20 +1,24 @@
-// While You runs on this computer (npm run dev / npm run preview), the page can connect to Audible
-// through these local endpoints. A published copy of You is plain static files and has none of
-// this; the page then offers the file import instead.
-//
-// Requests must come from You itself: a localhost Host header (no DNS rebinding), a same-origin
-// fetch, and a custom header that cross-site pages can't send without a CORS preflight, which is
-// never granted. Responses never contain credentials.
+// Local API boundary shared by the Vite integration and standalone loopback helper.
+// Vite is same-origin only; standalone grants exact configured app-origin CORS.
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import { disconnect, exportLibrary, finishSignIn, safeMessage, startSignIn, status } from './service.ts';
 
 const BASE = '/__you/audible/';
-const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
-
-function allowed(req: IncomingMessage): boolean {
+export interface Policy { origins?: string[]; port?: number }
+export function allowed(req: IncomingMessage, policy: Policy = {}): boolean {
+  const port = policy.port ?? req.socket.localPort;
+  const host = req.headers.host ?? '';
+  if (!port || ![`127.0.0.1:${port}`, `localhost:${port}`].includes(host)) return false;
+  const origin = req.headers.origin;
+  const expected = policy.origins ?? [`http://${host}`];
+  if (origin ? !expected.includes(origin) : req.method !== 'GET') return false;
   const site = req.headers['sec-fetch-site'];
-  return LOCAL.test(req.headers.host ?? '') && req.headers['x-you-local'] === '1' && (!site || site === 'same-origin');
+  // Remote static apps necessarily produce cross-site fetch metadata. Only the standalone
+  // server grants this exception, after checking an exact configured Origin and preflight.
+  const remote = !!policy.origins && !!origin && expected.includes(origin);
+  if (site ? site !== 'same-origin' && !(remote && (site === 'cross-site' || site === 'same-site')) : req.method !== 'GET') return false;
+  return req.headers['x-you-local'] === '1';
 }
 
 function reply(res: ServerResponse, code: number, body: unknown) {
@@ -34,8 +38,8 @@ function readJson(req: IncomingMessage, limit = 16_384): Promise<any> {
   });
 }
 
-async function handle(req: IncomingMessage, res: ServerResponse) {
-  if (!allowed(req)) return reply(res, 403, { error: 'Not allowed.' });
+export async function handle(req: IncomingMessage, res: ServerResponse, policy: Policy = {}) {
+  if (!allowed(req, policy)) return reply(res, 403, { error: 'Not allowed.' });
   const action = (req.url ?? '').slice(BASE.length).split('?')[0];
   try {
     if (req.method === 'GET' && action === 'status') return reply(res, 200, await status());
@@ -49,11 +53,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       default: return reply(res, 404, { error: 'Unknown action.' });
     }
   } catch (e) {
-    // For the terminal running You: the error type and where it came from, never its message, which
-    // could quote a response or a saved credential.
-    const err = e as { name?: string; code?: unknown; stack?: string };
-    const at = err?.stack?.split('\n').slice(1, 4).map(l => l.trim()).join(' | ') ?? '';
-    console.warn(`[you/audible] ${action} failed: ${err?.name ?? typeof e}${err?.code ? ` (${String(err.code)})` : ''} ${at}`);
+    console.warn('[you/audible] request failed; credentials and provider diagnostics withheld.');
     return reply(res, 400, { error: safeMessage(e) });
   }
 }
