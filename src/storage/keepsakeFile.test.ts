@@ -229,3 +229,23 @@ describe('tampered keepsakes', () => {
     expect(await run([k0, k1, k2], altered)).toEqual([[k2.id, 'changed']]);
   });
 });
+
+
+it('aborts keepsake staging and removes only temporary rows', async () => {
+  const { vault, store, p, getSealed } = await setup();
+  const input = readText(await (await encodeBlob(vault, p, getSealed)).text());
+  if (input.kind !== 'locked') throw new Error('expected envelope');
+  const before = [...store.rows.keys()];
+  const controller = new AbortController();
+  await expect(stageKeepsakes(store, vault, p, input.keepsakes(), {
+    signal: controller.signal,
+    onProgress: checked => { if (checked === 1) controller.abort(); },
+  })).rejects.toMatchObject({ name: 'AbortError' });
+  expect([...store.rows.keys()]).toEqual(before);
+});
+
+it('stops file parsing when cancelled before reading', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  await expect(readFile(new Blob(['{}']), 0, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+});

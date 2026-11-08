@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateEnvelope, MAX_ENVELOPE_DATA_LENGTH, WrongPassphrase, createVault, isEnvelope, seal, unlock } from './crypto';
+import { toB64, fromB64, validateEnvelope, MAX_ENVELOPE_DATA_LENGTH, WrongPassphrase, createVault, isEnvelope, seal, unlock } from './crypto';
 
 // Few rounds keeps the tests fast; the app uses DEFAULT_ITERATIONS.
 const FAST = 100_000;
@@ -65,4 +65,18 @@ describe('hostile envelope bounds', () => {
  it('accepts boundary iteration counts', () => {
  for(const n of [100000,10000000]) { const e=valid();e.kdf.iterations=n; expect(()=>validateEnvelope(e)).not.toThrow(); }
  });
+});
+
+
+describe('large base64 buffers', () => {
+  it.each([0, 1, 2, 3, 24575, 24576, 24577, 98307])('round-trips %i bytes including subarray offsets', size => {
+    const backing = Uint8Array.from({ length: size + 4 }, (_, i) => i % 256);
+    const bytes = backing.subarray(2, size + 2);
+    const expected = btoa(Array.from(bytes, x => String.fromCharCode(x)).join(''));
+    expect(toB64(bytes)).toBe(expected);
+    expect(fromB64(expected)).toEqual(bytes);
+  });
+  it('rejects malformed base64', () => {
+    for (const text of ['!', 'a', 'aaaa=a', 'abcd====', 'YQ==' + 'abcd'.repeat(8192)]) expect(() => fromB64(text)).toThrow();
+  });
 });

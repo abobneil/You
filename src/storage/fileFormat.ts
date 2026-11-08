@@ -63,11 +63,16 @@ export function readText(text: string): ReadResult {
 }
 
 /** Reads a chosen file. Small files are parsed whole; big ones line by line, so they never become one string. */
-export async function readFile(file: Blob, threshold = STREAM_THRESHOLD): Promise<ReadResult> {
-  if (file.size <= threshold) return readText(await file.text());
+export async function readFile(file: Blob, threshold = STREAM_THRESHOLD, signal?: AbortSignal): Promise<ReadResult> {
+  signal?.throwIfAborted();
+  if (file.size <= threshold) {
+    const text = await file.text();
+    signal?.throwIfAborted();
+    return readText(text);
+  }
   let head = '';
   let found = false;
-  for await (const line of lines(file)) {
+  for await (const line of lines(file, signal)) {
     if (line.trim() === '"keepsakes":[') { found = true; break; }
     head += line + '\n';
     if (head.length > MAX_LINE) throw new DamagedFile('it is laid out in a way You can’t read in pieces');
@@ -75,20 +80,25 @@ export async function readFile(file: Blob, threshold = STREAM_THRESHOLD): Promis
   if (!found) return readText(head);
   let data: any;
   try { data = JSON.parse(head + '"keepsakes":[]}'); } catch { throw new DamagedFile('its first lines can’t be read'); }
-  return classify(data, () => streamKeepsakes(file));
+  return classify(data, () => streamKeepsakes(file, signal));
 }
 
 /** Splits a file into lines without holding more than one line in memory. */
-export async function* lines(file: Blob): AsyncGenerator<string> {
-  const reader = file.stream().pipeThrough(new TextDecoderStream()).getReader();
+export async function* lines(file: Blob, signal?: AbortSignal): AsyncGenerator<string> {
+  // File streams can deliver 64 KiB chunks. Decode larger pieces to avoid thousands
+  // of stream/decoder promises for a lifetime record, while bounding memory.
+  const decoder = new TextDecoder();
   let parts: string[] = [];
   let size = 0;
   try {
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
+    for (let offset = 0; offset < file.size; offset += 4 * 1024 * 1024) {
+      signal?.throwIfAborted();
+      const end = Math.min(file.size, offset + 4 * 1024 * 1024);
+      const value = decoder.decode(await file.slice(offset, end).arrayBuffer(), { stream: end < file.size });
+      signal?.throwIfAborted();
       let start = 0, i: number;
       while ((i = value.indexOf('\n', start)) !== -1) {
+        signal?.throwIfAborted();
         parts.push(value.slice(start, i));
         yield parts.join('');
         parts = []; size = 0; start = i + 1;
@@ -101,13 +111,13 @@ export async function* lines(file: Blob): AsyncGenerator<string> {
     }
     if (parts.length) yield parts.join('');
   } finally {
-    reader.releaseLock();
+    // No stream reader to retain when the consumer stops after the header.
   }
 }
 
-async function* streamKeepsakes(file: Blob): AsyncGenerator<RawKeepsake> {
+async function* streamKeepsakes(file: Blob, signal?: AbortSignal): AsyncGenerator<RawKeepsake> {
   let inside = false, ended = false;
-  for await (const raw of lines(file)) {
+  for await (const raw of lines(file, signal)) {
     const line = raw.trim();
     if (!inside) { if (line === '"keepsakes":[') inside = true; continue; }
     if (ended) { if (line) throw new DamagedFile('there is extra text after the end'); continue; }

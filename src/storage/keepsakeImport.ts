@@ -27,12 +27,20 @@ const metaById = (p: Profile) => {
  * Throws DamagedFile (after cleaning up) if the file's structure is wrong: a malformed entry, a bad IV,
  * an id no card mentions, or the same id twice. Content problems are returned for the person to review.
  */
-export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Profile, entries: AsyncIterable<RawKeepsake>): Promise<Staged> {
+export interface StagingOptions {
+  signal?: AbortSignal;
+  onProgress?: (checked: number, total: number) => void;
+}
+
+export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Profile, entries: AsyncIterable<RawKeepsake>, options: StagingOptions = {}): Promise<Staged> {
   const staged: Staged = { prefix: `import-${crypto.randomUUID()}`, ids: [], problems: [] };
   const meta = metaById(p);
   const seen = new Set<string>();
   try {
+    let checked = 0;
     for await (const raw of entries) {
+      options.signal?.throwIfAborted();
+      options.onProgress?.(checked++, meta.size);
       const { id, sealed } = checkRawKeepsake(raw);
       const k = meta.get(id);
       if (!k) throw new DamagedFile('it holds a keepsake no card mentions');
@@ -45,13 +53,16 @@ export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Prof
         staged.problems.push({ id, name: k.name, problem: 'changed' });
         continue;
       }
+      options.signal?.throwIfAborted();
       await store.put(rowKey(staged.prefix, id), sealed);
       staged.ids.push(id);
     }
+    options.signal?.throwIfAborted();
   } catch (e) {
     await discardStaged(store, staged);
     throw e;
   }
+  options.onProgress?.(meta.size, meta.size);
   for (const [id, k] of meta) if (!seen.has(id)) staged.problems.push({ id, name: k.name, problem: 'missing' });
   return staged;
 }
