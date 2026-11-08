@@ -29,16 +29,36 @@ export class WrongPassphrase extends Error {
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
+// Native codecs avoid a second, binary-string copy of large attachments.
+// Keep the fallback chunks divisible by three so padding only occurs at the end.
+type Base64Array = Uint8Array & { toBase64?: () => string };
+type Base64Constructor = typeof Uint8Array & { fromBase64?: (text: string) => Uint8Array };
 export function toB64(bytes: Uint8Array): string {
-  let s = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(s);
+  const native = (bytes as Base64Array).toBase64;
+  if (native) return native.call(bytes);
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += 24576) {
+    parts.push(btoa(String.fromCharCode(...bytes.subarray(i, i + 24576))));
+  }
+  return parts.join('');
 }
 export function fromB64(b64: string): Uint8Array {
-  const s = atob(b64);
-  const out = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
-  return out;
+  const native = (Uint8Array as Base64Constructor).fromBase64;
+  if (native) return native.call(Uint8Array, b64);
+  // atob retains its whitespace, padding and malformed-input validation semantics.
+  const text = b64.replace(/[\t\n\f\r ]/g, '');
+  const padding = text.indexOf('=');
+  if (padding !== -1 && (padding < text.length - 2 || text.length % 4 !== 0
+    || (padding === text.length - 2 && text[padding + 1] !== '='))) {
+    throw new DOMException('Invalid base64 padding', 'InvalidCharacterError');
+  }
+  const out = new Uint8Array(Math.ceil(text.length / 4) * 3);
+  let offset = 0;
+  for (let i = 0; i < text.length; i += 32768) {
+    const part = atob(text.slice(i, i + 32768));
+    for (let j = 0; j < part.length; j++) out[offset++] = part.charCodeAt(j);
+  }
+  return out.subarray(0, offset);
 }
 
 export async function deriveVault(passphrase: string, salt: Uint8Array, iterations = DEFAULT_ITERATIONS): Promise<Vault> {

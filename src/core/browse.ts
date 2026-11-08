@@ -19,13 +19,15 @@ export const playsOf = (c: Card) => Number((c.fields?.plays ?? c.fields?.episode
 
 export type Sort = 'recent' | 'oldest' | 'az' | 'plays';
 
+const alphabetical = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+
 export function sortCards(cards: Card[], sort: Sort): Card[] {
   // Unknown life dates go last in both date orders; recorded time only breaks ties.
   const unknown = (a: Card, b: Card) => Number(!a.since) - Number(!b.since);
   const by: Record<Sort, (a: Card, b: Card) => number> = {
     recent: (a, b) => unknown(a, b) || (a.since && b.since ? cardStart(b).localeCompare(cardStart(a)) : 0) || b.recordedAt.localeCompare(a.recordedAt),
     oldest: (a, b) => unknown(a, b) || (a.since && b.since ? cardStart(a).localeCompare(cardStart(b)) : 0) || a.recordedAt.localeCompare(b.recordedAt),
-    az: (a, b) => a.value.localeCompare(b.value, undefined, { sensitivity: 'base', numeric: true }),
+    az: (a, b) => alphabetical.compare(a.value, b.value),
     plays: (a, b) => playsOf(b) - playsOf(a) || by.recent(a, b),
   };
   return [...cards].sort(by[sort]);
@@ -43,7 +45,7 @@ export function groupByKind(area: Area, cards: Card[]): KindGroup[] {
 /** Cards split by origin: your own first, then each import, biggest first. */
 export function groupByOrigin(cards: Card[]): { origin: string; cards: Card[] }[] {
   const by = new Map<string, Card[]>();
-  for (const c of cards) { const o = originOf(c); by.set(o, [...(by.get(o) ?? []), c]); }
+  for (const c of cards) { const o = originOf(c); const group = by.get(o); if (group) group.push(c); else by.set(o, [c]); }
   return [...by].map(([origin, list]) => ({ origin, cards: list }))
     .sort((a, b) => (a.origin === '' ? -1 : b.origin === '' ? 1 : b.cards.length - a.cards.length));
 }
@@ -51,7 +53,7 @@ export function groupByOrigin(cards: Card[]): { origin: string; cards: Card[] }[
 /** Cards folded by year, keeping the order they came in. Cards with no life date get their own group, last. */
 export function groupByYear(cards: Card[]): { year: string; cards: Card[] }[] {
   const by = new Map<string, Card[]>();
-  for (const c of cards) { const y = yearOf(c); by.set(y, [...(by.get(y) ?? []), c]); }
+  for (const c of cards) { const y = yearOf(c); const group = by.get(y); if (group) group.push(c); else by.set(y, [c]); }
   return [...by].map(([year, list]) => ({ year, cards: list }))
     .sort((a, b) => Number(a.year === UNKNOWN_YEAR) - Number(b.year === UNKNOWN_YEAR));
 }
