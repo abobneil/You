@@ -1,0 +1,9 @@
+{
+  "name": "You",
+  "short_name": "you",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#FF5A36",
+  "background_color": "#F5F5F5",
+  "icons": [{ "src": "you-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

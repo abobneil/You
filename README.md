@@ -118,3 +118,49 @@ Imports can add thousands of cards, so an area stays an index rather than a wall
 - **Your own cards come first**, then each import's history under "From Netflix".
 - **Long lists are one line per card**, drawn 100 at a time as you scroll.
 - **Years fold**, newest open. A closed year draws nothing until it's opened. "Over time" lists your own entries and sums up imported history per year ("Netflix: 200 Movie or show cards"), linking to that kind filtered to the year.
+
+## Use it offline
+
+Chrome/Edge: choose **Install app** from the address bar. iPhone Safari: **Share → Add to Home Screen**. Visit once online and let the page finish loading before closing it. After that first visit, You opens without a network; saving still works because your data is local. Offline setup requires HTTPS (or localhost), service workers enabled, and enough browser storage. Clearing site data removes the offline app and browser record; keep a separate saved file.
+
+Updates download in the background and wait. Close every You window, then launch again to use the update. There is no update prompt and no forced reload. The service worker caches only the built static shell, including the barcode WASM and FORMAT.md. It never caches personal records, helper responses or NHTSA requests. VIN lookup and Audible need a connection; file imports and barcode reading run locally.
+
+## Deploying
+
+Publish the static files in `dist/` on an HTTPS static host. No application server is needed. Keep `_headers` for hosts that support it; configure equivalent response headers on other hosts (see [security notes](docs/SECURITY.md)). The build injects a CSP meta tag, including `manifest-src 'self'` and `worker-src 'self'`; the response header additionally prevents framing. Serve `sw.js` with revalidation (`Cache-Control: no-cache`) so updates can be found. The manifest starts at `/`, so install the app at the origin root.
+
+## Supported browsers and fallbacks
+
+Chrome/Edge desktop can save straight into a file you choose, when the browser offers file access. Firefox and Safari, including iPhone, download/share a copy instead: save that copy in Files or another folder you choose. Later saves create another copy rather than silently updating the earlier one. The encrypted browser copy remains local; a downloaded copy is your separate backup. Browser permissions and private browsing can limit persistence.
+
+## Limits
+
+Keepsakes are limited to 25 MB each. Browser storage quotas vary by device, available space and browsing mode; keep a separate file backup. A forgotten passphrase is unrecoverable.
+
+## Format versions and migration
+
+See [the file format](docs/FORMAT.md). Version 1 is the legacy plaintext format, version 2 uses an encrypted envelope, and version 3 adds keepsakes. Older files are kept and never overwritten until saved again. Opening an old file upgrades the working record; keep the original as a backup.
+
+## Why each dependency exists
+
+- `fflate`: reads ZIP imports on your device.
+- `zxing-wasm`: reads barcodes on your device, using bundled WebAssembly.
+- `vite`: development server and production static build.
+- `typescript`: checks browser and local helper types.
+- `vitest`: runs automated checks.
+- `@types/node`: Node type definitions for build tools and the local helper.
+- `@xmldom/xmldom`: parses XML in tests without a browser.
+
+The last five are development dependencies; they are not external services.
+
+## Running the checks
+
+```sh
+npm ci
+npm test
+npm run build
+npm run check:dist
+npm run preview
+```
+
+Preview serves the production build locally; stop it with Ctrl+C. `check:dist` checks the built release for development reset tools. The offline test also builds in memory and checks the worker's static asset list and caching boundaries.

@@ -3,3 +3,6 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), accelerometer=(), gyroscope=(), magnetometer=(), display-capture=(), fullscreen=(), autoplay=(), encrypted-media=(), picture-in-picture=(), publickey-credentials-get=(), browsing-topics=()
+
+/sw.js
+  Cache-Control: no-cache
