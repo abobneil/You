@@ -8,7 +8,7 @@
 //
 // Typing in the search box searches the area (or the kind you're in) instead.
 import { kindLabel, kindOf, tagOf, type Area } from '../core/areas';
-import { countText, groupByKind, groupByOrigin, groupByYear, originOf, playsOf, previewOf, sortCards, yearOf, type Sort } from '../core/browse';
+import { countText, groupByKind, groupByOrigin, groupByYear, originOf, playsOf, previewOf, sortCards, UNKNOWN_YEAR, yearOf, type Sort } from '../core/browse';
 import { byId, linksOf, rangeText, shownKeepsakes } from '../core/cards';
 import { fmtDate, fmtISO } from '../core/dates';
 import type { Card } from '../core/types';
@@ -204,7 +204,8 @@ function chipRow(label: string, f: keyof Filters, options: [string | undefined, 
 function kindHtml(all: Card[]) {
   const types = [...new Set(all.map(c => c.fields?.type).filter((t): t is string => !!t))].sort();
   const origins = groupByOrigin(all).map(g => g.origin);
-  const years = [...new Set(all.map(yearOf))].sort().reverse();
+  // Newest year first; cards with no life date get their own chip, last.
+  const years = [...new Set(all.map(yearOf))].sort().reverse().sort((x, y) => Number(x === UNKNOWN_YEAR) - Number(y === UNKNOWN_YEAR));
   const shown = sortCards(all.filter(c => (!filters.type || c.fields?.type === filters.type)
     && (filters.origin === undefined || originOf(c) === filters.origin)
     && (!filters.year || yearOf(c) === filters.year)), filters.sort);

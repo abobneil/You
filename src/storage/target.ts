@@ -254,11 +254,11 @@ export function renderPill() {
   const n = esc(target.name);
   let html: string, state = 'warn';
   const browser = browserSaveState();
-  if (browser.status === 'failed') html = `<span class="dot"></span><span>Couldn't save in this browser (${browser.reason}) · <b>Download a copy / Retry</b></span>`;
+  if (browser.status === 'failed') state = 'warn fail', html = `<span class="dot"></span><span>Couldn't save in this browser (${browser.reason}) · <b>Download a copy / Retry</b></span>`;
   else if (browser.status === 'saving') { state = ''; html = '<span class="spin"></span><span>Saving in this browser…</span>'; }
   else if (target.kind === 'browser') html = `<span class="dot"></span><span>Only in this browser · <b>Choose where to keep it</b></span>`;
-  else if (needsPermission) html = `<span class="dot"></span><span>${n} isn't up to date · <b>Fix</b></span>`;
-  else if (failed) html = `<span class="dot"></span><span>${n} isn't up to date · <b>Fix</b></span>`;
+  else if (needsPermission) state = 'warn fail', html = `<span class="dot"></span><span>${n} isn't up to date · <b>Fix</b></span>`;
+  else if (failed) state = 'warn fail', html = `<span class="dot"></span><span>${n} isn't up to date · <b>Fix</b></span>`;
   else if (target.kind === 'download' && dirty) html = `<span class="dot"></span><span>Unsaved changes · <b>Download ${n}</b></span>`;
   else if (saving || dirty) { state = ''; html = `<span class="spin"></span><span>Saving to ${n}…</span>`; }
   // A started download isn't a verified save, so this stays neutral rather than showing a check.
