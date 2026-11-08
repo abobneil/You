@@ -88,10 +88,16 @@ export async function openBytes(vault: Vault, id: string, s: SealedBytes): Promi
     { name: 'AES-GCM', iv: s.iv as BufferSource, additionalData: aad(id) }, vault.key, s.data as BufferSource));
 }
 
-/** Keeps only well-formed keepsake entries from saved data. */
-export function normalizeKeepsakes(raw: unknown): Keepsake[] | undefined {
-  if (!Array.isArray(raw)) return undefined;
-  const out = raw.filter((k): k is Keepsake => !!k && typeof k.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(k.id) && typeof k.name === 'string'
-    && typeof k.type === 'string' && typeof k.size === 'number' && typeof k.sha256 === 'string' && typeof k.addedAt === 'string');
-  return out.length ? out : undefined;
+const isKeepsake = (k: any): k is Keepsake => !!k && typeof k.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(k.id) && typeof k.name === 'string'
+  && typeof k.type === 'string' && typeof k.size === 'number' && typeof k.sha256 === 'string' && typeof k.addedAt === 'string';
+
+/** Splits saved keepsake entries into well-formed ones and ones that can't be used (kept elsewhere, never dropped). */
+export function splitKeepsakes(raw: unknown): { ok: Keepsake[] | undefined; bad: unknown[] } {
+  if (raw === undefined || raw === null) return { ok: undefined, bad: [] };
+  if (!Array.isArray(raw)) return { ok: undefined, bad: [raw] };
+  const ok = raw.filter(isKeepsake);
+  return { ok: ok.length ? ok : undefined, bad: raw.filter(k => !isKeepsake(k)) };
 }
+
+/** Keeps only well-formed keepsake entries from saved data. */
+export const normalizeKeepsakes = (raw: unknown): Keepsake[] | undefined => splitKeepsakes(raw).ok;

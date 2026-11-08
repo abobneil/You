@@ -4,6 +4,7 @@
 //   file   – unlock a locked file being loaded
 import { createVault, type Vault } from '../core/crypto';
 import { $ } from './dom';
+import { DamagedFile, UnsupportedVersion } from '../storage/fileFormat';
 
 export const MIN_LENGTH = 10;
 
@@ -96,6 +97,12 @@ function renderWho(w?: WhoRow) {
   row.append(add);
 }
 
+/** Goes back to the screen that was showing before a file's passphrase was asked for (or hides the gate). */
+export function backToPrevious() {
+  const back = previous;
+  if (back) { previous = null; render(back); } else hideGate();
+}
+
 export function hideGate() {
   gate.hidden = true;
   document.body.classList.remove('gated');
@@ -129,11 +136,18 @@ form.addEventListener('submit', async e => {
   go.disabled = true;
   go.textContent = s.busy;
   setMessage('');
-  const ok = await s.submit(p);
+  let ok = false, problem = '';
+  try { ok = await s.submit(p); }
+  catch (e) {
+    // Never leave the screen stuck on "Unlocking…": say what happened in plain words.
+    console.error(e);
+    problem = e instanceof DamagedFile || e instanceof UnsupportedVersion ? e.message : 'This couldn’t be opened. Nothing was changed. Try again.';
+  }
   if (current !== s) return; // the screen moved on
   go.disabled = false;
   go.textContent = s.button;
-  if (!ok) { setMessage('That passphrase didn’t work. Check for typos or Caps Lock.'); pass.select(); }
+  if (problem) setMessage(problem);
+  else if (!ok) { setMessage('That passphrase didn’t work. Check for typos or Caps Lock.'); pass.select(); }
 });
 
 const KEEP_IT_SAFE = '<b>Save it in your password manager.</b> If it’s lost, no one can unlock your data, not even us. Your browser may offer to suggest one and save it for you.';
@@ -157,7 +171,7 @@ export function askNewPassphrase(name: string, why: 'new' | 'upgrade' | 'import'
  * Resolves true once unlocked, or false if the person cancelled (file mode only).
  */
 export function askPassphrase(mode: 'unlock' | 'file', tryIt: (p: string) => Promise<boolean>,
-  opts: { name?: string; who?: WhoRow; links?: { label: string; run: () => void }[] } = {}): Promise<boolean> {
+  opts: { name?: string; who?: WhoRow; note?: string; links?: { label: string; run: () => void }[] } = {}): Promise<boolean> {
   return new Promise(resolve => {
     if (mode === 'file') previous = current;
     const back = previous;
@@ -165,7 +179,7 @@ export function askPassphrase(mode: 'unlock' | 'file', tryIt: (p: string) => Pro
       title: mode === 'unlock' ? (opts.name ? `Welcome back, ${opts.name}` : 'Welcome back') : 'This file is locked',
       name: opts.name,
       sub: mode === 'unlock' ? 'Enter your passphrase to unlock your data.' : 'Enter the passphrase you used when you saved it.',
-      create: false, button: 'Unlock', busy: 'Unlocking…',
+      create: false, button: 'Unlock', busy: 'Unlocking…', note: opts.note,
       links: mode === 'file'
         ? [{ label: 'Cancel', run: () => { back ? render(back) : hideGate(); resolve(false); } }]
         : opts.links,

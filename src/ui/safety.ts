@@ -1,7 +1,7 @@
 import { profile } from '../state';
 import { fileNameFor } from '../storage/fileFormat';
 import { target } from '../storage/target';
-import { buildPlan, checkFile, type AccessPlan } from '../core/safety';
+import { buildPlan, checkFile, planBody, type AccessPlan } from '../core/safety';
 import { $, esc } from './dom';
 import { openSheet, sheetBody, sheetTop } from './sheet';
 
@@ -41,8 +41,8 @@ function openCheck() {
 function openPlan() {
   const name = target.name || fileNameFor(profile.name);
   openSheet(`${sheetTop('Optional')}<h3 class="sh-title">Plan for someone you trust</h3>
-    <form id="plan-form" class="safety-form"><label for="plan-for">Who it’s for (optional)</label><input id="plan-for">
-    <label for="plan-place">Where the file is kept</label><input id="plan-place" value="${esc(target.name)}" placeholder="Dropbox folder on the laptop">
+    <form id="plan-form" class="safety-form"><label for="plan-for">Who it’s for (optional)</label><input id="plan-for" autocomplete="off">
+    <label for="plan-place">Where the file is kept</label><input id="plan-place" autocomplete="off" value="${esc(target.name)}" placeholder="Dropbox folder on the laptop">
     <p class="hint">The file’s location is private information too.</p>
     <p>Passphrase: a blank line to fill in by hand. Write it here, or tell them where it’s kept.</p>
     <label><input id="plan-opt" type="checkbox"> Print my passphrase on the sheet</label>
@@ -57,16 +57,20 @@ function openPlan() {
   function output(print: boolean) {
     if (!form.reportValidity()) return;
     const answers: AccessPlan = { recipient: $<HTMLInputElement>('#plan-for').value, location: $<HTMLInputElement>('#plan-place').value, fileName: name, origin: location.origin, printPassphrase: opt.checked, passphrase: opt.checked ? pass.value : '' };
-    const html = buildPlan(answers);
     if (print) {
-      const frame = document.createElement('iframe');
-      frame.className = 'plan-print-frame';
-      frame.title = 'Private access plan';
-      frame.onload = () => { frame.contentWindow?.focus(); frame.contentWindow?.print(); setTimeout(() => frame.remove(), 1000); };
-      frame.srcdoc = html;
-      document.body.append(frame);
+      // Printed from this page with app.css's print-only rules: the app's content policy blocks a
+      // printed document's own <style>, so it would otherwise print unstyled.
+      const box = document.createElement('div');
+      box.id = 'plan-print';
+      box.innerHTML = planBody(answers);
+      document.body.append(box);
+      document.body.classList.add('printing-plan');
+      const done = () => { box.remove(); document.body.classList.remove('printing-plan'); window.removeEventListener('afterprint', done); };
+      window.addEventListener('afterprint', done);
+      window.print();
+      setTimeout(done, 1000);
     } else {
-      const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+      const url = URL.createObjectURL(new Blob([buildPlan(answers)], { type: 'text/html' }));
       const a = document.createElement('a'); a.href = url; a.download = 'you-private-plan.html'; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
     }

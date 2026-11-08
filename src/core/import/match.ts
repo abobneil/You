@@ -22,8 +22,15 @@ export function matchKey(p: { area: string; kind: string; value: string }): stri
 export function findMatch(profile: Profile, p: Proposal): Card | undefined {
   if (p.matchId) return profile.cards.find(c => c.id === p.matchId && c.area === p.area);
   if (p.area === 'people') {
-    const exact = p.sync && profile.cards.find(c => c.imports?.[p.sync!.source]?.id === p.sync!.id);
+    const exact = p.sync && profile.cards.find(c => c.area === 'people' && c.imports?.[p.sync!.source]?.id === p.sync!.id);
     if (exact) return exact;
+    // A card imported from this source before, whose email or phone (as imported, before any hand edits) matches.
+    const email = p.fields?.email?.trim().toLowerCase(), phone = p.fields?.phone ? phoneKey(p.fields.phone) : '';
+    const before = p.sync && profile.cards.find(c => {
+      const snap = c.area === 'people' ? c.imports?.[p.sync!.source]?.fields : undefined;
+      return !!snap && ((!!email && snap.email?.trim().toLowerCase() === email) || (!!phone && !!snap.phone && phoneKey(snap.phone) === phone));
+    });
+    if (before) return before;
     return profile.cards.find(c => c.area === 'people' && (
       (!!p.fields?.email && c.fields?.email?.trim().toLowerCase() === p.fields.email.trim().toLowerCase()) ||
       (!!p.fields?.phone && !!c.fields?.phone && phoneKey(c.fields.phone) === phoneKey(p.fields.phone))));

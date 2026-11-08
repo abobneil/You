@@ -1,7 +1,7 @@
 import { isAreaId } from './areas';
 import { newId } from './cards';
-import { normalizeKeepsakes } from './keepsakes';
-import type { Card, Profile } from './types';
+import { splitKeepsakes } from './keepsakes';
+import type { Card, Link, Profile } from './types';
 
 export const emptyProfile = (): Profile => ({ name: '', cards: [], links: [] });
 
@@ -12,14 +12,32 @@ export const emptyProfile = (): Profile => ({ name: '', cards: [], links: [] });
 export function normalize(raw: unknown): Profile {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, any>;
   const { areas: legacyAreas, ...future } = r;
+  // Anything that can't be understood is moved here, encrypted with the rest, never dropped.
+  const unreadable: unknown[] = [...(Array.isArray(r.unreadable) ? r.unreadable : [])];
+  const cards: Card[] = [];
+  for (const c of Array.isArray(r.cards) ? r.cards : []) {
+    if (isCard(c)) cards.push(normalizeCard(c, unreadable)); else unreadable.push(c);
+  }
+  let kinds: unknown[] | undefined;
+  if ('kinds' in r && r.kinds !== undefined) {
+    const list = Array.isArray(r.kinds) ? r.kinds : [r.kinds];
+    kinds = list.filter(isKind);
+    for (const k of list) if (!isKind(k)) unreadable.push({ from: 'kinds', value: k });
+  }
+  const links: Link[] = [];
+  if ('links' in r && r.links !== undefined) {
+    for (const l of Array.isArray(r.links) ? r.links : [r.links]) {
+      if (isLink(l)) links.push(l); else unreadable.push({ from: 'links', value: l });
+    }
+  }
   const p: Profile = {
     ...future,
-    ...(Array.isArray(r.kinds) ? { kinds: r.kinds.filter((k: any) => k && isAreaId(k.area) && typeof k.name === 'string' && Array.isArray(k.fields)) } : {}),
-    unreadable: [...(Array.isArray(r.unreadable) ? r.unreadable : []), ...(Array.isArray(r.cards) ? r.cards.filter(c => !isCard(c)) : [])],
+    ...(kinds ? { kinds: kinds as Profile['kinds'] } : {}),
+    unreadable,
     ...(typeof r.id === 'string' && r.id ? { id: r.id } : {}),
     name: typeof r.name === 'string' ? r.name : '',
-    cards: Array.isArray(r.cards) ? r.cards.filter(isCard).map(normalizeCard) : [],
-    links: Array.isArray(r.links) ? r.links.filter((l: any) => l && l.id && l.a && l.b) : [],
+    cards,
+    links,
     updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : undefined,
   };
   if (!p.unreadable?.length) delete p.unreadable;
@@ -38,12 +56,19 @@ export function normalize(raw: unknown): Profile {
   return p;
 }
 
-function normalizeCard(c: Card): Card {
-  const out: Card = { ...c, note: typeof c.note === 'string' ? c.note : undefined, revisions: c.revisions ?? [] };
-  const ks = normalizeKeepsakes(c.keepsakes);
-  if (ks) out.keepsakes = ks; else delete out.keepsakes;
+function normalizeCard(c: Card, unreadable: unknown[]): Card {
+  const out: Card = { ...c, note: typeof c.note === 'string' ? c.note : undefined, revisions: Array.isArray(c.revisions) ? c.revisions : [] };
+  if (c.note !== undefined && c.note !== null && typeof c.note !== 'string') unreadable.push({ from: 'note', card: c.id, value: c.note });
+  if (c.revisions !== undefined && c.revisions !== null && !Array.isArray(c.revisions)) unreadable.push({ from: 'revisions', card: c.id, value: c.revisions });
+  const ks = splitKeepsakes(c.keepsakes);
+  for (const k of ks.bad) unreadable.push({ from: 'keepsakes', card: c.id, value: k });
+  if (ks.ok) out.keepsakes = ks.ok; else delete out.keepsakes;
+  if (out.note === undefined) delete out.note;
   return out;
 }
+
+const isKind = (k: any) => !!k && isAreaId(k.area) && typeof k.name === 'string' && Array.isArray(k.fields);
+const isLink = (l: any): l is Link => !!l && typeof l.id === 'string' && !!l.id && typeof l.a === 'string' && !!l.a && typeof l.b === 'string' && !!l.b;
 
 function isCard(c: any): c is Card {
   return c && typeof c.id === 'string' && isAreaId(c.area) && typeof c.kind === 'string'

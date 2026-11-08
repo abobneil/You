@@ -15,9 +15,9 @@ const monthOptions = (m: string) => MONTHS.map((n, i) => {
 export function dateInputs(value: FuzzyDate | undefined, key: string): string {
   const [y = '', m = '', d = ''] = (value || '').split('-');
   return `<span class="date" data-date="${key}">
-    <input data-d="y" inputmode="numeric" maxlength="4" placeholder="Year" value="${esc(y)}" aria-label="Year">
+    <input data-d="y" autocomplete="off" inputmode="numeric" maxlength="4" placeholder="Year" value="${esc(y)}" aria-label="Year">
     <button type="button" class="mbtn${m ? '' : ' empty'}" data-d="m" data-value="${esc(m)}" aria-haspopup="true" aria-expanded="false" aria-label="Month (optional)">${m ? MONTHS[+m - 1] : 'Month'}</button>
-    <input data-d="d" inputmode="numeric" maxlength="2" placeholder="Day" value="${esc(d ? +d : '')}" aria-label="Day (optional)"${m ? '' : ' hidden'}>
+    <input data-d="d" autocomplete="off" inputmode="numeric" maxlength="2" placeholder="Day" value="${esc(d ? +d : '')}" aria-label="Day (optional)"${m ? '' : ' hidden'}>
     <span class="mgrid" role="group" aria-label="Choose a month" hidden>${monthOptions(m)}<button type="button" data-m="" class="clear">No month</button></span>
   </span>`;
 }

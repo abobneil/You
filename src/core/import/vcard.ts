@@ -15,6 +15,10 @@ export interface Contact {
   birthday: FuzzyDate;
   org: string;
   title: string;
+  /** The contact's own id (UID), when the export has one. */
+  uid?: string;
+  /** When the contact was last changed (REV), as an ISO timestamp, when the export says. */
+  rev?: string;
 }
 
 /** Undoes vCard escaping (\, \; \n). */
@@ -93,6 +97,8 @@ export function parseVcf(text: string): Contact[] {
       }
       case 'ORG': c.org = splitEsc(value, ';')[0].trim(); break;
       case 'TITLE': c.title = unescape(value).trim(); break;
+      case 'UID': if (value.trim()) c.uid = unescape(value).trim(); break;
+      case 'REV': { const t = Date.parse(value.trim().replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6')); if (!Number.isNaN(t)) c.rev = new Date(t).toISOString(); break; }
     }
   }
   return contacts;
@@ -125,8 +131,18 @@ function addressFields(a: Contact['addresses'][number]) {
 }
 const oneLine = (a: Contact['addresses'][number]) => [a.street, a.unit, a.city, a.state, a.zip].filter(Boolean).join(', ');
 
-/** A contact as one People card. */
-export function contactAsPerson(c: Contact, kind: string): Proposal[] {
+/**
+ * Which contact this is, across exports: its UID, or else its name with the first email and phone
+ * as the file gave them. Lets a later import find the card even after details were edited by hand.
+ */
+export function contactKey(c: Contact): string {
+  if (c.uid) return 'uid:' + c.uid;
+  const norm = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}@.+]+/gu, ' ').trim();
+  return ['k', norm(displayName(c)), norm(c.emails[0]?.value ?? ''), (c.tels[0]?.value ?? '').replace(/[^\d+]/g, '')].join('|');
+}
+
+/** A contact as one People card. `at` is when this export was made (its REV), or else when it was imported. */
+export function contactAsPerson(c: Contact, kind: string, at = new Date().toISOString()): Proposal[] {
   const tel = preferred(c.tels, 'cell', 'mobile');
   const email = preferred(c.emails, 'home', 'internet');
   const adr = preferred(c.addresses, 'home');
@@ -138,7 +154,7 @@ export function contactAsPerson(c: Contact, kind: string): Proposal[] {
   c.emails.forEach((e, i) => { fields[`email${i + 1}`] = `${e.types.join(', ')}: ${e.value}`; });
   if (c.birthday) fields.birthday = c.birthday;
   if (adr) fields.address = oneLine(adr);
-  return [{ area: 'people', kind, value: displayName(c), fields }];
+  return [{ area: 'people', kind, value: displayName(c), fields, sync: { source: 'vcard', id: contactKey(c), at: c.rev ?? at } }];
 }
 
 /** "This is me": a contact as your own About cards, plus your address and job. */

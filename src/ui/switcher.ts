@@ -3,12 +3,16 @@ import { openSafety } from './safety';
 import { downloadCopy } from '../storage/target';
 // Switching between Yous on this browser. Switching, adding and locking reload the page,
 // so the previous You's data and key are gone from memory.
-import { canLeave, eraseBrowserCopy, profile, vault } from '../state';
+import { browserSaveState, canLeave, eraseBrowserCopy, flushPending, persist, profile, vault } from '../state';
+import { deriveVault, openWith, seal, WrongPassphrase, type Envelope, type Vault } from '../core/crypto';
+import { askPassphrase, hideGate } from './gate';
+import { keepOpenDraft, offerKeptDrafts } from './drafts';
+import { emit } from './events';
 import { byRecent, currentId, placeLabel, setCurrent, startNew } from '../storage/profiles';
 import { $, esc } from './dom';
 import { closeSheet, openSheet, sheetTop } from './sheet';
 
-const reloadClean = () => location.replace(location.pathname);
+export const reloadClean = () => location.replace(location.pathname);
 
 export async function switchTo(id: string) { if (!await canLeave()) return; setCurrent(id); reloadClean(); }
 export async function addNewYou() { if (!await canLeave()) return; startNew(); reloadClean(); }
@@ -34,7 +38,8 @@ export function openSwitcher() {
     ${unlocked ? `<p class="hint">${profile.unreadable?.length ? `${profile.unreadable.length} item(s) couldn't be read and are kept as-is.` : ''}</p><label>Lock after no interaction <select id="lock-time">${[5,15,60,0].map(n => `<option value="${n}" ${n === timeoutMinutes() ? 'selected' : ''}>${n ? n + ' minutes' : 'Never'}</option>`).join('')}</select></label>` : ''}
     <div class="menu"><button type="button" data-act="safe">Keep it safe</button>
       <button type="button" data-act="new">+ Add a new You</button>
-      ${unlocked ? `<button type="button" data-act="lock">Lock ${name}</button>
+      ${unlocked ? `<button type="button" data-act="open">Open a file…</button>
+        <button type="button" data-act="lock">Lock ${name}</button>
         <button type="button" data-act="remove" class="soft">Remove ${name} from this browser…</button>` : ''}
     </div>
     <p class="hint">Each You has its own passphrase. Only names are shown here; everything else stays encrypted.</p>`,
@@ -42,6 +47,7 @@ export function openSwitcher() {
     pick: b => { if (b.dataset.id === cur && unlocked) return closeSheet(); switchTo(b.dataset.id!); },
     new: addNewYou,
     lock: lockNow,
+    open: async () => (await import('./storagePicker')).openStoragePicker('open'),
     safe: openSafety,
     remove: () => {
       openSheet(`${sheetTop('Remove from this browser')}<h3 class="sh-title">Remove ${name}?</h3>
@@ -59,9 +65,58 @@ function timeoutMinutes() { return Number(local.get('you.timeout.' + profile.id)
 let lastInteraction = Date.now(), hiddenAt = 0, locking = false;
 async function checkLock() {
   const minutes = timeoutMinutes();
-  if (!vault || !minutes || locking || Date.now() - lastInteraction < minutes * 60000) return;
-  locking = true; await lockNow(); locking = false; lastInteraction = Date.now();
+  if (!vault || !minutes || locking || inPlace || Date.now() - lastInteraction < minutes * 60000) return;
+  locking = true;
+  try { await autoLock(); }
+  catch (e) { console.error(e); await lockInPlace(); }
+  finally { locking = false; lastInteraction = Date.now(); }
 }
+
+/**
+ * Locking by itself, with nobody there to answer questions: keep any unfinished typing (encrypted,
+ * in the record), then lock. If saving didn't work, the content is hidden behind the lock screen
+ * anyway, and the unsaved work stays in this tab until it's unlocked or downloaded.
+ */
+async function autoLock() {
+  keepOpenDraft();
+  if (await flushPending() && browserSaveState().status === 'saved') { reloadClean(); return; }
+  await lockInPlace();
+}
+
+let inPlace = false;
+/** Hides everything behind the unlock screen without leaving the page, so unsaved work isn't lost. */
+async function lockInPlace() {
+  if (inPlace || !vault) return;
+  inPlace = true;
+  try {
+    try { keepOpenDraft(); } catch { closeSheet(); }
+    if ((document.querySelector('#sheet') as HTMLDialogElement | null)?.open) closeSheet();
+    hideContent();
+    const v = vault, check = await sealCheck(v);
+    await askPassphrase('unlock', async p => {
+      try { await openWith(await deriveVault(p, v.salt, v.iterations), check); return true; }
+      catch (e) { if (e instanceof WrongPassphrase) return false; throw e; }
+    }, {
+      name: profile.name,
+      links: [
+        { label: 'Download your unsaved changes', run: () => { void downloadCopy(true); } },
+        { label: 'Try saving again', run: () => { void persist(); } },
+      ],
+      note: '<b>Some changes weren’t saved yet.</b> They’re kept in this tab. Unlock to keep working, or download them now (the file opens with the same passphrase).',
+    });
+    hideGate();
+    emit('data-loaded');
+    offerKeptDrafts();
+  } finally { inPlace = false; lastInteraction = Date.now(); }
+}
+/** Something small sealed with the key, so the passphrase can be checked without keeping it. */
+const sealCheck = async (v: Vault) => JSON.parse(await seal(v, 'you-lock-check')) as Envelope;
+function hideContent() {
+  document.body.classList.remove('home');
+  for (const id of ['#areas', '#a-body', '#timeline', '#life']) { const el = document.querySelector(id); if (el) el.innerHTML = ''; }
+  const space = document.querySelector<HTMLElement>('#space'); if (space) space.hidden = true;
+}
+
 for (const event of ['pointerdown', 'keydown', 'input']) document.addEventListener(event, () => { lastInteraction = Date.now(); }, { passive: true });
 document.addEventListener('change', e => { const el = e.target as HTMLSelectElement; if (el.id === 'lock-time') local.set('you.timeout.' + profile.id, el.value); });
 document.addEventListener('visibilitychange', () => {

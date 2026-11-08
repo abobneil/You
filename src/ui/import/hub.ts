@@ -227,7 +227,7 @@ export async function openImportHub(only?: SourceId[]) {
 }
 
 function openVinImport(value = '', message = '') {
-  openSheet(`${sheetTop('Vehicle')}<h3 class="sh-title">Look up a vehicle</h3><label for="import-vin">VIN</label><input id="import-vin" maxlength="17" value="${esc(value)}"><p class="hint">${esc(message)}</p><button type="button" class="btn" data-act="lookup">Look up</button>`, {
+  openSheet(`${sheetTop('Vehicle')}<h3 class="sh-title">Look up a vehicle</h3><label for="import-vin">VIN</label><input id="import-vin" autocomplete="off" spellcheck="false" maxlength="17" value="${esc(value)}"><p class="hint">${esc(message)}</p><button type="button" class="btn" data-act="lookup">Look up</button>`, {
     lookup: () => {
       const vin = (document.getElementById('import-vin') as HTMLInputElement).value.trim().toUpperCase();
       if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return openVinImport(vin, 'Enter 17 letters and numbers, without I, O or Q.');

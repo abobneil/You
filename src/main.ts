@@ -1,13 +1,14 @@
 import './styles/app.css';
-import { browserSaveState, onBrowserSave, onSave, profile, save } from './state';
-import { initTarget, scheduleWrite } from './storage/target';
+import { browserSaveState, onBrowserSave, onReplaced, onSave, profile, save } from './state';
+import { initTarget, renderPill, scheduleWrite } from './storage/target';
 import { $, announce } from './ui/dom';
 import { on } from './ui/events';
 import { hideGate } from './ui/gate';
 import './ui/landing';
 import './ui/nudge';
 import { refresh, showHome } from './ui/router';
-import { lockNewData, start } from './ui/session';
+import { lockNewData, resumeOpenFile, start } from './ui/session';
+import { offerKeptDrafts } from './ui/drafts';
 import { onSheetClose } from './ui/sheet';
 import { renderWhoButton } from './ui/switcher';
 import './ui/sensitive';
@@ -41,11 +42,21 @@ onSave(() => {
   refresh();
 });
 onSheetClose(refresh);
+// Another tab saved newer work and this tab had nothing unsaved: show it.
+onReplaced(() => { if (document.body.classList.contains('home')) { showHome(); renderPill(); } });
 
 // New visitor: name → passphrase → home.
 on('named', async () => { await lockNewData(); showHome(); });
 // A file was loaded (and unlocked) from the name screen, the unlock screen, or the storage picker.
 on('data-loaded', () => { hideGate(); showHome(); });
+
+// Personal text never goes into the browser's autofill store (which isn't encrypted). Only the name
+// and passphrase fields keep autofill, for password managers. This catches any field that forgot.
+document.addEventListener('focusin', e => {
+  const t = e.target;
+  if ((t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) && !t.hasAttribute('autocomplete')
+    && !t.closest('#gate-form') && t.id !== 'name') t.setAttribute('autocomplete', 'off');
+});
 
 $('#import-open').addEventListener('click', () => openImport());
 
@@ -78,7 +89,12 @@ const resetting = import.meta.env.DEV && (await (await import('./dev')).init());
 
 if (!resetting) {
   initTarget();
-  start().then(where => { if (where === 'home') showHome(); });
+  start().then(where => {
+    if (where !== 'home') return;
+    showHome();
+    // Picks up where things were left: a file being opened, or a card kept when the screen locked.
+    if (!resumeOpenFile()) offerKeptDrafts();
+  });
 }
 
 // Keep the production app shell available without a network. Updates wait for all windows to close.
