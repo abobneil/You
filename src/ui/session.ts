@@ -61,7 +61,11 @@ export async function start(): Promise<'home' | 'landing'> {
     let r: ReturnType<typeof readText> | null = null;
     try { r = readText(stored); } catch { /* unreadable: fall through */ }
     if (r?.kind === 'locked') {
-      const label = listProfiles().find(e => e.id === slot)?.label ?? '';
+      const all = listProfiles();
+      const own = all.find(e => e.id === slot)?.label ?? '';
+      // Two Yous with the same name get the same numbers the switcher shows, so "Welcome back" is never ambiguous.
+      const same = all.filter(e => e.label.trim().toLowerCase() === own.trim().toLowerCase());
+      const label = same.length > 1 ? `${own} (${same.findIndex(e => e.id === slot) + 1})` : own;
       await askPassphrase('unlock', async p => {
         // Decrypt the copy as it is now, not as it was when this page loaded: another tab may have saved since.
         const now = await storedEnvelope(slot);

@@ -191,7 +191,7 @@ export function askPassphrase(mode: 'unlock' | 'file', tryIt: (p: string) => Pro
       sub: mode === 'unlock' ? 'Enter your passphrase to unlock your data.' : 'Enter the passphrase you used when you saved it.',
       create: false, button: 'Unlock', busy: 'Unlocking…', note: opts.note,
       links: mode === 'file'
-        ? [{ label: 'Cancel', run: () => { back ? render(back) : hideGate(); resolve(false); } }]
+        ? [...(opts.links ?? []), { label: 'Cancel', run: () => { back ? render(back) : hideGate(); resolve(false); } }]
         : opts.links,
       who: mode === 'unlock' ? opts.who : undefined,
       submit: async p => { const ok = await tryIt(p); if (ok) resolve(true); return ok; },

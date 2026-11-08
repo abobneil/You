@@ -13,7 +13,8 @@ import { byRecent, currentId, placeLabel, setCurrent, startNew } from '../storag
 import { $, esc } from './dom';
 import { closeSheet, openSheet, sheetTop } from './sheet';
 
-export const reloadClean = () => location.replace(location.pathname);
+// Drops any history entry an open sheet added, so the fresh page starts on home rather than a stale sheet marker.
+export const reloadClean = () => { try { history.replaceState(null, ''); } catch { /* not allowed */ } location.replace(location.pathname); };
 
 export async function switchTo(id: string) { if (!await canLeave()) return; setCurrent(id); reloadClean(); }
 export async function addNewYou() { if (!await canLeave()) return; startNew(); reloadClean(); }
