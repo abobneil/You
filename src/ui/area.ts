@@ -17,9 +17,8 @@ import { openCard } from './cardView';
 import { openComposer } from './composer';
 import { $, esc, linkText } from './dom';
 import { shownField, summaryText } from './details';
-import { maskValue } from '../core/formats';
 import { openImport, SOURCES_FOR_AREA } from './import/sources';
-import { sensitiveDetail, isSensitive, shownValue, valueHtml } from './sensitive';
+import { sensitiveDetail, shownValue, valueHtml } from './sensitive';
 import { tagIcon } from './tags';
 
 /** Kinds with this many cards or fewer show them right in the area; bigger kinds fold to a row. */
@@ -230,20 +229,21 @@ function kindHtml(all: Card[]) {
 
 // ---------- search ----------
 
-/** Every piece of a card that search looks at, with where it is. Hidden values stay masked. */
+/**
+ * Every piece of a card that search looks at, with where it is. Matching uses the real values, so typing
+ * a whole passport number finds it; results are drawn by the card renderer, which keeps them masked,
+ * and "Found in details" never shows the value itself.
+ */
 function searchParts(c: Card): [string, string][] {
   const kind = kindOf(c.area, c.kind, profile);
   const fieldOf = (id: string) => kind.fields?.find(f => f.id === id);
-  const parts: [string, string][] = [['', `${shownValue(c)} ${kindLabel(c)} ${originOf(c)} ${yearOf(c)}`]];
+  const parts: [string, string][] = [['', `${c.value} ${shownValue(c)} ${kindLabel(c)} ${originOf(c)} ${yearOf(c)}`]];
   for (const [id, v] of Object.entries(c.fields ?? {})) {
     const f = fieldOf(id);
-    parts.push(['details', sensitiveDetail(c, id) ? maskValue(v) : f ? shownField(f, v) : v]);
+    parts.push(['details', sensitiveDetail(c, id) ? v : f ? `${v} ${shownField(f, v)}` : v]);
   }
   if (c.note) parts.push(['note', c.note]);
-  for (const r of c.revisions) {
-    const hide = r.field ? sensitiveDetail(c, r.field) : isSensitive(c);
-    parts.push(['earlier wording', hide ? maskValue(r.value) : r.value]);
-  }
+  for (const r of c.revisions) parts.push(['earlier wording', r.value]);
   for (const k of c.keepsakes ?? []) parts.push([k.removedAt ? 'a removed file' : 'a file', `${k.name} ${k.alt ?? ''}`]);
   return parts;
 }
