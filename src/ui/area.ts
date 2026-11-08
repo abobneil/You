@@ -8,7 +8,7 @@
 //
 // Typing in the search box searches the area (or the kind you're in) instead.
 import { kindLabel, kindOf, tagOf, type Area } from '../core/areas';
-import { countText, groupByKind, groupByOrigin, groupByYear, originOf, playsOf, previewOf, sortCards, yearOf, type Sort } from '../core/browse';
+import { noteSearchText, countText, groupByKind, groupByOrigin, groupByYear, originOf, playsOf, previewOf, sortCards, yearOf, type Sort } from '../core/browse';
 import { byId, linksOf, rangeText } from '../core/cards';
 import { fmtDate, fmtISO } from '../core/dates';
 import type { Card } from '../core/types';
@@ -200,7 +200,7 @@ function kindHtml(all: Card[]) {
 function searchHtml(pool: Card[], showKind: boolean) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const hits = sortCards(pool.filter(c => {
-    const text = `${shownValue(c)} ${kindLabel(c)} ${searchableDetails(c, kindOf(c.area, c.kind))} ${originOf(c)} ${yearOf(c)}`.toLowerCase();
+    const text = `${shownValue(c)} ${kindLabel(c)} ${searchableDetails(c, kindOf(c.area, c.kind))} ${originOf(c)} ${yearOf(c)} ${noteSearchText(c)}`.toLowerCase();
     return words.every(w => text.includes(w));
   }), 'recent');
   return `<div class="sec"><h4>${hits.length ? `${n(hits.length)} found` : 'Nothing found'}</h4><span>for “${esc(query.trim())}”</span></div>

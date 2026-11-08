@@ -6,26 +6,43 @@ import { emptyProfile, normalize } from './core/profile';
 import type { Profile } from './core/types';
 import { encode } from './storage/fileFormat';
 import { KEYS, local } from './storage/local';
-import { currentId, keyFor, removeProfile, setCurrent, upsertProfile } from './storage/profiles';
+import { currentId, removeProfile, setCurrent, upsertProfile } from './storage/profiles';
+
+import { migrateVault, vaultStore } from './storage/vaultStore';
+import { saveQueue, type SaveState } from './storage/saveQueue';
 
 export let profile: Profile = emptyProfile();
 export let vault: Vault | null = null;
 
 const listeners: (() => void)[] = [];
-/** Runs after every save: flashes "Saved", writes the chosen file, redraws. */
+/** Runs after each edit so the screen and chosen file follow immediately. */
 export const onSave = (fn: () => void) => { listeners.push(fn); };
 
-let chain: Promise<void> = Promise.resolve();
-/** Encrypts and stores the browser copy. Writes run in order so an older copy never wins. */
+const saveListeners: (() => void)[] = [];
+export const onBrowserSave = (fn: () => void) => { saveListeners.push(fn); };
+const queue = saveQueue(async ({ p, v }: { p: Profile; v: Vault }) => {
+  const envelope = await encode(v, p);
+  await vaultStore.set(p.id!, envelope);
+  if (await vaultStore.get(p.id!) !== envelope) throw new Error('Could not verify browser copy');
+  const old = local.get(`you.vault.${p.id}`);
+  local.remove(`you.vault.${p.id}`);
+  if (old && local.get(KEYS.vault) === old) local.remove(KEYS.vault);
+  upsertProfile(p.id!, p.name);
+  setCurrent(p.id!);
+  local.remove(KEYS.profile);
+}, () => saveListeners.forEach(fn => fn()));
+export const browserSaveState = (): SaveState => queue.state();
+export const flushPending = () => queue.flush();
+export async function canLeave() {
+  await flushPending();
+  return browserSaveState().status !== 'failed' || confirm("Your latest changes couldn't be saved in this browser. Download a copy before leaving to keep them. Leave anyway?");
+}
+if (typeof window !== 'undefined') window.addEventListener('beforeunload', e => {
+  if (browserSaveState().status !== 'saved') { e.preventDefault(); e.returnValue = ''; }
+});
 export function persist(): Promise<void> {
-  chain = chain.then(async () => {
-    if (!vault || !profile.id) return;
-    local.set(keyFor(profile.id, 'vault'), await encode(vault, profile));
-    upsertProfile(profile.id, profile.name);
-    setCurrent(profile.id);
-    local.remove(KEYS.profile); // never leave an unencrypted copy behind
-  }).catch(() => {});
-  return chain;
+  if (!vault || !profile.id) return Promise.resolve();
+  return queue.enqueue({ p: structuredClone(profile), v: vault });
 }
 
 export function save() {
@@ -35,16 +52,19 @@ export function save() {
 }
 
 /** Starts a session: the data and the key that protects it. */
-export function setSession(p: Profile, v: Vault | null) {
+export async function setSession(p: Profile, v: Vault | null) {
+  await flushPending();
   profile = p;
   profile.id = profile.id || currentId() || newId();
   profile.updatedAt = profile.updatedAt || new Date().toISOString();
-  if (v) vault = v;
+  vault = v;
   return persist();
 }
 
 /** The open You's encrypted browser copy, if there is one. */
-export const storedEnvelope = () => { const id = currentId(); return id ? local.get(keyFor(id, 'vault')) : null; };
+export const storedEnvelope = async () => { const id = currentId(); if (!id) return null;
+  try { return await migrateVault(id, local); }
+  catch (e) { const old = local.get(`you.vault.${id}`); if (old !== null) return old; throw e; } };
 
 /** Data saved by earlier, unencrypted versions of You, waiting to be protected. */
 export function legacyProfile(): Profile | null {
@@ -55,6 +75,6 @@ export function legacyProfile(): Profile | null {
 }
 
 /** "Start over" / "Remove from this browser": erases this You's browser copy. Saved files are untouched. */
-export function eraseBrowserCopy(id = currentId()) {
-  if (id) removeProfile(id);
+export async function eraseBrowserCopy(id = currentId()) {
+  if (id) { await flushPending(); await removeProfile(id); }
 }
