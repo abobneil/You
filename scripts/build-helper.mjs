@@ -3,6 +3,11 @@ import { build } from 'esbuild';
 import { mkdir, writeFile, copyFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { zipSync, strToU8 } from 'fflate';
+// The exe carries the Node runtime that builds it, so refuse runtimes older than the last security release we know of.
+const NODE_FLOOR = [24, 16, 0];
+const have = process.versions.node.split('.').map(Number);
+if (have[0] < NODE_FLOOR[0] || (have[0] === NODE_FLOOR[0] && (have[1] < NODE_FLOOR[1] || (have[1] === NODE_FLOOR[1] && have[2] < NODE_FLOOR[2]))))
+  throw new Error(`Build the helper with Node ${NODE_FLOOR.join('.')} or newer (this is ${process.versions.node}).`);
 const app = process.env.YOU_APP_URL || 'http://127.0.0.1:4173';
 const u = new URL(app);
 if (!process.env.YOU_APP_URL) console.log('YOU_APP_URL is not set: the helper will ask for the app address when it starts.');

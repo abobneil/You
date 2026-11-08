@@ -122,7 +122,7 @@ function cannotOpen(e: unknown) {
   const why = e instanceof UnsupportedVersion || e instanceof DamagedFile ? e.message : 'That file doesn’t look like your You data.';
   openSheet(`${sheetTop('Couldn’t open')}<h3 class="sh-title">This file couldn’t be opened</h3>
     <p>${esc(why)}</p>
-    <p class="hint">Nothing was changed. If you have another saved copy, you can try that one.</p>
+    <p class="hint">${/nothing was changed/i.test(why) ? '' : 'Nothing was changed. '}If you have another saved copy, you can try that one.</p>
     <div class="menu"><button type="button" data-act="other">Choose another file</button><button type="button" data-act="close">OK</button></div>`, {
     other: () => openStoragePicker('open'),
   });

@@ -17,6 +17,8 @@ Audible device credentials. It has no hosted record account or recovery service.
 | Compromised OS, browser or extension | Outside this protection. They may read keys, keystrokes and unlocked content. Use a trusted device/browser. No app test can establish their safety. |
 | Shoulder-surfing or an unlocked device | Sensitive fields mask by default; lock or leave the app when finished. Manually check masking and lock. Visible unlocked content can be read or photographed. |
 | Forgotten passphrase | Unrecoverable. Encourage a password manager and a deliberately chosen private access plan. Manually check passphrase guidance. There is no reset that recovers encrypted content. |
+| npm dependency, static host or service worker update compromise | Commit and review the lockfile, run npm audit, keep dependencies minimal, enforce CSP. The service worker caches only same-origin build files. A malicious trusted build can still read unlocked data. |
+| Audible helper executable | The Windows helper is a Node single executable: the bundled helper plus the Node runtime of the machine that built it. Build with a current, patched Node (the build refuses Node older than the floor in scripts/build-helper.mjs) and re-release when Node ships security fixes. The helper binds only to 127.0.0.1, serves only its API, and trusts exactly one app address that the person pastes and confirms at start (or that the release fixes with YOU_APP_URL); every other Origin, Host and preflight is refused. server/audible tests and the regrade P.md helper checks cover this. A compromised executable on the person's computer is outside what You can protect. |
 | Browser data erasure, disk loss or sync deletion | Keep separate encrypted backups and test reopening them. profile.test.ts checks file round trips; manually reopen a backup after clearing browser data. Encryption alone does not provide durability. |
 
 Browser origin, browser storage, saved files and their sync apps, import and
@@ -24,6 +26,5 @@ keepsake files, NHTSA, the local Audible helper, and the static host are separat
 trust boundaries. Deliberately readable exports and downloaded attachments leave
 the encrypted record boundary and need protection wherever they are kept.
 
-| npm dependency, static host or service worker update compromise | Commit and review the lockfile, run npm audit, keep dependencies minimal, enforce CSP. The service worker caches only same-origin build files. A malicious trusted build can still read unlocked data. |
 
 Adversarial evidence reviewed 2026-11-08: `You-grading/caps-b88d333/CAP-LOG.md` reports 22 altered envelope variants rejected and 17 script payloads inert in desktop Chromium. `regrade-b88d333/P.md` p4/p4b/p6 covers envelope bounds and tampering, p8/p9 attachments, and helper-tests.txt origin/Host/preflight checks. These are scoped observations, not a security guarantee. Regression files: `src/core/crypto.test.ts`, `src/core/history-security.test.ts`, storage keepsake tests, and server Audible tests. The previously demonstrated archive bomb is addressed by streaming limits; physical Safari and Firefox adversarial testing remains outstanding.
