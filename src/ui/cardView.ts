@@ -22,7 +22,7 @@ export function openCard(id: string, opts: { ending?: boolean; keepsakes?: CardK
   if (!c) return;
   if (!/^#\/?life(?:\/|$)/.test(location.hash) && location.hash.slice(1).split('/')[0] !== c.area) location.hash = '#' + c.area;
   const a = areaById(c.area)!;
-  const kind = kindOf(c.area, c.kind);
+  const kind = kindOf(c.area, c.kind, profile);
   const isDate = kind.value === 'date';
   const on = c.status === 'active';
   const links = linksOf(profile, c.id);

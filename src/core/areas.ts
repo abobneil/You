@@ -1,5 +1,5 @@
 import type { FormatId } from './formats';
-import type { AreaId } from './types';
+import type { AreaId, Profile } from './types';
 
 export interface Area {
   id: AreaId;
@@ -278,13 +278,57 @@ export const AREAS: Area[] = [
       k('Value', true, { fields: [f('why', 'Why it matters')] })] },
 ];
 
+// Checklist additions preserve every existing saved kind and field id.
+const extend = (area: AreaId, name: string, fields: Field[], hint?: string) => {
+  const kind = AREAS.find(a => a.id === area)!.kinds.find(k => k.name === name)!;
+  kind.fields = [...(kind.fields ?? []), ...fields];
+  if (hint) kind.hint = hint;
+};
+const offer = (area: AreaId, name: string, fields: Field[], hint?: string) =>
+  AREAS.find(a => a.id === area)!.kinds.push(k(name, true, { fields, hint }));
+extend('about', 'Full name', [f('type', 'Name kind', { choices: ['Birth', 'Married', 'Changed'] })]);
+extend('about', 'Full name', [date('since', 'Name used since')]);
+offer('about', 'Former name', [f('type', 'Name kind', { choices: ['Birth', 'Married', 'Changed'] })]);
+offer('about', 'Identity document', [f('type', 'Type', { choices: ['Passport', "Driver's licence", 'National ID'] }), f('number', 'Number', { sensitive: true }), f('issuer', 'Issuer'), date('issued', 'Issued'), date('expires', 'Expires')]);
+extend('about', 'Birthday', [f('place', 'Birthplace')]);
+for (const name of ['Passport', "Driver's license"]) extend('about', name, [f('issuer', 'Issuer')]);
+extend('health', 'Medication', [f('status', 'Status', { choices: ['Taking', 'Ended', 'As needed'] })]);
+offer('health', 'Procedure or hospital stay', [f('what', 'Procedure or treatment'), f('where', 'Hospital or clinic'), date('date', 'Date')]);
+offer('health', 'Measurement', [f('type', 'Measurement', { choices: ['Height', 'Weight'] }), f('amount', 'Value', { format: 'number' }), f('unit', 'Unit', { choices: ['cm', 'ft / in', 'kg', 'lb'] }), date('date', 'Measured on')]);
+offer('health', 'Care wishes', [f('type', 'Choice', { choices: ['Advance directive', 'Organ donor'] }), f('wish', 'Your wishes'), f('document', 'Document kept at')]);
+offer('health', 'Family health history', [f('condition', 'Condition')], 'Link the relative this condition concerns.');
+extend('health', 'Doctor', [], 'Add a specialty or phone; link any conditions they help with.');
+extend('health', 'Emergency contact', [], 'Add a relationship or phone, and link the person.');
+AREAS.find(a => a.id === 'work')!.kinds.find(k => k.name === 'Certification')!.fields!.find(f => f.id === 'number')!.sensitive = true;
+offer('work', 'Military service', [f('branch', 'Branch'), f('rank', 'Rank')]);
+offer('work', 'Volunteering', [f('organization', 'Organization'), f('role', 'Role')]);
+offer('money', 'Loan or debt', [f('lender', 'Lender'), f('type', 'Type', { choices: ['Mortgage', 'Car', 'Student', 'Personal', 'Other'] }), money('amount', 'Amount'), account('Loan number')]);
+extend('money', 'Credit card', [f('number', 'Card number', { sensitive: true })]);
+offer('money', 'Income', [f('source', 'Source'), money('amount', 'Amount')]);
+offer('money', 'Tax record', [f('year', 'Tax year', { format: 'year' }), f('preparer', 'Prepared by'), f('document', 'Return kept at')]);
+extend('home', 'Address', [f('tenure', 'Owned or rented', { choices: ['Owned', 'Rented', 'Other'] })]);
+offer('home', 'Possession', [f('description', 'Description'), date('acquired', 'Acquired')]);
+const pet = AREAS.find(a => a.id === 'people')!.kinds.find(k => k.name === 'Pet')!;
+AREAS.find(a => a.id === 'home')!.kinds.push({ ...pet }); // People remains readable for older records.
+extend('people', 'Partner', [f('relationship', 'Relationship', { choices: ['Dating', 'Engaged', 'Married', 'Separated', 'Divorced', 'Widowed'] })], 'Link the person; date when this relationship began or ended.');
+offer('people', 'Important date', [f('type', 'Occasion', { choices: ['Birthday', 'Anniversary', 'Death', 'Other'] }), date('date', 'Date')], 'Link the person this date remembers.');
+for (const name of ['Family member', 'Child', 'Friend']) extend('people', name, [], 'Add their details and link any related people.');
+extend('interests', 'Book', [date('read', 'Date read')]);
+extend('interests', 'Movie or show', [date('watched', 'Date watched')]);
+AREAS.find(a => a.id === 'goals')!.kinds.find(k => k.name === 'Goal')!.fields!.find(f => f.id === 'status')!.choices!.push('Achieved', 'Dropped');
+offer('goals', 'Milestone', [date('date', 'Date')]);
+offer('goals', 'Wishes for after death', [f('funeral', 'Funeral wishes'), f('bequests', 'Bequests'), f('will', 'Will kept at')]);
+for (const area of AREAS) for (const kind of area.kinds) kind.hint ??= kind.fields?.length
+  ? `Add ${kind.fields.slice(0, 2).map(f => f.label.toLowerCase()).join(' or ')} if useful; every detail is optional.`
+  : `Record ${kind.name.toLowerCase()} in your own words.`;
+
 export const areaById = (id: string): Area | undefined => AREAS.find(a => a.id === id);
 export const isAreaId = (id: string): id is AreaId => AREAS.some(a => a.id === id);
 
 /** A kind's settings. Kinds the person invents are dated, text, and added alongside. */
 export type KindInfo = Kind & { many: boolean; dated: boolean; value: 'text' | 'date' };
-export function kindOf(area: AreaId, kind: string): KindInfo {
-  const found = areaById(area)?.kinds.find(x => x.name === kind);
+export function kindOf(area: AreaId, kind: string, profile?: Profile): KindInfo {
+  const found: Kind | undefined = areaById(area)?.kinds.find(x => x.name === kind) ?? profile?.kinds?.find(x => x.area === area && x.name === kind);
   return { ...found, name: kind, many: found ? !!found.many : true, dated: found?.dated ?? true, value: found?.value ?? 'text' };
 }
 

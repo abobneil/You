@@ -57,7 +57,14 @@ export interface Link {
   back: string;
 }
 
+export interface CustomKind {
+  area: AreaId;
+  name: string;
+  fields: { id: string; label: string; type: 'text' | 'date' }[];
+}
+
 export interface Profile {
+  kinds?: CustomKind[];
   /** Stable id for this You, so a file loaded later matches the same You in the browser. */
   id?: string;
   name: string;

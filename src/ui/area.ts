@@ -90,7 +90,7 @@ function draw() {
 function tileHtml(c: Card) {
   const chips = linksOf(profile, c.id).slice(0, 3)
     .map(x => `<span class="chip">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}</span>`).join('');
-  const sum = summaryText(c, kindOf(c.area, c.kind));
+  const sum = summaryText(c, kindOf(c.area, c.kind, profile));
   const t = tagOf(c);
   return `<div class="tile${c.status === 'active' ? '' : ' past'}" role="button" tabindex="0" data-act="card" data-id="${esc(c.id)}">
     <span class="k"><i></i>${esc(kindLabel(c))}</span>
@@ -103,7 +103,7 @@ function tileHtml(c: Card) {
 
 /** One line per card: name, details, dates. Used once a list gets long. */
 function rowHtml(c: Card, showKind: boolean) {
-  const sum = summaryText(c, kindOf(c.area, c.kind));
+  const sum = summaryText(c, kindOf(c.area, c.kind, profile));
   const t = tagOf(c);
   return `<li class="crow${c.status === 'active' ? '' : ' past'}" role="button" tabindex="0" data-act="card" data-id="${esc(c.id)}">
     <span class="cv">${t ? tagIcon(t) : ''}${valueHtml(c)}</span>
@@ -200,7 +200,7 @@ function kindHtml(all: Card[]) {
 function searchHtml(pool: Card[], showKind: boolean) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const hits = sortCards(pool.filter(c => {
-    const text = `${shownValue(c)} ${kindLabel(c)} ${searchableDetails(c, kindOf(c.area, c.kind))} ${originOf(c)} ${yearOf(c)} ${noteSearchText(c)}`.toLowerCase();
+    const text = `${shownValue(c)} ${kindLabel(c)} ${searchableDetails(c, kindOf(c.area, c.kind, profile))} ${originOf(c)} ${yearOf(c)} ${noteSearchText(c)}`.toLowerCase();
     return words.every(w => text.includes(w));
   }), 'recent');
   return `<div class="sec"><h4>${hits.length ? `${n(hits.length)} found` : 'Nothing found'}</h4><span>for “${esc(query.trim())}”</span></div>
