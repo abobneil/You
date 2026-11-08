@@ -1,3 +1,4 @@
+import { cleanLinks } from './core/relations';
 // The open You's data in memory, the unlocked key, and "something changed" notifications.
 // Nothing is written anywhere until there is a key: the browser copy is encrypted too.
 import { newId } from './core/cards';
@@ -29,7 +30,7 @@ export const onTabConflict = (fn: () => void) => { conflictListeners.push(fn); }
 export async function useNewer() {
   const text = await vaultStore.get(profile.id!);
   if (!text || !vault) return;
-  profile = normalize(JSON.parse(await openWith(vault, JSON.parse(text))));
+  profile = cleanLinks(normalize(JSON.parse(await openWith(vault, JSON.parse(text)))));
   baseline = text; stale = false;
   location.reload();
 }
@@ -110,7 +111,7 @@ export const storedEnvelope = async () => { const id = currentId(); if (!id) ret
 /** Data saved by earlier, unencrypted versions of You, waiting to be protected. */
 export function legacyProfile(): Profile | null {
   try {
-    const p = normalize(JSON.parse(local.get(KEYS.profile) || 'null'));
+    const p = cleanLinks(normalize(JSON.parse(local.get(KEYS.profile) || 'null')));
     return p.name ? p : null;
   } catch { return null; }
 }

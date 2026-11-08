@@ -1,6 +1,7 @@
+import { overlap } from './life';
 // All the rules for cards live here, free of any screen code, so they can be tested.
 import { isMany, kindOf } from './areas';
-import { endKey, fmtDate, fmtISO, localDay, startKey, thisMonth } from './dates';
+import { endKey, fmtDate, startKey, thisMonth } from './dates';
 import type { Keepsake } from './keepsakes';
 import type { AreaId, Card, FuzzyDate, Link, Profile } from './types';
 
@@ -12,7 +13,7 @@ export const activeOf = (p: Profile, area: AreaId, kind: string) =>
   p.cards.filter(c => c.area === area && c.kind === kind && c.status === 'active');
 
 /** First and last day a card was true, as YYYY-MM-DD strings that sort correctly. */
-export const cardStart = (c: Card) => (c.since ? startKey(c.since) : localDay(c.recordedAt));
+export const cardStart = (c: Card) => (c.since ? startKey(c.since) : '');
 export const cardEnd = (c: Card) =>
   c.status === 'active' ? '9999-12-31' : c.until ? endKey(c.until) : cardStart(c);
 
@@ -21,7 +22,7 @@ export function rangeText(c: Card): string {
   if (c.status === 'active') {
     if (k.value === 'date') return ''; // the value already is the date
     if (c.since) return `${k.dated || !c.replaces ? 'Since' : 'Changed'} ${fmtDate(c.since)}`;
-    return k.dated ? `Added ${fmtISO(c.recordedAt)}` : '';
+    return 'Date unknown';
   }
   if (!c.since) return c.until ? `Until ${fmtDate(c.until)}` : 'Ended';
   return `${fmtDate(c.since)} – ${fmtDate(c.until) || '?'}`;
@@ -75,16 +76,18 @@ export function addCard(p: Profile, input: NewCard, replaceId?: string, now = ne
 /**
  * Adds a card that came *before* an existing one, e.g. an older address entered after the current one.
  * The new card goes straight into history, ending when the later card starts.
- * Only possible when the later card doesn't already have a card before it.
+ * Existing neighbours are spliced around the inserted card.
  */
 export function addCardBefore(p: Profile, input: NewCard, laterId: string, now = new Date().toISOString()): Card | undefined {
   const later = byId(p, laterId);
-  if (!later || later.replaces) return;
+  if (!later) return;
+  const prev = byId(p, later.replaces);
   const c = addCard(p, input, undefined, now);
   c.status = 'past';
-  c.until = later.since || thisMonth(now);
+  if (later.since) c.until = later.since; else delete c.until;
   c.replacedBy = later.id;
   later.replaces = c.id;
+  if (prev) { prev.replacedBy = c.id; c.replaces = prev.id; correctMeta(p, prev.id, 'until', c.since, now); }
   return c;
 }
 
@@ -160,11 +163,10 @@ export function removeCard(p: Profile, id: string): Removal | undefined {
     touched: [prev, next].filter((x): x is Card => !!x).map(x => structuredClone(x)),
   };
   if (prev && prev.replacedBy === c.id) {
-    prev.status = 'active';
-    delete prev.until;
-    delete prev.replacedBy;
+    if (next) prev.replacedBy = next.id;
+    else { if (c.status === 'active') { prev.status = 'active'; delete prev.until; } delete prev.replacedBy; }
   }
-  if (next) delete next.replaces;
+  if (next) { if (prev) next.replaces = prev.id; else delete next.replaces; }
   p.cards = p.cards.filter(x => x.id !== id);
   p.links = p.links.filter(l => l.a !== id && l.b !== id);
   return removal;
@@ -226,11 +228,10 @@ export function linksOf(p: Profile, id: string) {
  * One-at-a-time kinds (where you lived, your job) come first.
  */
 export function atTheTime(p: Profile, c: Card, limit = 6): Card[] {
-  const s = cardStart(c), e = cardEnd(c);
   const linked = new Set(linksOf(p, c.id).map(x => x.other.id));
   return p.cards
     .filter(o => o.id !== c.id && !linked.has(o.id) && o.id !== c.replaces && o.id !== c.replacedBy)
-    .filter(o => cardStart(o) <= e && s <= cardEnd(o))
+    .filter(o => contextOverlap(c, o) !== 'none')
     .sort((x, y) => Number(isMany(x.area, x.kind)) - Number(isMany(y.area, y.kind))
       || Number(x.area === c.area) - Number(y.area === c.area))
     .slice(0, limit);
@@ -306,3 +307,9 @@ export function replaceKeepsake(p: Profile, cardId: string, oldId: string, next:
 
 /** Every keepsake id referenced by any card, removed ones included. */
 export const keepsakeIds = (p: Profile) => new Set(p.cards.flatMap(c => (c.keepsakes ?? []).map(k => k.id)));
+
+/** Unknown target endpoints can establish possibility, never certainty. */
+export function contextOverlap(c: Card, other: Card) {
+ const status = overlap(other, c.since || '0001', c.until || (c.status === 'active' ? new Date().toISOString().slice(0,10) : '9999'));
+ return status === 'none' ? status : !c.since || (c.status === 'past' && !c.until) ? 'possible' : status;
+}

@@ -1,7 +1,7 @@
 // LinkedIn: Settings → Data privacy → "Get a copy of your data". The zip holds CSV files;
 // we read Profile, Positions, Education, Skills, Certifications, Languages, Honors, Email Addresses
 // and PhoneNumbers. Connections are left out on purpose: hundreds of contacts aren't your life record.
-import { unzipSync } from 'fflate';
+import { readZip } from './archive';
 import { fmtDate } from '../dates';
 import { FORMATS } from '../formats';
 import { col, csvObjects, looseDate, rowId } from './parse';
@@ -12,7 +12,7 @@ export type Files = Record<string, string>;
 /** Reads a LinkedIn zip into { "Positions.csv": text, … }, keeping only CSV files. */
 export function unzipCsvs(data: ArrayBuffer | Uint8Array): Files {
   const out: Files = {};
-  const entries = unzipSync(data instanceof Uint8Array ? data : new Uint8Array(data), { filter: f => /\.csv$/i.test(f.name) });
+  const entries = readZip(data instanceof Uint8Array ? data : new Uint8Array(data), name => /\.csv$/i.test(name));
   for (const [path, bytes] of Object.entries(entries)) out[path.split('/').pop()!] = new TextDecoder().decode(bytes);
   return out;
 }

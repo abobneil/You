@@ -1,3 +1,4 @@
+import { passphraseStrength } from '../core/passphrase';
 // The passphrase screens. One form, three jobs:
 //   create – choose a passphrase for new (or not-yet-encrypted) data
 //   unlock – returning visitor unlocks the browser copy
@@ -5,7 +6,7 @@
 import { createVault, type Vault } from '../core/crypto';
 import { $ } from './dom';
 
-export const MIN_LENGTH = 10;
+let weakConfirmed = '';
 
 const gate = $('#gate');
 const form = $<HTMLFormElement>('#gate-form');
@@ -39,9 +40,17 @@ export interface WhoRow {
 }
 let current: Screen | null = null;
 let previous: Screen | null = null;
+const strength = document.createElement('p');
+strength.className = 'hint'; strength.setAttribute('aria-live', 'polite');
+pass.parentElement!.append(strength);
+pass.addEventListener('input', () => {
+ weakConfirmed = ''; go.textContent = current?.button ?? '';
+ const level = passphraseStrength(pass.value);
+ strength.textContent = current?.create && pass.value ? level === 'Weak' ? 'Weak — try a few unrelated words' : level : '';
+});
 
 function render(s: Screen) {
-  current = s;
+  current = s; strength.textContent = ''; weakConfirmed = '';
   document.body.classList.add('gated');
   gate.hidden = false;
   $('#gate-title').textContent = s.title;
@@ -123,7 +132,8 @@ form.addEventListener('submit', async e => {
   if (!s || go.disabled) return;
   const p = pass.value;
   if (s.create) {
-    if (p.length < MIN_LENGTH) { setMessage(`Use at least ${MIN_LENGTH} characters. A short sentence works well.`); return pass.focus(); }
+    if (!p) { setMessage('Choose a passphrase first.'); return pass.focus(); }
+    if (passphraseStrength(p) === 'Weak' && weakConfirmed !== p) { weakConfirmed = p; setMessage('This may be easy to guess. Try a few unrelated words, or use it anyway.', true); go.textContent = 'Use it anyway'; return; }
     if (p !== again.value) { setMessage('The second passphrase doesn’t match the first. Type it again.', false, again); again.value = ''; return again.focus(); }
   } else if (!p) { setMessage('Type your passphrase first.'); return pass.focus(); }
   go.disabled = true;
@@ -147,7 +157,7 @@ export function askNewPassphrase(name: string, why: 'new' | 'upgrade' | 'import'
   }[why];
   return new Promise(resolve => render({
     ...text, name, create: true, button: 'Lock and continue', busy: 'Locking…', note: KEEP_IT_SAFE,
-    hint: `At least ${MIN_LENGTH} characters. A short sentence works well.`,
+    hint: 'A few unrelated words work well. A password manager can help.',
     submit: async p => { resolve(await createVault(p)); return true; },
   }));
 }

@@ -1,3 +1,4 @@
+import { cleanLinks } from '../core/relations';
 import { compare, combine } from '../core/compare';
 import { openWith } from '../core/crypto';
 import { normalize } from '../core/profile';
@@ -120,7 +121,7 @@ function showFileConflict() {
       if (!handle || !vault) return;
       try {
         const read = await readFile(await handle.getFile());
-        const other = read.kind === 'plain' ? read.profile : normalize(JSON.parse(await openWith(vault, read.env)));
+        const other = read.kind === 'plain' ? read.profile : cleanLinks(normalize(JSON.parse(await openWith(vault, read.env))));
         if (other.id !== profile.id) throw new Error();
         const diff = compare(profile, other);
         openSheet(`${sheetTop('Compare versions')}<p>${diff.onlyA.length} cards only in this browser · ${diff.onlyB.length} only in the file · ${diff.changed.length} changed in both</p>${diff.changed.map(([a,b]) => `<div><p>This browser: ${esc(a.value)}</p><p>Other file: ${esc(b.value)}</p></div>`).join('')}<div class="menu"><button data-act="both">Keep both as separate files</button><button data-act="combine">Combine</button></div>`, {

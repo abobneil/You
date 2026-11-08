@@ -6,7 +6,7 @@ export const PORT = 49631;
 export function helperServer(appUrl: string) {
   const app = new URL(appUrl);
   if (app.protocol !== 'https:' && app.origin !== 'http://127.0.0.1:4173') throw new Error('Configure an HTTPS app URL.');
-  const origins = [app.origin, 'http://127.0.0.1:4173'];
+  const origins = [app.origin];
   return createServer((req, res) => {
     const host = req.headers.host;
     const origin = req.headers.origin;

@@ -75,3 +75,13 @@ export function suggestLabels(aArea: AreaId, aKind: string, bArea: AreaId, bKind
 
 /** Facts about you (About) are already connected through you; linking two of them adds nothing. */
 export const pointlessLink = (aArea: AreaId, bArea: AreaId) => aArea === 'about' && bArea === 'about';
+
+/** Preserve invalid loaded links outside the live graph. */
+export function cleanLinks(p: import('./types').Profile) {
+ const ids = new Set(p.cards.map(c => c.id)), pairs = new Set<string>();
+ p.links = p.links.filter(l => {
+ const pair = JSON.stringify([l.a,l.b].sort());
+ if (l.a === l.b || !ids.has(l.a) || !ids.has(l.b) || pairs.has(pair)) { (p.unreadable ??= []).push(l); return false; }
+ pairs.add(pair); return true;
+ }); return p;
+}

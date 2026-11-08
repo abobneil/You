@@ -1,6 +1,6 @@
 // "Bring in your data": every import source in one place. Files are read on this device;
 // only the VIN lookup goes over the network, and it asks first.
-import { unzipSync } from 'fflate';
+import { readZip, ARCHIVE_LIMIT } from '../../core/import/archive';
 import { isAamva, licenseRows, parseAamva } from '../../core/import/aamva';
 import { healthRows, parseHealth } from '../../core/import/health';
 import { linkedinRows, unzipCsvs, type Files } from '../../core/import/linkedin';
@@ -32,12 +32,12 @@ const goTo = (area: string) => { location.hash = '#' + area; };
 const show = (source: string, result: ImportResult) => openReview(source, result, goTo);
 
 /** Opens a file chooser and hands over the chosen files. */
-function pick(accept: string, multiple: boolean, then: (files: File[]) => void) {
+function pick(accept: string, multiple: boolean, then: (files: File[]) => void | Promise<void>) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = accept;
   input.multiple = multiple;
-  input.addEventListener('change', () => { if (input.files?.length) then([...input.files]); });
+  input.addEventListener('change', () => { if (input.files?.length) void Promise.resolve().then(() => then([...input.files!])).catch(e => failed('Import', e instanceof Error && e.message === ARCHIVE_LIMIT ? ARCHIVE_LIMIT : 'That file could not be read. Nothing was changed.')); });
   input.click();
 }
 
@@ -100,7 +100,7 @@ async function licenseFromCamera() {
 async function importHealth(files: File[]) {
   const items = (await Promise.all(files.map(async f => {
     if (/\.zip$/i.test(f.name)) {
-      const entries = unzipSync(new Uint8Array(await f.arrayBuffer()), { filter: e => /\.(xml|json|ndjson)$/i.test(e.name) });
+      const entries = readZip(new Uint8Array(await f.arrayBuffer()), name => /\.(xml|json|ndjson)$/i.test(name));
       return Object.values(entries).flatMap(b => parseHealth(new TextDecoder().decode(b)));
     }
     return parseHealth(await f.text());
@@ -113,7 +113,7 @@ async function importMedia(files: File[]) {
     let text = '';
     if (/\.zip$/i.test(f.name)) {
       // Letterboxd sends a zip; its diary has the dates you watched things.
-      const entries = unzipSync(new Uint8Array(await f.arrayBuffer()), { filter: e => /(^|\/)(diary|watched|ratings)\.csv$/i.test(e.name) });
+      const entries = readZip(new Uint8Array(await f.arrayBuffer()), name => /(^|\/)(diary|watched|ratings)\.csv$/i.test(name));
       const pickName = ['diary.csv', 'watched.csv', 'ratings.csv'].map(n => Object.keys(entries).find(k => k.toLowerCase().endsWith(n))).find(Boolean);
       text = pickName ? new TextDecoder().decode(entries[pickName]) : '';
     } else text = await f.text();
@@ -130,7 +130,7 @@ async function importStreaming(files: File[]) {
       if (/\.zip$/i.test(f.name)) Object.assign(texts, streamingZip(new Uint8Array(await f.arrayBuffer())));
       else texts[f.name] = await f.text();
     }
-  } catch { return failed('Streaming', 'That file couldn’t be opened. Choose the zip or the history file the service sent you.'); }
+  } catch (e) { return failed('Streaming', e instanceof Error && e.message === ARCHIVE_LIMIT ? ARCHIVE_LIMIT : 'That file couldn’t be opened. Choose the zip or the history file the service sent you.'); }
   if (!Object.keys(texts).length) return failed('Streaming', 'No viewing or listening history was found in that zip. Check that you chose the export from Netflix, Spotify, Apple or Google Takeout.');
   const r = streamingRows(texts, profile.name);
   show(r.source || 'Streaming', r);
@@ -214,7 +214,7 @@ export async function openImportHub(only?: SourceId[]) {
     <div class="sources">${list.map(s => `<div class="source">
       <svg viewBox="0 0 24 24" aria-hidden="true">${s.icon}</svg>
       <div class="src-main">
-        <b>${esc(s.title)}</b><small>${esc(s.desc)}</small>
+        <b>${esc(s.title)}</b><small>${esc(s.desc)}</small><small>Archive limit: 500 MB unpacked, 200 MB per file, 10,000 files.</small>
         <details><summary>How to get it</summary><p>${s.how}</p></details>
         <div class="src-actions">${s.actions.map((a, i) => { runners[`${s.id}-${i}`] = a.run;
           return `<button type="button" class="btn${a.primary ? ' primary' : ''}" data-act="run" data-k="${s.id}-${i}">${esc(a.label)}</button>`; }).join('')}</div>

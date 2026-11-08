@@ -10,7 +10,7 @@ export function originOf(c: Card): string {
   return synced || c.source?.from || '';
 }
 
-export const yearOf = (c: Card) => cardStart(c).slice(0, 4);
+export const yearOf = (c: Card) => cardStart(c).slice(0, 4) || 'Date unknown';
 
 /** How much a card was played: plays for music, episodes for shows and podcasts. */
 export const playsOf = (c: Card) => Number((c.fields?.plays ?? c.fields?.episodes ?? '').replace(/\D/g, '')) || 0;

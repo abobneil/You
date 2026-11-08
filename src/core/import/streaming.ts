@@ -6,7 +6,7 @@
 // not one card per play. So plays are rolled up: one card per movie, show, artist or podcast,
 // dated from the first play, with counts and the last play as details. Every card remembers where
 // it came from, so importing a newer export refreshes the counts instead of adding duplicates.
-import { unzipSync } from 'fflate';
+import { readZip, budget } from './archive';
 import type { FuzzyDate } from '../types';
 import { col, csvObjects, looseDate, rowId } from './parse';
 import type { ImportResult, ImportRow, Proposal } from './types';
@@ -338,11 +338,11 @@ export const isStreamingFile = (name: string) =>
  * The history files inside an export zip, as text. Apple wraps its zip inside another zip, so zips
  * are opened one level deep. Only history files are decompressed; everything else stays unread.
  */
-export function streamingZip(bytes: Uint8Array, depth = 0): Record<string, string> {
+export function streamingZip(bytes: Uint8Array, depth = 0, tally = budget()): Record<string, string> {
   const out: Record<string, string> = {};
-  const entries = unzipSync(bytes, { filter: e => isStreamingFile(e.name) || (depth === 0 && /\.zip$/i.test(e.name)) });
+  const entries = readZip(bytes, name => isStreamingFile(name) || (depth === 0 && /\.zip$/i.test(name)), tally);
   for (const [name, data] of Object.entries(entries)) {
-    if (/\.zip$/i.test(name)) Object.assign(out, streamingZip(data, depth + 1));
+    if (/\.zip$/i.test(name)) Object.assign(out, streamingZip(data, depth + 1, tally));
     else out[name] = new TextDecoder().decode(data);
   }
   return out;
