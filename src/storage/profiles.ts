@@ -1,3 +1,4 @@
+import { migrateVault, vaultStore } from './vaultStore';
 // Several Yous can live in one browser, each with its own passphrase, data and save location.
 // The list keeps only an id and a label (the person's name) so the right one can be picked
 // before unlocking. Everything else about each You stays encrypted.
@@ -42,19 +43,19 @@ export function setCurrent(id: string) { local.set(CURRENT, id); session.set(fal
 export function upsertProfile(id: string, label: string) {
   const list = listProfiles();
   const e = list.find(x => x.id === id);
-  const now = new Date().toISOString();
-  if (e) { e.label = label; e.lastOpened = now; } else list.push({ id, label, lastOpened: now });
+  if (e) { e.label = label; delete e.lastOpened; } else list.push({ id, label });
   saveIndex(list);
 }
 
 /** Removes a You from this browser: its encrypted copy and settings. Saved files are untouched. */
-export function removeProfile(id: string) {
+export async function removeProfile(id: string) {
+  await vaultStore.del(id);
   saveIndex(listProfiles().filter(e => e.id !== id));
   for (const k of ['vault', 'target', 'targetName', 'nudged'] as PerYou[]) local.remove(keyFor(id, k));
   if (currentId() === id) setCurrent(listProfiles()[0]?.id ?? '');
 }
 
-export const hasVault = (id: string) => !!local.get(keyFor(id, 'vault'));
+export const hasVault = async (id: string) => !!await migrateVault(id, local);
 
 /** Most recently opened first. */
 export const byRecent = (list = listProfiles()) =>
@@ -72,7 +73,8 @@ export const byRecent = (list = listProfiles()) =>
     if (v !== null) local.set(keyFor(id, k), v);
     local.remove(legacy);
   }
-  local.remove(KEYS.vault);
+  // The single-You source stays until its per-You copy is verified in IndexedDB.
+  if (local.get(keyFor(id, 'vault')) !== old) return;
   saveIndex([{ id, label: '' }]); // the name is filled in after the first unlock
   setCurrent(id);
   local.set('you.migrateHandle', id); // the saved-file handle moves on first use (it's in IndexedDB)

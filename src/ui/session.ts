@@ -2,7 +2,7 @@
 import { newId } from '../core/cards';
 import { WrongPassphrase, type Vault } from '../core/crypto';
 import type { Profile } from '../core/types';
-import { eraseBrowserCopy, legacyProfile, profile, setSession, storedEnvelope } from '../state';
+import { canLeave, eraseBrowserCopy, legacyProfile, profile, setSession, storedEnvelope } from '../state';
 import { decode, readText } from '../storage/fileFormat';
 import { byRecent, currentId, hasVault, listProfiles } from '../storage/profiles';
 import { setTarget } from '../storage/target';
@@ -32,7 +32,7 @@ function whoRow(): WhoRow {
  * or 'landing' if there's nothing to unlock (show the name screen).
  */
 export async function start(): Promise<'home' | 'landing'> {
-  const stored = storedEnvelope();
+  const stored = await storedEnvelope();
   if (stored) {
     let r: ReturnType<typeof readText> | null = null;
     try { r = readText(stored); } catch { /* unreadable: fall through */ }
@@ -92,11 +92,13 @@ export async function importText(text: string): Promise<boolean> {
     loaded = r.profile;
   }
 
+  if (!await canLeave()) { hideGate(); return false; }
+
   // Files from before Yous had ids become a new You, never a silent overwrite of the open one.
   loaded.id = loaded.id || newId();
 
   // The same You may already be on this browser, possibly with newer changes.
-  if (hasVault(loaded.id)) {
+  if (await hasVault(loaded.id)) {
     const label = listProfiles().find(e => e.id === loaded.id)?.label || loaded.name;
     if (!confirm(`${label} is already on this browser.\n\nReplace the copy here with this file? Choose Cancel to keep the copy here.`)) {
       hideGate();
@@ -116,7 +118,7 @@ export async function importText(text: string): Promise<boolean> {
   return true;
 }
 
-function forgot() {
+async function forgot() {
   const sure = confirm(
     'There’s no way to recover a lost passphrase. That’s what keeps your data private.\n\n' +
     'If it’s saved in a password manager, look for this site there.\n\n' +
@@ -124,6 +126,6 @@ function forgot() {
     'Files you saved elsewhere are not touched.\n\nStart over?');
   if (!sure) return;
   setTarget('browser');
-  eraseBrowserCopy();
+  await eraseBrowserCopy();
   location.replace(location.pathname);
 }

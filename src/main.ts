@@ -1,5 +1,5 @@
 import './styles/app.css';
-import { onSave, profile, save } from './state';
+import { browserSaveState, onBrowserSave, onSave, profile, save } from './state';
 import { initTarget, scheduleWrite } from './storage/target';
 import { $ } from './ui/dom';
 import { on } from './ui/events';
@@ -16,11 +16,14 @@ import { openImport } from './ui/import/sources';
 
 // After every change: show "Saved" briefly, write to the chosen file (if any), and redraw.
 let savedTimer: ReturnType<typeof setTimeout> | undefined;
-onSave(() => {
+onBrowserSave(() => {
   const mark = $('#d-saved');
+  if (browserSaveState().status !== 'saved') { mark.classList.remove('show'); return; }
   mark.classList.add('show');
   clearTimeout(savedTimer);
   savedTimer = setTimeout(() => mark.classList.remove('show'), 1400);
+});
+onSave(() => {
   scheduleWrite();
   refresh();
 });

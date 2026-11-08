@@ -1,6 +1,7 @@
+import { noteInput, autosizeNote } from './note';
 // One card, opened: correct it, link it, replace it, end it, or (rarely) remove it.
 import { areaById, kindLabel, kindOf } from '../core/areas';
-import { atTheTime, byId, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink, setField } from '../core/cards';
+import { setNote, atTheTime, byId, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink, setField } from '../core/cards';
 import { fmtDate, fmtISO, thisMonth } from '../core/dates';
 import { profile, save } from '../state';
 import { dateInputs, readDate } from './dateInput';
@@ -36,6 +37,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     ${isDate
       ? `<div class="fx"><span class="lab">${esc(c.kind)}</span>${dateInputs(c.since, 'vdate')}</div>`
       : `<div class="fx"><label for="v-value">${kind.titleFrom ? 'Name' : 'Value'}</label>${valueFieldHtml('v-value', c.value, kind)}</div>`}
+    <div class="block">${c.note ? `<p style="white-space:pre-wrap">${esc(c.note)}</p>` : ''}<button class="chip" type="button" data-act="note">${c.note ? 'Edit note' : 'Add a note'}</button><div id="note-editor" hidden>${noteInput('v-note', c.note ?? '')}</div></div>
     ${tagRowHtml(kind, c.tag)}
     ${detailsHtml(kind, c.fields, 'vf', true)}
     ${!isDate && (kind.dated || c.since) ? `<div class="fx"><span class="lab">${kind.dated ? 'Since' : 'Changed'}</span>${dateInputs(c.since, 'since')}</div>` : ''}
@@ -43,8 +45,8 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     <div class="fx"><span class="lab">Recorded</span><span class="hint">${esc(fmtISO(c.recordedAt))}${c.source ? ` · from ${esc(c.source.from)}` : ''}${story ? ' · ' : ''}${story}</span></div>
     ${c.revisions.length ? `<div class="block"><h5>Earlier wording</h5><ul class="revs">${[...c.revisions].reverse()
       .map(r => { const fd = r.field ? kind.fields?.find(x => x.id === r.field) : undefined;
-        const hide = fd ? fd.sensitive : isSensitive(c);
-        return `<li>${fd ? `${esc(fd.label)}: ` : ''}“${esc(hide ? maskValue(r.value) : r.value)}” · changed ${esc(fmtISO(r.at))}</li>`; })
+        const hide = r.field === 'note' ? false : fd ? fd.sensitive : isSensitive(c);
+        return `<li style="white-space:pre-wrap">${r.field === 'note' ? 'Note: ' : ''}${fd ? `${esc(fd.label)}: ` : ''}“${esc(hide ? maskValue(r.value) : r.value)}” · changed ${esc(fmtISO(r.at))}</li>`; })
       .join('')}</ul></div>` : ''}
     <div class="block"><h5>Linked</h5><div class="chips">${links.map(x =>
       `<button class="chip" type="button" data-act="open" data-id="${x.other.id}">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}<span class="x" data-act="unlink" data-link="${x.link.id}" title="Remove link">×</span></button>`).join('')}
@@ -60,6 +62,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
                : (!c.replacedBy ? `<button class="btn" type="button" data-act="reopen">It's still true</button>` : '')}
         </div>`}`,
   {
+    note: b => { b.hidden = true; sheetBody.querySelector<HTMLElement>('#note-editor')!.hidden = false; autosizeNote(sheetBody); sheetBody.querySelector<HTMLElement>('#v-note')?.focus(); },
     open: b => openCard(b.dataset.id!),
     tag: b => { c.tag = b.dataset.tag!; save(); openCard(id); },
     unlink: (b, e) => { e.stopPropagation(); removeLink(profile, b.dataset.link!); save(); openCard(id); },
@@ -80,6 +83,9 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     },
   });
 
+  sheetBody.querySelector<HTMLTextAreaElement>('#v-note')?.addEventListener('change', e => {
+    if (setNote(profile, id, (e.target as HTMLTextAreaElement).value)) { save(); openCard(id); }
+  });
   attachValueField(sheetBody, 'v-value', kind);
   // Details save as each one is finished. If the name was built from the details, it follows them.
   attachDetails(sheetBody, kind, 'vf', {

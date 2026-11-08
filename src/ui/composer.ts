@@ -1,3 +1,4 @@
+import { noteInput, autosizeNote } from './note';
 // "Add a card": kind, value, since-date, replace-or-alongside, and links.
 import { areaById, kindLabel, kindOf, tagOf } from '../core/areas';
 import { activeOf, addCard, addCardBefore, addLink, byId, defaultMode } from '../core/cards';
@@ -18,6 +19,8 @@ import { attachDetails, detailsHtml, readDetails } from './details';
 const OTHER = '__other';
 
 interface Draft {
+  note: string;
+  noteOpen: boolean;
   area: AreaId;
   kind: string;
   custom: string;
@@ -40,7 +43,7 @@ interface Draft {
 let draft: Draft;
 
 export function openComposer(area: AreaId, preset: { kind?: string; replaceId?: string } = {}) {
-  draft = { area, kind: preset.kind || firstOpenKind(area), custom: '', value: '', valueDate: '', since: '',
+  draft = { note: '', noteOpen: false, area, kind: preset.kind || firstOpenKind(area), custom: '', value: '', valueDate: '', since: '',
     fields: {}, fieldsByKind: {}, nameTyped: false, mode: null, replaceId: preset.replaceId, links: [] };
   render(true);
 }
@@ -52,6 +55,7 @@ function firstOpenKind(area: AreaId): string {
 }
 
 function read() {
+  draft.note = sheetBody.querySelector<HTMLTextAreaElement>('#c-note')?.value ?? draft.note;
   draft.custom = sheetBody.querySelector<HTMLInputElement>('#c-custom')?.value.trim() ?? draft.custom;
   const v = sheetBody.querySelector<HTMLInputElement>('#c-value');
   if (v) draft.value = v.value;
@@ -106,6 +110,7 @@ function render(focus = false) {
     <div class="fx kinds-row"><span class="lab">Card</span><div><div class="kinds">${kindChips}</div>${kind.hint ? `<div class="hint kind-hint">${esc(kind.hint)}</div>` : ''}</div></div>
     ${custom ? `<div class="fx"><label for="c-custom">Name it</label><input id="c-custom" value="${esc(draft.custom)}" placeholder="e.g. Eye doctor"></div>` : ''}
     ${valueRow}
+    <div class="block">${draft.noteOpen ? noteInput('c-note', draft.note) : '<button class="chip" type="button" data-act="note">+ Add a note</button>'}</div>
     ${tagRowHtml(kind, draft.tag)}
     ${detailsHtml(kind, draft.fields, 'cf')}
     ${modeRow}
@@ -113,6 +118,7 @@ function render(focus = false) {
     <div class="fx"><span class="lab">Linked to</span><div class="chips">${linkChips}<button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
     <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="save">Add card</button></div>`,
   {
+    note: () => { read(); draft.noteOpen = true; render(); sheetBody.querySelector<HTMLElement>('#c-note')?.focus(); },
     kind: b => {
       read();
       if (b.dataset.kind === draft.kind) return;
@@ -162,7 +168,7 @@ function render(focus = false) {
         since = draft.valueDate; // a birthday sits at that date on the timeline
       }
       if (!value) return (sheetBody.querySelector<HTMLElement>('.details input') ?? $<HTMLInputElement>('#c-value', sheetBody)).focus();
-      const input = { area: draft.area, kind: name, value, since, tag: draft.tag, fields: draft.fields };
+      const input = { note: draft.note, area: draft.area, kind: name, value, since, tag: draft.tag, fields: draft.fields };
       const c = before
         ? addCardBefore(profile, input, draft.mode!.slice(2))
         : addCard(profile, input, replacing ? draft.mode!.slice(2) : undefined);
@@ -174,6 +180,7 @@ function render(focus = false) {
     },
   });
 
+  autosizeNote(sheetBody);
   attachValueField(sheetBody, 'c-value', kind);
   // The name builds itself from the details until it's typed by hand (clearing it hands it back).
   const nameInput = sheetBody.querySelector<HTMLInputElement>('#c-value');

@@ -42,6 +42,7 @@ export function defaultMode(p: Profile, area: AreaId, kind: string, replaceId?: 
 }
 
 export interface NewCard {
+  note?: string;
   area: AreaId;
   kind: string;
   value: string;
@@ -54,6 +55,7 @@ export interface NewCard {
 export function addCard(p: Profile, input: NewCard, replaceId?: string, now = new Date().toISOString()): Card {
   const c: Card = {
     id: newId(), area: input.area, kind: input.kind.trim(), value: input.value.trim(),
+    ...(input.note ? { note: input.note } : {}),
     since: input.since, status: 'active', recordedAt: now, revisions: [],
     ...(input.tag ? { tag: input.tag } : {}),
     ...(input.fields && Object.keys(cleanFields(input.fields)).length ? { fields: cleanFields(input.fields) } : {}),
@@ -183,4 +185,13 @@ export function atTheTime(p: Profile, c: Card, limit = 6): Card[] {
     .sort((x, y) => Number(isMany(x.area, x.kind)) - Number(isMany(y.area, y.kind))
       || Number(x.area === c.area) - Number(y.area === c.area))
     .slice(0, limit);
+}
+
+/** Notes keep the person's line breaks and earlier wording. */
+export function setNote(p: Profile, id: string, note: string, now = new Date().toISOString()): boolean {
+  const c = byId(p, id);
+  if (!c || (c.note ?? '') === note) return false;
+  if (c.note) c.revisions.push({ field: 'note', value: c.note, at: now });
+  if (note) c.note = note; else delete c.note;
+  return true;
 }

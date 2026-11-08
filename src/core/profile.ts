@@ -13,7 +13,7 @@ export function normalize(raw: unknown): Profile {
   const p: Profile = {
     ...(typeof r.id === 'string' && r.id ? { id: r.id } : {}),
     name: typeof r.name === 'string' ? r.name : '',
-    cards: Array.isArray(r.cards) ? r.cards.filter(isCard).map(c => ({ ...c, revisions: c.revisions ?? [] })) : [],
+    cards: Array.isArray(r.cards) ? r.cards.filter(isCard).map(c => ({ ...c, note: typeof c.note === 'string' ? c.note : undefined, revisions: c.revisions ?? [] })) : [],
     links: Array.isArray(r.links) ? r.links.filter((l: any) => l && l.id && l.a && l.b) : [],
     updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : undefined,
   };

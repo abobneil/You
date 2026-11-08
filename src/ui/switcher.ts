@@ -1,6 +1,6 @@
 // Switching between Yous on this browser. Switching, adding and locking reload the page,
 // so the previous You's data and key are gone from memory.
-import { eraseBrowserCopy, profile, vault } from '../state';
+import { canLeave, eraseBrowserCopy, profile, vault } from '../state';
 import { byRecent, currentId, setCurrent, startNew } from '../storage/profiles';
 import { target } from '../storage/target';
 import { $, esc } from './dom';
@@ -8,9 +8,9 @@ import { closeSheet, openSheet, sheetTop } from './sheet';
 
 const reloadClean = () => location.replace(location.pathname);
 
-export function switchTo(id: string) { setCurrent(id); reloadClean(); }
-export function addNewYou() { startNew(); reloadClean(); }
-export const lockNow = reloadClean;
+export async function switchTo(id: string) { if (!await canLeave()) return; setCurrent(id); reloadClean(); }
+export async function addNewYou() { if (!await canLeave()) return; startNew(); reloadClean(); }
+export const lockNow = async () => { if (await canLeave()) reloadClean(); };
 
 /** "A" for Alex; "?" if the name isn't known yet. */
 export const initial = (label: string) => (label.trim()[0] || '?').toUpperCase();
@@ -39,12 +39,12 @@ export function openSwitcher() {
     pick: b => { if (b.dataset.id === cur && unlocked) return closeSheet(); switchTo(b.dataset.id!); },
     new: addNewYou,
     lock: lockNow,
-    remove: () => {
+    remove: async () => {
       const elsewhere = target.kind !== 'browser'
         ? `Your file ${target.name} stays where it is, so you can load it again later.`
         : 'This is the only copy. Unless you’ve saved it somewhere, it will be gone for good.';
       if (!confirm(`Remove ${profile.name || 'this You'} from this browser?\n\n${elsewhere}`)) return;
-      eraseBrowserCopy(cur);
+      await eraseBrowserCopy(cur);
       reloadClean();
     },
   });

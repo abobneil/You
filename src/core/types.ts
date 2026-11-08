@@ -20,6 +20,7 @@ export interface Card {
   area: AreaId;
   kind: string;
   value: string;
+  note?: string;
   /** A sub-type picked from the kind's tags, e.g. a phone's "cell", "home" or "work". */
   tag?: string;
   /** Structured details, keyed by Field id (a vehicle's year, make, vin…). */

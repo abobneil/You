@@ -2,7 +2,7 @@
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { profile, vault } from '../state';
+import { browserSaveState, onBrowserSave, persist, profile, vault } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encode, fileNameFor } from './fileFormat';
 import { idb } from './idb';
@@ -164,7 +164,10 @@ const pill = $<HTMLButtonElement>('#saved');
 export function renderPill() {
   const n = esc(target.name);
   let html: string, state = 'warn';
-  if (target.kind === 'browser') html = `<span class="dot"></span><span>Only in this browser · <b>Choose where to keep it</b></span>`;
+  const browser = browserSaveState();
+  if (browser.status === 'failed') html = `<span class="dot"></span><span>Couldn't save in this browser (${browser.reason}) � <b>Download a copy / Retry</b></span>`;
+  else if (browser.status === 'saving') { state = ''; html = '<span class="spin"></span><span>Saving in this browser�</span>'; }
+  else if (target.kind === 'browser') html = `<span class="dot"></span><span>Only in this browser · <b>Choose where to keep it</b></span>`;
   else if (needsPermission) html = `<span class="dot"></span><span>Reconnect <b>${n}</b></span>`;
   else if (failed) html = `<span class="dot"></span><span>Couldn't save · <b>Try again</b></span>`;
   else if (target.kind === 'download' && dirty) html = `<span class="dot"></span><span>Unsaved changes · <b>Download ${n}</b></span>`;
@@ -179,6 +182,11 @@ export function renderPill() {
  * otherwise it has already handled the click (reconnect, retry, download).
  */
 export async function pillClick(): Promise<'menu' | 'picker' | 'done'> {
+  if (browserSaveState().status === 'failed') {
+    await downloadCopy();
+    await persist();
+    return 'done';
+  }
   if (target.kind === 'browser') return 'picker';
   if (needsPermission && handle) {
     const h = handle;
@@ -193,3 +201,5 @@ export async function pillClick(): Promise<'menu' | 'picker' | 'done'> {
   if (target.kind === 'download' && dirty) { downloadCopy(); return 'done'; }
   return 'menu';
 }
+
+onBrowserSave(renderPill);

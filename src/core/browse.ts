@@ -72,3 +72,6 @@ export function countText(cards: Card[]): string {
     ? `${total} from ${top.origin}`
     : `${total} · ${top.cards.length.toLocaleString('en-US')} from ${top.origin}`;
 }
+
+/** Own words and earlier wording remain findable. */
+export const noteSearchText = (c: Card) => [c.note ?? '', ...c.revisions.map(r => r.value)].join(' ');

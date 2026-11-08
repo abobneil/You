@@ -3,10 +3,14 @@
 //   ?reset in the address  → wipe everything and start at the name screen
 //   "dev" button (corner)  → Clear cards (keeps your You and passphrase) or Reset everything
 import { profile, save, vault } from './state';
+import { vaultStore } from './storage/vaultStore';
+import { flushPending } from './state';
 import { idb } from './storage/idb';
 
 /** Removes every You, setting and saved-file link in this browser. Keeps the light/dark choice. */
 export async function resetEverything() {
+  await flushPending();
+  await vaultStore.clear();
   const keep = new Set(['you.theme']);
   try {
     for (const k of Object.keys(localStorage)) if (k.startsWith('you.') && !keep.has(k)) localStorage.removeItem(k);
