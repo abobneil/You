@@ -37,7 +37,7 @@ export function openSwitcher() {
         <span class="yn"><b>${esc(placeLabel(e))}</b><small>${isCur ? (unlocked ? 'Open now' : 'Selected') : 'Switch'}</small></span>
       </button></li>`;
     }).join('')}</ul>
-    ${unlocked ? `<p class="hint">${profile.unreadable?.length ? `${profile.unreadable.length} item(s) couldn't be read and are kept as-is.` : ''}</p><label>Lock after no interaction <select id="lock-time">${[5,15,60,0].map(n => `<option value="${n}" ${n === timeoutMinutes() ? 'selected' : ''}>${n ? n + ' minutes' : 'Never'}</option>`).join('')}</select></label>` : ''}
+    ${unlocked ? `<p class="hint">${profile.unreadable?.length ? `${profile.unreadable.length} item(s) couldn't be read and are kept as-is.` : ''}</p><label class="sel-lab">Lock after no interaction <select class="fsel" id="lock-time">${[5,15,60,0].map(n => `<option value="${n}" ${n === timeoutMinutes() ? 'selected' : ''}>${n ? n + ' minutes' : 'Never'}</option>`).join('')}</select></label>` : ''}
     <div class="menu"><button type="button" data-act="help">Help</button><button type="button" data-act="safe">Keep it safe</button>
       <button type="button" data-act="new">+ Add a new You</button>
       ${unlocked ? `<button type="button" data-act="open">Open a file…</button>

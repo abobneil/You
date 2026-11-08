@@ -22,7 +22,7 @@ export function openReview(source: string, result: ImportResult, onDone?: (area:
     }).join('');
     const possible = ps.filter(p => !findMatch(profile, p)).flatMap(p => profile.cards.filter(c => c.area === p.area && matchKey(c) === matchKey(p)));
     return `<li class="rv-row${s.on ? ' on' : ''}"><button type="button" class="rv-check" data-act="toggle" data-i="${i}" role="checkbox" aria-checked="${s.on}" aria-label="Include ${esc(s.row.label)}"></button><div class="rv-main"><div class="rv-label">${esc(s.row.label)}</div><p class="rv-sub">${esc(s.row.sub || s.row.group)}</p>${changes}
-      ${s.row.options ? `<select aria-label="Relationship for ${esc(s.row.label)}" data-choice-row="${i}">${s.row.options.map(o => `<option value="${esc(o.id)}" ${o.id === s.choice ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>` : ''}
+      ${s.row.options ? `<select class="fsel" aria-label="Relationship for ${esc(s.row.label)}" data-choice-row="${i}">${s.row.options.map(o => `<option value="${esc(o.id)}" ${o.id === s.choice ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>` : ''}
       ${possible.map(c => `<p class="hint">Possibly the same as ${esc(c.value)}</p><button type="button" data-act="match" data-i="${i}" data-id="${esc(c.id)}">Same person</button><span class="hint">Keep separate (default)</span>`).join('')}
       ${s.matchId ? `<button type="button" data-act="match" data-i="${i}">Keep separate</button>` : ''}</div></li>`;
   }

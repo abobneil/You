@@ -48,15 +48,36 @@ local.remove('you.vinConsent'); // older versions remembered one yes for every l
 /** Vehicle details the lookup can fill (same names as the Vehicle fields). */
 const VIN_FILL = ['year', 'make', 'model', 'trim', 'fuel'] as const;
 
+/** Asks, right under the field, before a VIN leaves this device. Resolves true only on "Send". */
+function askVin(vin: string, status: HTMLElement): Promise<boolean> {
+  status.parentElement?.querySelector('.vin-ask')?.remove();
+  const box = document.createElement('div');
+  box.className = 'vin-ask';
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-label', 'Send this VIN?');
+  box.innerHTML = `<p tabindex="-1"><b>Send this VIN to ${esc(VIN_SERVICE)}?</b></p><p>${esc(vin)}</p>
+    <p class="hint">Only this VIN is sent, to the US government’s free vehicle database. Nothing else about you leaves this device. The details it finds are filled in for you to check before you save.</p>
+    <div class="btns"><button type="button" class="btn quiet" data-vin-no>Don’t send</button><button type="button" class="btn" data-vin-yes>Send this VIN</button></div>`;
+  status.before(box);
+  box.querySelector<HTMLElement>('p')!.focus();
+  return new Promise(resolve => {
+    box.addEventListener('click', e => {
+      const b = (e.target as HTMLElement).closest('[data-vin-yes], [data-vin-no]');
+      if (!b) return;
+      e.stopPropagation();
+      const yes = b.hasAttribute('data-vin-yes');
+      box.remove();
+      status.closest('.lookup')?.querySelector<HTMLElement>('[data-vin-lookup]')?.focus();
+      resolve(yes);
+    });
+  });
+}
+
 async function vinLookup(input: HTMLInputElement, prefix: string, status: HTMLElement) {
   const vin = input.value.trim().toUpperCase();
   if (vin.length !== 17) { status.textContent = 'Enter all 17 characters of the VIN first.'; return; }
   // Asked every time, naming the service and the exact VIN: consent to one lookup never covers another.
-  if (!confirm(`Send this VIN to ${VIN_SERVICE}?
-
-${vin}
-
-Only this VIN is sent, to the US government’s free vehicle database. Nothing else about you leaves this device. The details it finds are filled in for you to check before you save.`)) { status.textContent = 'Nothing was sent.'; return; }
+  if (!await askVin(vin, status)) { status.textContent = 'Nothing was sent.'; return; }
   status.textContent = 'Looking it up…';
   try {
     const info = await lookupVin(vin);

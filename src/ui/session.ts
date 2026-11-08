@@ -107,7 +107,16 @@ export async function start(): Promise<'home' | 'landing'> {
   return 'landing';
 }
 
-const cannotOpen = (e: unknown) => alert(e instanceof UnsupportedVersion || e instanceof DamagedFile ? e.message : 'That file doesn’t look like your You data.');
+/** A file that can't be opened: says why in the app's own sheet, and offers another file. Nothing has changed. */
+function cannotOpen(e: unknown) {
+  const why = e instanceof UnsupportedVersion || e instanceof DamagedFile ? e.message : 'That file doesn’t look like your You data.';
+  openSheet(`${sheetTop('Couldn’t open')}<h3 class="sh-title">This file couldn’t be opened</h3>
+    <p>${esc(why)}</p>
+    <p class="hint">Nothing was changed. If you have another saved copy, you can try that one.</p>
+    <div class="menu"><button type="button" data-act="other">Choose another file</button><button type="button" data-act="close">OK</button></div>`, {
+    other: () => openStoragePicker('open'),
+  });
+}
 
 /** Loads a file, asking for its passphrase (or a new one) as needed. False if cancelled or invalid. */
 export async function importText(source: Blob | string): Promise<boolean> {
@@ -190,16 +199,22 @@ export async function importText(source: Blob | string): Promise<boolean> {
   return true;
 }
 
-async function forgot() {
-  const sure = confirm(
-    'There’s no way to recover a lost passphrase. That’s what keeps your data private.\n\n' +
-    'If it’s saved in a password manager, look for this site there.\n\n' +
-    'Otherwise you can start over on this browser. That permanently erases this You’s copy here. ' +
-    'Files you saved elsewhere are not touched.\n\nStart over?');
-  if (!sure) return;
-  setTarget('browser');
-  await eraseBrowserCopy();
-  location.replace(location.pathname);
+/** Forgotten passphrase on the unlock screen: explains, and offers starting over as a separate, plainly named choice. */
+function forgot() {
+  const label = esc(listProfiles().find(e => e.id === currentId())?.label || 'this You');
+  openSheet(`${sheetTop('Forgotten passphrase')}<h3 class="sh-title">Nobody can recover it</h3>
+    <p>There’s no way to recover a lost passphrase. That’s what keeps your data private.</p>
+    <p>If it’s saved in a password manager, look for this site there, or check where you wrote it down. You can try again any time.</p>
+    <h4>Or start over in this browser</h4>
+    <p>This permanently erases <b>${label}</b>’s encrypted copy in this browser. Files you saved elsewhere are not touched, and other Yous here stay.</p>
+    <div class="btns"><button type="button" class="btn quiet" data-act="close">Cancel</button><button type="button" class="btn danger" data-act="erase">Erase this browser’s copy of ${label}</button></div>`, {
+    erase: async () => {
+      closeSheet();
+      setTarget('browser');
+      await eraseBrowserCopy();
+      location.replace(location.pathname);
+    },
+  });
 }
 
 // "Unlock the browser copy first, then compare": remembered for this tab only (no personal data, just a flag).

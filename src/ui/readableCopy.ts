@@ -8,7 +8,7 @@ let running: AbortController | undefined;
 onSheetClose(() => { running?.abort(); running = undefined; });
 export function openReadableCopy(from = '', to = from) {
   const label = from === 'unknown' ? 'Date unknown' : from === to ? from : `${from} to ${to}`;
-  openSheet(`${sheetTop('Readable copy')}<h3 class="sh-title">Make a readable copy</h3><label>What period? <select id="readable-period">${from ? `<option value="period">${esc(label)}</option>` : ''}<option value="all">Everything</option></select></label>
+  openSheet(`${sheetTop('Readable copy')}<h3 class="sh-title">Make a readable copy</h3><label class="sel-lab">What period? <select class="fsel" id="readable-period">${from ? `<option value="period">${esc(label)}</option>` : ''}<option value="all">Everything</option></select></label>
     <p>This copy is NOT encrypted. Anyone who gets the file can read it. Keep it somewhere private, and delete it when you're done.</p>
     <p><label><input type="checkbox" id="readable-files" checked> Include photos and files</label></p>
     <p><label><input type="checkbox" id="readable-sensitive"> Include sensitive details (ID numbers…)</label></p>
