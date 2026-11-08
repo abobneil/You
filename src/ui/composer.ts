@@ -24,6 +24,7 @@ interface Draft {
   area: AreaId;
   kind: string;
   custom: string;
+  customFields: {id: string; label: string; type: 'text' | 'date'}[];
   value: string;
   /** For kinds whose value is a date (Birthday). */
   valueDate: FuzzyDate;
@@ -43,7 +44,7 @@ interface Draft {
 let draft: Draft;
 
 export function openComposer(area: AreaId, preset: { kind?: string; replaceId?: string } = {}) {
-  draft = { note: '', noteOpen: false, area, kind: preset.kind || firstOpenKind(area), custom: '', value: '', valueDate: '', since: '',
+  draft = { note: '', noteOpen: false, area, kind: preset.kind || firstOpenKind(area), custom: '', customFields: [], value: '', valueDate: '', since: '',
     fields: {}, fieldsByKind: {}, nameTyped: false, mode: null, replaceId: preset.replaceId, links: [] };
   render(true);
 }
@@ -57,6 +58,7 @@ function firstOpenKind(area: AreaId): string {
 function read() {
   draft.note = sheetBody.querySelector<HTMLTextAreaElement>('#c-note')?.value ?? draft.note;
   draft.custom = sheetBody.querySelector<HTMLInputElement>('#c-custom')?.value.trim() ?? draft.custom;
+  sheetBody.querySelectorAll<HTMLInputElement>('[data-custom-label]').forEach(el => { draft.customFields[Number(el.dataset.customLabel)].label = el.value.trim(); });
   const v = sheetBody.querySelector<HTMLInputElement>('#c-value');
   if (v) draft.value = v.value;
   if (sheetBody.querySelector('[data-date="vdate"]')) draft.valueDate = readDate(sheetBody, 'vdate');
@@ -64,12 +66,14 @@ function read() {
   if (sheetBody.querySelector('.details')) draft.fields = readDetails(sheetBody, currentKind(), 'cf');
 }
 
-const currentKind = () => kindOf(draft.area, draft.kind === OTHER ? (draft.custom || 'Note') : draft.kind);
+const currentKind = (): ReturnType<typeof kindOf> => draft.kind === OTHER
+  ? { ...kindOf(draft.area, draft.custom || 'Note', profile), fields: draft.customFields }
+  : kindOf(draft.area, draft.kind, profile);
 
 function render(focus = false) {
   const a = areaById(draft.area)!;
   const custom = draft.kind === OTHER;
-  const kind = kindOf(draft.area, custom ? (draft.custom || 'Note') : draft.kind);
+  const kind = currentKind();
   const actives = custom ? [] : activeOf(profile, draft.area, draft.kind);
   if (draft.mode && draft.mode !== 'add' && !actives.some(c => 'r:' + c.id === draft.mode || 'b:' + c.id === draft.mode)) draft.mode = null;
   if (!draft.mode) draft.mode = custom ? 'add' : defaultMode(profile, draft.area, draft.kind, draft.replaceId);
@@ -80,7 +84,7 @@ function render(focus = false) {
   // Facts (Full name) have no start date, but replacing one is a change worth dating.
   const showSince = !isDate && (kind.dated || replacing || before);
 
-  const kindChips = a.kinds.map(k => {
+  const kindChips = [...a.kinds, ...(profile.kinds ?? []).filter(k => k.area === draft.area && !a.kinds.some(b => b.name === k.name))].map(k => {
     const has = activeOf(profile, draft.area, k.name).length > 0;
     return `<button type="button" data-act="kind" data-kind="${esc(k.name)}" class="${k.name === draft.kind ? 'on' : ''}${has ? ' has' : ''}"
       ${has ? `title="You have this one"` : ''}>${esc(k.name)}</button>`;
@@ -108,7 +112,9 @@ function render(focus = false) {
   openSheet(`${sheetTop(`${esc(a.title)} · new card`)}
     <h3 class="sh-title">Add a card</h3>
     <div class="fx kinds-row"><span class="lab">Card</span><div><div class="kinds">${kindChips}</div>${kind.hint ? `<div class="hint kind-hint">${esc(kind.hint)}</div>` : ''}</div></div>
-    ${custom ? `<div class="fx"><label for="c-custom">Name it</label><input id="c-custom" value="${esc(draft.custom)}" placeholder="e.g. Eye doctor"></div>` : ''}
+    ${custom ? `<div class="fx"><label for="c-custom">Name it</label><input id="c-custom" value="${esc(draft.custom)}" placeholder="e.g. Eye doctor"></div>
+      ${draft.customFields.map((f, i) => `<div class="fx"><label for="custom-label-${i}">Detail label</label><div><input id="custom-label-${i}" data-custom-label="${i}" value="${esc(f.label)}" placeholder="e.g. Location"><select aria-label="Detail type" data-custom-type="${i}"><option value="text" ${f.type === 'text' ? 'selected' : ''}>Text</option><option value="date" ${f.type === 'date' ? 'selected' : ''}>Date</option></select></div></div>`).join('')}
+      <button type="button" class="chip" data-act="custom-detail">+ Add a detail</button>` : ''}
     ${valueRow}
     <div class="block">${draft.noteOpen ? noteInput('c-note', draft.note) : '<button class="chip" type="button" data-act="note">+ Add a note</button>'}</div>
     ${tagRowHtml(kind, draft.tag)}
@@ -118,6 +124,7 @@ function render(focus = false) {
     <div class="fx"><span class="lab">Linked to</span><div class="chips">${linkChips}<button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
     <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="save">Add card</button></div>`,
   {
+    'custom-detail': () => { read(); draft.customFields.push({ id: 'detail' + (draft.customFields.length + 1), label: '', type: 'text' }); render(); },
     note: () => { read(); draft.noteOpen = true; render(); sheetBody.querySelector<HTMLElement>('#c-note')?.focus(); },
     kind: b => {
       read();
@@ -168,6 +175,12 @@ function render(focus = false) {
         since = draft.valueDate; // a birthday sits at that date on the timeline
       }
       if (!value) return (sheetBody.querySelector<HTMLElement>('.details input') ?? $<HTMLInputElement>('#c-value', sheetBody)).focus();
+      if (custom) {
+        profile.kinds ??= [];
+        const definition = { area: draft.area, name, fields: draft.customFields.filter(f => f.label) };
+        const index = profile.kinds.findIndex(k => k.area === draft.area && k.name === name);
+        if (index < 0) profile.kinds.push(definition); else profile.kinds[index] = definition;
+      }
       const input = { note: draft.note, area: draft.area, kind: name, value, since, tag: draft.tag, fields: draft.fields };
       const c = before
         ? addCardBefore(profile, input, draft.mode!.slice(2))
@@ -180,6 +193,7 @@ function render(focus = false) {
     },
   });
 
+  sheetBody.querySelectorAll<HTMLSelectElement>('[data-custom-type]').forEach(el => el.addEventListener('change', () => { read(); draft.customFields[Number(el.dataset.customType)].type = el.value as 'text' | 'date'; render(); }));
   autosizeNote(sheetBody);
   attachValueField(sheetBody, 'c-value', kind);
   // The name builds itself from the details until it's typed by hand (clearing it hands it back).

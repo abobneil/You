@@ -10,7 +10,10 @@ export const emptyProfile = (): Profile => ({ name: '', cards: [], links: [] });
  */
 export function normalize(raw: unknown): Profile {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, any>;
+  const { areas: legacyAreas, ...future } = r;
   const p: Profile = {
+    ...future,
+    ...(Array.isArray(r.kinds) ? { kinds: r.kinds.filter((k: any) => k && isAreaId(k.area) && typeof k.name === 'string' && Array.isArray(k.fields)) } : {}),
     ...(typeof r.id === 'string' && r.id ? { id: r.id } : {}),
     name: typeof r.name === 'string' ? r.name : '',
     cards: Array.isArray(r.cards) ? r.cards.filter(isCard).map(c => ({ ...c, note: typeof c.note === 'string' ? c.note : undefined, revisions: c.revisions ?? [] })) : [],

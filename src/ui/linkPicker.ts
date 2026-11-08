@@ -24,7 +24,7 @@ export function openLinkPicker(o: Options) {
 
   const list = (q: string) => {
     const t = q.trim().toLowerCase();
-    const hits = pool.filter(c => !t || `${c.value} ${kindLabel(c)} ${searchableDetails(c, kindOf(c.area, c.kind))}`.toLowerCase().includes(t));
+    const hits = pool.filter(c => !t || `${c.value} ${kindLabel(c)} ${searchableDetails(c, kindOf(c.area, c.kind, profile))}`.toLowerCase().includes(t));
     if (!hits.length) return `<li class="grp">${pool.length ? 'No matches' : 'No other cards yet. Add some first.'}</li>`;
     return order.map(a => {
       const cs = hits.filter(c => c.area === a.id);
