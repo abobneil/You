@@ -6,7 +6,7 @@ import { healthRows, parseHealth } from '../../core/import/health';
 import { linkedinRows, unzipCsvs, type Files } from '../../core/import/linkedin';
 import { mediaRows } from '../../core/import/media';
 import { audibleRows } from '../../core/import/audible';
-import { audibleStatus, connectAudible, disconnectAudible, syncAudible, type AudibleStatus } from './audibleLive';
+import { audibleStatus, connectAudible, disconnectAudible, helperConnectionHtml, syncAudible, type AudibleStatus } from './audibleLive';
 import { streamingRows, streamingZip } from '../../core/import/streaming';
 import { profile } from '../../state';
 import type { ImportResult } from '../../core/import/types';
@@ -199,7 +199,7 @@ function audibleSource(live: AudibleStatus | null): Source {
     ? '<b>Connect</b> signs in to Amazon on Amazon’s own page and registers this computer as an Audible device, the way the Audible app does. '
       + `The connection stays on the computer running You, ${esc(live.kept)}. After that, <b>Sync</b> reads your library, listening status and ownership whenever you like, `
       + 'and refreshes cards you imported before without touching details you changed. This uses Audible’s private app interface, so Audible may change it without notice.'
-    : 'Connecting your Audible account works when You runs on your own computer (<b>npm run dev</b>). Here, choose a library file exported with <b>npm run audible -- export</b>.';
+    : helperConnectionHtml(live);
   return { id: 'audible', title: 'Audible', icon: ICONS.media, how, actions,
     desc: live?.connected ? 'Connected on this computer. Sync your library, listening status and ownership.' : 'Your library, listening status and ownership, from your Audible account.' };
 }

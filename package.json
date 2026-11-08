@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json && vite build",
+    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json && vite build && node scripts/build-helper.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
