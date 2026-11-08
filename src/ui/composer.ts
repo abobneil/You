@@ -404,7 +404,7 @@ function startLink() {
 function saveDraft() {
   read();
   const d = current();
-  if (!d.kind) { d.kindMsg = "Pick what kind of card this is — or 'Something else…'"; render(); sheetBody.querySelector<HTMLElement>('.kinds')?.focus(); return; }
+  if (!d.kind) { d.kindMsg = "Pick what kind of card this is — or 'Something else…'"; render(); sheetBody.querySelector<HTMLElement>('.kinds button:not([hidden])')?.focus(); return; } // a kind to pick, with a visible ring; the message is announced
   const kind = currentKind(d);
   const isDate = kind.value === 'date';
   const replacing = !!d.mode?.startsWith('r:');
