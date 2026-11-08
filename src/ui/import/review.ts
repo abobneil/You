@@ -1,5 +1,5 @@
 // All imports are reviewed before changing the record.
-import { applyProposals, needsTimeReview, findMatch, fieldChanges, matchKey, planFor } from '../../core/import/match';
+import { absorbable, applyProposals, needsTimeReview, findMatch, fieldChanges, matchKey, planFor } from '../../core/import/match';
 import type { ImportResult } from '../../core/import/types';
 import { profile, save } from '../../state';
 import { esc } from '../dom';
@@ -20,6 +20,9 @@ export function openReview(source: string, result: ImportResult, onDone?: (area:
     const changes = ps.flatMap(p => {
       const m = findMatch(profile, p);
       return m ? [...((p.past ? 'past' : 'active') !== m.status || (p.until ?? '') !== (m.until ?? '') ? [['Lifecycle', p.past ? 'Ended ' + (p.until || '(date unknown)') : 'Current']] : []), ...(p.sync && m.imports?.[p.sync.source]?.fields.$value === m.value && m.value !== p.value ? [['Title', p.value]] : []), ...fieldChanges(m, p)].map(([k, v]) => `<p class="rv-sub">${esc(k.replace(/\d+$/, '').replace(/^./, x => x.toUpperCase()))}: ${k === 'Lifecycle' || k === 'Title' || m.fields?.[k] ? esc(k === 'Lifecycle' ? (m.status === 'active' ? 'Current' : 'Ended ' + (m.until || '(date unknown)')) : k === 'Title' ? m.value : m.fields?.[k] || '') + ' → ' : ''}${esc(v?.replace(/^:\s*/, '') || 'Empty')}</p>`) : [];
+    }).join('') + ps.map(p => {
+      const n = absorbable(profile, p).length;
+      return n ? `<p class="rv-sub">${n} earlier card${n === 1 ? '' : 's'} will be folded into ${esc(p.value)} (kept in history, not removed)</p>` : '';
     }).join('');
     const possible = ps.filter(p => !findMatch(profile, p)).flatMap(p => profile.cards.filter(c => c.area === p.area && matchKey(c) === matchKey(p)));
     return `<li class="rv-row${s.on ? ' on' : ''}"><button type="button" class="rv-check" data-act="toggle" data-i="${i}" role="checkbox" aria-checked="${s.on}" aria-label="Include ${esc(s.row.label)}"></button><div class="rv-main"><div class="rv-label">${esc(s.row.label)}</div><p class="rv-sub">${esc(s.row.sub || s.row.group)}</p>${changes}${uncertain ? `<p class="hint">This export may be older</p><button type="button" data-act="incoming" data-i="${i}">${s.useIncoming ? 'Use this (selected)' : 'Keep current (default) / use this'}</button>` : ''}
@@ -46,7 +49,7 @@ export function openReview(source: string, result: ImportResult, onDone?: (area:
       add: () => {
         const ps = states.filter(s => s.on).flatMap(proposals);
         const c = applyProposals(profile, ps, source); save();
-        openSheet(`${sheetTop(`Import · ${esc(source)}`)}<h3 class="sh-title">Done</h3><p class="hint" data-announce>Added ${c.added}, filled ${c.filled}, updated ${c.updated}, already kept ${ps.length - c.added - c.filled - c.updated} card${ps.length - c.added - c.filled - c.updated === 1 ? '' : 's'}.</p><button class="btn primary" type="button" data-act="ok">Done</button>`, { ok: () => { closeSheet(); if (ps[0]) onDone?.(ps[0].area); } });
+        openSheet(`${sheetTop(`Import · ${esc(source)}`)}<h3 class="sh-title">Done</h3><p class="hint" data-announce>Added ${c.added}, filled ${c.filled}, updated ${c.updated}, already kept ${ps.length - c.added - c.filled - c.updated} card${ps.length - c.added - c.filled - c.updated === 1 ? '' : 's'}.${c.merged ? ` ${c.merged} earlier card${c.merged === 1 ? ' was' : 's were'} folded in and moved to history.` : ''}</p><button class="btn primary" type="button" data-act="ok">Done</button>`, { ok: () => { closeSheet(); if (ps[0]) onDone?.(ps[0].area); } });
       },
     });
     if (typeof document !== 'undefined') document.querySelectorAll<HTMLSelectElement>('[data-choice-row]').forEach(el => el.addEventListener('change', () => { states[Number(el.dataset.choiceRow)].choice = el.value; render(); }));

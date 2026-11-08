@@ -42,12 +42,12 @@ export function pairProblem(a: Profile, b: Profile): string | null {
 /** Plain-words summary of what differs, with "first" and "second" named by the caller. */
 export function pairSummary(a: Profile, b: Profile, first: string, second: string) {
   const d = compare(a, b);
-  const same = !d.onlyA.length && !d.onlyB.length && !d.changed.length;
+  const same = !d.onlyA.length && !d.onlyB.length && !d.changed.length && !d.other.length;
   const n = (k: number) => `${k} ${k === 1 ? 'card' : 'cards'}`;
   return {
     ...d,
     same,
-    text: same ? 'These copies hold the same cards.' : `${n(d.onlyA.length)} only in ${first} · ${n(d.onlyB.length)} only in ${second} · ${n(d.changed.length)} changed in both`,
+    text: same ? 'These copies hold the same cards.' : `${n(d.onlyA.length)} only in ${first} · ${n(d.onlyB.length)} only in ${second} · ${n(d.changed.length)} changed in both${d.other.length ? ` · ${d.other.length} other ${d.other.length === 1 ? 'difference' : 'differences'} (name or kinds)` : ''}`,
   };
 }
 

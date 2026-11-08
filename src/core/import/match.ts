@@ -1,6 +1,6 @@
 // Matching imported cards against what's already there, and adding them.
 // Ordinary imports fill missing details. Explicit source snapshots can refresh unchanged imported fields.
-import { addCard, correctValue, correctMeta, endCard, reopenCard, removeCard, setField } from '../cards';
+import { addCard, correctValue, correctMeta, endCard, reopenCard, setField } from '../cards';
 import type { Card, Profile } from '../types';
 import type { Proposal } from './types';
 
@@ -57,7 +57,8 @@ export type Plan = 'new' | 'fill' | 'update' | 'have';
 
 /**
  * Cards from an earlier import that this proposal replaces (see Proposal.absorbs). Only cards still
- * exactly as imported qualify: no corrections, links, or details changed by hand.
+ * exactly as imported qualify: the person hasn't touched them in any way (no corrections, links,
+ * notes, keepsakes, tags, ended dates or details changed by hand). Touched cards are left alone.
  */
 export function absorbable(profile: Profile, p: Proposal): Card[] {
   if (!p.absorbs?.ids.length) return [];
@@ -65,9 +66,13 @@ export function absorbable(profile: Profile, p: Proposal): Card[] {
   return profile.cards.filter(c => {
     const snap = c.imports?.[p.absorbs!.source];
     if (!snap || !ids.has(snap.id) || c.area !== p.area || c.kind !== p.kind) return false;
+    if (c.status !== 'active' || c.replaces || c.replacedBy) return false;
+    if (c.note || c.keepsakes?.length || (c.tag && c.tag !== p.tag) || c.revisions?.length) return false;
+    if (snap.fields.$value !== undefined && snap.fields.$value !== c.value) return false;
+    if (Object.keys(c.imports ?? {}).length > 1) return false;
     const fields = c.fields ?? {};
     const same = Object.keys({ ...fields, ...snap.fields }).filter(k => !k.startsWith('$')).every(k => (fields[k] ?? '') === (snap.fields[k] ?? ''));
-    return same && !c.revisions?.length && !profile.links.some(l => l.a === c.id || l.b === c.id);
+    return same && !profile.links.some(l => l.a === c.id || l.b === c.id);
   });
 }
 
@@ -80,6 +85,21 @@ const blocked = (m: Card, p: Proposal) => {
   const old = p.sync && m.imports?.[p.sync.source];
   return !!old && (!p.sync!.at ? !p.useIncoming : !!old.at && (p.sync!.at < old.at || (p.sync!.at === old.at && !p.useIncoming)));
 };
+
+/**
+ * Folds an untouched earlier-import card into the card that replaces it. The card isn't deleted:
+ * it moves to history with a note saying where it went, so it can still be found and recovered.
+ */
+export function foldInto(profile: Profile, c: Card, into: string, now = new Date().toISOString()) {
+  const card = profile.cards.find(x => x.id === c.id);
+  if (!card) return;
+  endCard(profile, card.id, '', now);
+  card.note = `Folded into ${into}`;
+  // Forget the source id so a later import doesn't treat it as the same item again.
+  if (card.imports) {
+    card.imports = Object.fromEntries(Object.entries(card.imports).map(([k, v]) => [k, { ...v, id: `folded:${v.id}` }]));
+  }
+}
 
 export function fieldChanges(m: Card, p: Proposal): [string, string][] {
   const previous = p.sync ? m.imports?.[p.sync.source] : undefined;
@@ -117,7 +137,7 @@ function basePlan(profile: Profile, p: Proposal): Plan {
 export function applyProposals(profile: Profile, proposals: Proposal[], from: string, now = new Date().toISOString()) {
   let added = 0, filled = 0, updated = 0, merged = 0;
   for (const p of proposals) {
-    for (const c of absorbable(profile, p)) { removeCard(profile, c.id); merged++; }
+    for (const c of absorbable(profile, p)) { foldInto(profile, c, p.value, now); merged++; }
     const m = findMatch(profile, p);
     if (m) {
       if (blocked(m, p)) continue;

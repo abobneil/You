@@ -1,8 +1,8 @@
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { addCard } from '../cards';
+import { addCard, endCard } from '../cards';
 import { emptyProfile } from '../profile';
-import { applyProposals, planFor } from './match';
+import { absorbable, applyProposals, planFor } from './match';
 import { isStreamingFile, listened, netflixTitle, streamingRows, streamingZip } from './streaming';
 
 const NOW = '2026-11-07T12:00:00.000Z';
@@ -138,7 +138,34 @@ describe('streaming imports', () => {
     const show = build(streamingRows({ 'NetflixViewingHistory.csv': 'Title,Date\n"Belfast: Anagnorisis",8/31/26\n"Belfast: The Box",8/31/26\n"Belfast: The Ghost",8/31/26' }))[0];
     expect(planFor(p, show)).toBe('new');
     expect(applyProposals(p, [show], 'Netflix', NOW)).toMatchObject({ added: 1, merged: 2 });
-    expect(p.cards.map(c => c.value).sort()).toEqual(['Belfast', 'Belfast: The Ghost']);
+    expect(p.cards.filter(c => c.status === 'active').map(c => c.value).sort()).toEqual(['Belfast', 'Belfast: The Ghost']);
+    // Folded cards are kept in history with a note, never deleted.
+    const folded = p.cards.filter(c => c.status === 'past');
+    expect(folded.map(c => c.value).sort()).toEqual(['Belfast: Anagnorisis', 'Belfast: The Box']);
+    expect(folded.every(c => c.note === 'Folded into Belfast')).toBe(true);
+    // Importing the same file again doesn't fold them a second time or delete them.
+    applyProposals(p, [show], 'Netflix', NOW);
+    expect(p.cards).toHaveLength(4);
+  });
+
+  it('never folds away an earlier-import card the person annotated (note, keepsake, tag, ended)', () => {
+    const p = { ...emptyProfile(), name: 'Sam' };
+    const ep = (title: string) => {
+      const c = addCard(p, { area: 'interests', kind: 'Movie or show', value: title, since: '2026-08-31', fields: { type: 'Movie', status: 'Watched', service: 'Netflix' } }, undefined, NOW);
+      c.imports = { Netflix: { id: `movie:${title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`, at: '2026-08-31T00:00:00.000Z', fields: { ...c.fields!, $value: title, $until: '', $status: 'current' } } };
+      return c;
+    };
+    ep('The Crown: Gold Stick').note = 'Watched with Gran';
+    ep('The Crown: Smoke and Mirrors').keepsakes = [{ id: 'k1', name: 'p.jpg', type: 'image/jpeg', size: 1, addedAt: NOW } as never];
+    ep('The Crown: Wolferton Splash').tag = 'favourite';
+    endCard(p, ep('The Crown: Hyde Park Corner').id, '2026-09', NOW);
+    ep('The Crown: Act of God').value = 'The Crown: Act of God (S1)';
+    const before = structuredClone(p.cards);
+    const csv = ['Title,Date', ...before.map(c => `"${c.imports!.Netflix.fields.$value}",8/31/26`), '"The Crown: Windsor",9/1/26'].join('\n');
+    const show = build(streamingRows({ 'NetflixViewingHistory.csv': csv })).find(x => x.value === 'The Crown')!;
+    expect(absorbable(p, show)).toEqual([]);
+    expect(applyProposals(p, [show], 'Netflix', NOW)).toMatchObject({ added: 1, merged: 0 });
+    for (const c of before) expect(p.cards.find(x => x.id === c.id)).toEqual(c);
   });
 
   it('helpers', () => {

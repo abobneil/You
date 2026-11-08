@@ -17,8 +17,9 @@ export function keepOpenDraft(): boolean {
   let keptOne = false;
   if (hook?.stash) {
     try {
-      const { kind, data } = hook.stash();
-      profile.drafts = [...kept(), { id: crypto.randomUUID(), kind, at: new Date().toISOString(), data }];
+      const { kind, data, keptId } = hook.stash() as { kind: string; data: unknown; keptId?: string };
+      // A draft resumed from the record replaces its own entry rather than adding a second one.
+      profile.drafts = [...kept().filter(x => x.id !== keptId), { id: keptId ?? crypto.randomUUID(), kind, at: new Date().toISOString(), data }];
       keptOne = true;
     } catch (e) { console.error(e); }
   } else commitOpenField();
@@ -35,7 +36,8 @@ export function offerKeptDrafts() {
   openSheet(`${sheetTop('Unfinished card')}<h3 class="sh-title">You had an unfinished card — keep it?</h3>
     <p>It was kept, encrypted, when this You locked itself on ${new Date(d.at).toLocaleString()}.</p>
     <div class="menu"><button data-act="keep">Keep editing it</button><button data-act="discard" class="soft">Discard it</button><button data-act="close">Decide later</button></div>`, {
-    keep: () => { remove(); closeSheet(); resumeDraft(d.data); },
+    // It stays in the record (encrypted) until the card is added or the draft discarded.
+    keep: () => { closeSheet(); resumeDraft(d.data, d.id); },
     discard: () => {
       remove();
       const ids = ((d.data as { keepsakes?: { id: string }[] })?.keepsakes ?? []).map(k => k.id);

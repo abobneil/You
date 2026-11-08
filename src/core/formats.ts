@@ -37,6 +37,19 @@ function phone(raw: string): string {
   return (cc + out).trimEnd();
 }
 
+/**
+ * A whole phone number from somewhere else (an import), not one being typed: tidied only when its
+ * digits fit the format. "+1 555 0100" (7 digits after +1) stays exactly as it was written.
+ */
+export function finishPhone(raw: string): string {
+  const t = raw.trim();
+  if (t.startsWith('+') && !t.startsWith('+1')) return phone(t);
+  let d = digits(t);
+  if (t.startsWith('+1') || (d.length > 10 && d[0] === '1')) d = d.slice(1);
+  const hasExt = /\d\s*(x|ext\.?|extension)\s*\d/i.test(t);
+  return d.length === 10 || (d.length > 10 && hasExt) ? phone(t) : t;
+}
+
 export const FORMATS: Record<FormatId, Format> = {
   phone: {
     apply: phone,

@@ -15,7 +15,7 @@ export function mediaRows(text: string, at = ''): ImportResult & { source: strin
       const shelf = status[col(r, 'Exclusive Shelf')] ?? '';
       const since = looseDate(col(r, 'Date Read')) || looseDate(col(r, 'Date Added'));
       return { id: rowId('gr'), group: shelf || 'Books', label: title, sub: `${author} · date from the export's '${col(r, 'Date Read') ? 'Date Read' : 'Date Added'}' column`,
-        build: () => [{ area: 'interests', kind: 'Book', value: title, since, sync: { source: 'goodreads', id: col(r, 'Book Id', 'ISBN13', 'ISBN') || author + ':' + title, at: at || since }, fields: keep({ author, status: shelf, rating: stars(+col(r, 'My Rating')), sourceRating: col(r, 'My Rating') ? `${col(r, 'My Rating')}/5` : '', edition: col(r, 'ISBN13', 'ISBN', 'Book Id') }) }] };
+        build: () => [{ area: 'interests', kind: 'Book', value: title, since, sync: { source: 'goodreads', id: col(r, 'Book Id', 'ISBN13', 'ISBN') || author + ':' + title, at: at || since }, fields: keep({ author, status: shelf, rating: stars(+col(r, 'My Rating')), sourceRating: +col(r, 'My Rating') > 0 ? `${col(r, 'My Rating')}/5` : '' /* Goodreads writes 0 for unrated */, edition: col(r, 'ISBN13', 'ISBN', 'Book Id') }) }] };
     });
     return { rows, source: 'Goodreads', notes: goodreads.length > rows.length ? [`${goodreads.length - rows.length} rows skipped: blank title.`] : [] };
   }

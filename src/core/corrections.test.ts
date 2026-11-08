@@ -105,6 +105,37 @@ describe('Remove can be undone exactly', () => {
     undoRemove(p, r);
     expect(p).toEqual(before);
   });
+
+  it('undo keeps a correction made to a neighbouring card after the removal (CAP3 path 4)', () => {
+    const p = seed();
+    const a = addCard(p, { area: 'home', kind: 'Address', value: '12 Elm St', since: '2000' }, undefined, T1);
+    const b = addCard(p, { area: 'home', kind: 'Address', value: '9 Oak Ave', since: '2010' }, a.id, T1);
+    const c = addCard(p, { area: 'home', kind: 'Address', value: '3 Pine Rd', since: '2020' }, b.id, T1);
+    const r = removeCard(p, b.id)!;
+    correctValue(p, a.id, '12 Elm Street', T2);
+    setNote(p, c.id, 'Blue door', T2);
+    expect(undoRemove(p, r)).toBe(true);
+    const A = byId(p, a.id)!, C = byId(p, c.id)!;
+    expect(A.value).toBe('12 Elm Street');
+    expect(A.revisions).toEqual([{ value: '12 Elm St', at: T2 }]);
+    expect(C.note).toBe('Blue door');
+    expect([A.replacedBy, byId(p, b.id)!.replaces, byId(p, b.id)!.replacedBy, C.replaces]).toEqual([b.id, a.id, c.id, b.id]);
+    expect(A.until).toBe('2010');
+  });
+
+  it('undo brings the card back on its own when the chain around it changed since', () => {
+    const p = seed();
+    const a = addCard(p, { area: 'home', kind: 'Address', value: '12 Elm St', since: '2000' }, undefined, T1);
+    const b = addCard(p, { area: 'home', kind: 'Address', value: '9 Oak Ave', since: '2010' }, a.id, T1);
+    const r = removeCard(p, b.id)!;
+    const d = addCard(p, { area: 'home', kind: 'Address', value: '5 Ash Ln', since: '2015' }, a.id, T1);
+    expect(undoRemove(p, r)).toBe('separate');
+    const B = byId(p, b.id)!;
+    expect(B.status).toBe('past');
+    expect(B.replaces).toBeUndefined();
+    expect(byId(p, a.id)!.replacedBy).toBe(d.id);
+    expect(byId(p, d.id)!.replaces).toBe(a.id);
+  });
 });
 
 describe('date checks', () => {

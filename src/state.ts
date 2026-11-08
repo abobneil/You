@@ -31,6 +31,33 @@ const guard = staleGuard(vaultStore, withLock);
 let editCount = 0, committedEdit = 0;
 const conflictListeners: (() => void)[] = [];
 export const onTabConflict = (fn: () => void) => { conflictListeners.push(fn); };
+/**
+ * True while the open You is hidden behind the lock screen (locked in place, key still in memory).
+ * Conflict choices are never offered then: they wait until the person unlocks.
+ */
+let lockedInPlace = false, conflictWaiting = false;
+export const isLockedInPlace = () => lockedInPlace;
+function tabConflict() {
+  if (lockedInPlace) { conflictWaiting = true; return; }
+  conflictListeners.forEach(fn => fn());
+}
+export function setLockedInPlace(locked: boolean) { lockedInPlace = locked; }
+/**
+ * After unlocking in place: re-read storage (the stale guard) and settle anything another tab did
+ * while this one was locked. Newer work with no edits here simply loads; with edits on both sides,
+ * the person is asked now.
+ */
+export async function settleAfterUnlock() {
+  lockedInPlace = false;
+  const waiting = conflictWaiting; conflictWaiting = false;
+  if (!vault || !profile.id) return;
+  const stored = await vaultStore.get(profile.id);
+  const changed = guard.baseline() !== undefined && stored !== guard.baseline();
+  if (!changed && !waiting) return;
+  if (!changed) { if (browserSaveState().status === 'failed') void persist(); return; }
+  if (editCount === committedEdit && browserSaveState().status !== 'failed') { await useNewer(); return; }
+  conflictListeners.forEach(fn => fn());
+}
 /** True while a panel with unsaved typing is open (set by the sheet), so another tab's save never reloads it away. */
 let draftOpen: () => boolean = () => false;
 export const setDraftCheck = (fn: () => boolean) => { draftOpen = fn; };
@@ -52,31 +79,36 @@ export async function useNewer() {
   if (replacedListeners.length) replacedListeners.forEach(fn => fn());
   else location.reload();
 }
-/** The other tab's version, as stored now (decrypted with this tab's key), or null if there's none. */
-export async function otherTabVersion(): Promise<Profile | null> {
+/** The other tab's version, as stored now (decrypted with this tab's key) with its exact stored text, or null. */
+export async function otherTabVersion(): Promise<{ profile: Profile; envelope: string } | null> {
   const text = await vaultStore.get(profile.id!);
   if (!text || !vault) return null;
-  return normalize(JSON.parse(await openWith(vault, JSON.parse(text))));
+  return { profile: normalize(JSON.parse(await openWith(vault, JSON.parse(text)))), envelope: text };
 }
-/** Overwrites the other tab's version. Callers keep a copy of it first (see target.ts). */
-export async function keepThisTab() {
-  await guard.adoptStored(profile.id!);
+/**
+ * Overwrites the other tab's version, but only if what's stored is still exactly `downloaded` (the
+ * copy the caller just kept as a file). Returns false, changing nothing, if another save landed since.
+ */
+export async function keepThisTab(downloaded: string): Promise<boolean> {
+  if (!await guard.adoptStored(profile.id!, downloaded)) return false;
   await persist();
+  return true;
 }
 channel?.addEventListener('message', async e => {
   if (e.data?.id !== profile.id || !vault) return;
   guard.markStale();
+  if (lockedInPlace) { conflictWaiting = true; return; } // settled on unlock (settleAfterUnlock)
   // Nothing unsaved here: simply show the newer copy. Otherwise the next save asks what to keep.
   if (browserSaveState().status === 'saved' && editCount === committedEdit && !draftOpen()) await useNewer();
-  else if (editCount !== committedEdit) conflictListeners.forEach(fn => fn());
+  else if (editCount !== committedEdit) tabConflict();
 });
 const queue = saveQueue(async ({ p, v, edit }: { p: Profile; v: Vault; edit: number }) => {
   const envelope = await encode(v, p);
   const result = await guard.write(p.id!, envelope, edit !== committedEdit);
   if (result === 'newer') { await useNewer(); return; }
   if (result === 'conflict') {
-    conflictListeners.forEach(fn => fn());
-    throw new Error('This You was changed in another tab');
+    tabConflict();
+    throw Object.assign(new Error('This You was changed in another tab'), { name: 'TabConflict' });
   }
   committedEdit = Math.max(committedEdit, edit);
   channel?.postMessage({ id: p.id, rev: p.rev });

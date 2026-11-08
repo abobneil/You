@@ -20,7 +20,7 @@ export interface DraftHook {
    * A plain-JSON copy of what was typed, for keeping it (encrypted, in the record) when the
    * screen locks by itself. Marks the draft as kept, so anything it already stored isn't cleared.
    */
-  stash?(): { kind: string; data: unknown };
+  stash?(): { kind: string; data: unknown; keptId?: string };
 }
 
 interface Opener { el: HTMLElement | null; key: FocusKey | null }
@@ -119,7 +119,9 @@ sheet.addEventListener('click', e => {
   run(b.dataset.act!, b, e);
 });
 // Escape: handled here, synchronously, like every other way out.
-sheet.addEventListener('cancel', e => { e.preventDefault(); if (handlers.escape) handlers.escape(sheetBody, e as unknown as MouseEvent); else dismiss(); });
+// A file input's `cancel` (the system picker was closed without choosing) bubbles up to here too:
+// that isn't the person leaving the sheet, so only the dialog's own cancel closes it.
+sheet.addEventListener('cancel', e => { if (e.target !== sheet) return; e.preventDefault(); if (handlers.escape) handlers.escape(sheetBody, e as unknown as MouseEvent); else dismiss(); });
 // Enter in a text field (which saves in several panels) must not also "press" whatever button gets
 // focus once the sheet closes, e.g. reopening Add a card straight after adding one.
 sheet.addEventListener('keydown', e => {

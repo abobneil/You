@@ -1,6 +1,7 @@
 import { isAreaId } from './areas';
 import { newId } from './cards';
 import { splitKeepsakes } from './keepsakes';
+import { repairCustomKinds } from './customKinds';
 import type { Card, Link, Profile } from './types';
 
 export const emptyProfile = (): Profile => ({ name: '', cards: [], links: [] });
@@ -42,6 +43,8 @@ export function normalize(raw: unknown): Profile {
   };
   if (!p.unreadable?.length) delete p.unreadable;
   delete (p as any).areas;
+  // A detail whose definition an older version dropped is added back with a readable label.
+  repairCustomKinds(p);
   if (r.areas && typeof r.areas === 'object') {
     for (const [area, rows] of Object.entries(r.areas as Record<string, { label?: string; value?: string }[]>)) {
       if (!isAreaId(area) || !Array.isArray(rows)) continue;

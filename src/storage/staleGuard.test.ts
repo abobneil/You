@@ -35,9 +35,21 @@ describe('stale-write guard', () => {
     expect(store.now()).toBe('v2');
     // Still refused on retry until the person chooses.
     expect(await tab.write('a', 'v1+edit', true)).toBe('conflict');
-    await tab.adoptStored('a'); // "Keep this tab's version" (after the other is downloaded)
+    expect(await tab.adoptStored('a', 'v2')).toBe(true); // "Keep this tab's version" (after v2 is downloaded)
     expect(await tab.write('a', 'v1+edit', true)).toBe('written');
     expect(store.now()).toBe('v1+edit');
+  });
+
+  it('keeping this tab only adopts the exact copy that was downloaded (compare-and-swap)', async () => {
+    const store = memory('v1');
+    const tab = staleGuard(store);
+    tab.begin('v1');
+    store.put('v2');
+    expect(await tab.write('a', 'mine', true)).toBe('conflict');
+    store.put('v3'); // the other tab saved again while v2 was downloading
+    expect(await tab.adoptStored('a', 'v2')).toBe(false);
+    expect(await tab.write('a', 'mine', true)).toBe('conflict');
+    expect(store.now()).toBe('v3');
   });
 
   it('runs the check and the write under one lock', async () => {

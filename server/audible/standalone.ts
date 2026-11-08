@@ -39,3 +39,35 @@ export function launch(appUrl: string) {
     execFile(cmd, process.platform === 'win32' ? ['url.dll,FileProtocolHandler', appUrl] : [appUrl], { windowsHide: true }, () => {});
   });
 }
+
+/** The app address if it's one the helper may trust (HTTPS, or plain HTTP on this computer), else null. */
+export function appAddress(text: string): URL | null {
+  let u: URL;
+  try { u = new URL(text.trim()); } catch { return null; }
+  if (u.protocol === 'https:' && u.hostname) return u;
+  if (u.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(u.hostname)) return u;
+  return null;
+}
+
+/**
+ * Asks for the You app address at startup. Nothing is trusted by default: an empty answer asks again,
+ * anything that isn't a usable address gets a plain message and asks again, and a usable one is shown
+ * back with a yes/no question before the helper will answer it.
+ */
+export async function pairAddress(ask: (question: string) => Promise<string>, say: (line: string) => void): Promise<string> {
+  for (;;) {
+    const answer = (await ask('Paste the You app address shown in your browser, then press Enter: ')).trim();
+    if (!answer) { say('Nothing was pasted. Copy the address from your browser’s address bar (it starts with https://) and paste it here.'); continue; }
+    const u = appAddress(answer);
+    if (!u) {
+      say(/^\w+:\/\//.test(answer) || /^[\w.-]+\.[a-z]{2,}/i.test(answer)
+        ? `“${answer.slice(0, 80)}” can’t be used. The address must start with https:// (or be http://127.0.0.1 or http://localhost on this computer).`
+        : `“${answer.slice(0, 80)}” isn’t a web address. Copy the address from your browser’s address bar and paste it here.`);
+      continue;
+    }
+    say(`Address: ${u.origin}`);
+    const ok = (await ask('Allow this address to use your Audible connection? (y/N) ')).trim().toLowerCase();
+    if (ok === 'y' || ok === 'yes') return u.origin;
+    say('Not allowed. Nothing was changed.');
+  }
+}

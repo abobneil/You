@@ -8,11 +8,12 @@ import { readFile } from './fileFormat';
 import { save, onLeaveFailure } from '../state';
 import { fileWriter, FileChanged } from './fileWriter';
 import { openSheet, sheetTop } from '../ui/sheet';
+import { shownValue } from '../ui/sensitive';
 // Where the person's data is kept, and the status pill in the top bar.
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, keepThisTab, otherTabVersion } from '../state';
+import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, keepThisTab, otherTabVersion, isLockedInPlace } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encodeBlob, encodeFile, fileNameFor } from './fileFormat';
 import { sealedFor } from './keepsakeAccess';
@@ -126,7 +127,7 @@ function showFileConflict() {
         const other = read.kind === 'plain' ? read.profile : cleanLinks(normalize(JSON.parse(await openWith(vault, read.env))));
         if (other.id !== profile.id) throw new Error();
         const diff = compare(profile, other);
-        openSheet(`${sheetTop('Compare versions')}<p>${diff.onlyA.length} cards only in this browser · ${diff.onlyB.length} only in the file · ${diff.changed.length} changed in both</p>${diff.changed.map(([a,b]) => `<div><p>This browser: ${esc(a.value)}</p><p>Other file: ${esc(b.value)}</p></div>`).join('')}<div class="menu"><button data-act="both">Keep both as separate files</button><button data-act="combine">Combine</button></div>`, {
+        openSheet(`${sheetTop('Compare versions')}<p>${diff.onlyA.length} cards only in this browser · ${diff.onlyB.length} only in the file · ${diff.changed.length} changed in both${diff.other.length ? ` · ${diff.other.length} other differences` : ''}</p>${diff.changed.map(([a,b]) => `<div><p>This browser: ${esc(shownValue(a))}</p><p>Other file: ${esc(shownValue(b))}</p></div>`).join('')}${diff.other.map(x => `<p>${esc(x.replace('the first copy', 'this browser').replace('the second copy', 'the file'))}</p>`).join('')}<div class="menu"><button data-act="both">Keep both as separate files</button><button data-act="combine">Combine</button></div>`, {
           both: () => downloadCopy(true),
           combine: async () => {
             try {
@@ -195,14 +196,14 @@ export async function downloadCopy(separate = false): Promise<boolean> {
   return true;
 }
 
-/** Downloads the version another tab saved (encrypted with the same key). Returns its file name, or null. */
-async function downloadOtherTab(): Promise<string | null> {
+/** Downloads the version another tab saved (encrypted with the same key). Returns its file name and the exact stored copy, or null. */
+async function downloadOtherTab(): Promise<{ name: string; envelope: string } | null> {
   try {
     const other = await otherTabVersion();
     if (!other || !vault) return null;
     const name = separateName('other tab');
-    startDownload(await encodeBlob(vault, other, sealedFor(profile.id!)), name);
-    return name;
+    startDownload(await encodeBlob(vault, other.profile, sealedFor(profile.id!)), name);
+    return { name, envelope: other.envelope };
   } catch (e) { cannotDownload(e); return null; }
 }
 
@@ -254,7 +255,8 @@ export function renderPill() {
   const n = esc(target.name);
   let html: string, state = 'warn';
   const browser = browserSaveState();
-  if (browser.status === 'failed') state = 'warn fail', html = `<span class="dot"></span><span>Couldn't save in this browser (${browser.reason}) · <b>Download a copy / Retry</b></span>`;
+  if (browser.status === 'failed' && browser.reason === 'other tab') state = 'warn fail', html = `<span class="dot"></span><span>Another tab saved newer changes · <b>Choose what to keep</b></span>`;
+  else if (browser.status === 'failed') state = 'warn fail', html = `<span class="dot"></span><span>Couldn't save in this browser (${browser.reason}) · <b>Download a copy / Retry</b></span>`;
   else if (browser.status === 'saving') { state = ''; html = '<span class="spin"></span><span>Saving in this browser…</span>'; }
   else if (target.kind === 'browser') html = `<span class="dot"></span><span>Only in this browser · <b>Choose where to keep it</b></span>`;
   else if (needsPermission) state = 'warn fail', html = `<span class="dot"></span><span>${n} isn't up to date · <b>Fix</b></span>`;
@@ -275,8 +277,9 @@ export function renderPill() {
  * otherwise it has already handled the click (reconnect, retry, download).
  */
 export async function pillClick(): Promise<'menu' | 'picker' | 'done'> {
+  if (browserSaveState().status === 'failed' && browserSaveState().reason === 'other tab') { showTabConflict(); return 'done'; }
   if (browserSaveState().status === 'failed') {
-    openSheet(`${sheetTop("This browser didn't save your latest change")}<p>This browser didn't save your latest change (storage is full / blocked). Your work is still here. Download a copy to keep it safe.</p><div class="menu"><button data-act="download">Download a copy</button><button data-act="retry">Retry</button></div>`, { download: () => downloadCopy(), retry: () => persist() });
+    openSheet(`${sheetTop("This browser didn't save your latest change")}<p>This browser didn't save your latest change (${browserSaveState().reason === 'storage full' ? 'its storage is full' : 'its storage is blocked'}). Your work is still here. Download a copy to keep it safe.</p><div class="menu"><button data-act="download">Download a copy</button><button data-act="retry">Retry</button></div>`, { download: () => downloadCopy(), retry: () => persist() });
     return 'done';
   }
   if (target.kind === 'browser') return 'picker';
@@ -300,20 +303,30 @@ export async function pillClick(): Promise<'menu' | 'picker' | 'done'> {
 
 onBrowserSave(renderPill);
 
-onTabConflict(() => openSheet(`${sheetTop('This You was changed in another tab')}<h3 class="sh-title">Another tab saved newer changes</h3><p>Both versions can be kept. Whichever you choose, the other one is downloaded first as its own file.</p><div class="menu"><button data-act="newer">Use the other tab’s version (download this tab’s first)</button><button data-act="ours">Keep this tab’s version (download the other tab’s first)</button></div>`, {
+/**
+ * Another tab saved newer changes and this tab has its own. Never offered while locked (state.ts
+ * waits until unlock). `again` says the other tab saved once more while the first choice was made.
+ */
+function showTabConflict(again = false) {
+  if (isLockedInPlace()) return;
+  openSheet(`${sheetTop('This You was changed in another tab')}<h3 class="sh-title">Another tab saved newer changes</h3>${again ? '<p><b>The other tab saved again while its copy was downloading, so nothing was overwritten.</b> Choose again; its newest version will be downloaded.</p>' : ''}<p>Both versions can be kept. Whichever you choose, the other one is downloaded first as its own file.</p><div class="menu"><button data-act="newer">Use the other tab’s version (download this tab’s first)</button><button data-act="ours">Keep this tab’s version (download the other tab’s first)</button></div>`, {
   newer: async () => {
     if (!await downloadCopy(true)) return; // couldn't keep this tab's version: change nothing
     const name = separateName('this browser');
     await useNewer();
-    openSheet(`${sheetTop('Using the other tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab now shows the other tab’s version. This tab’s version was downloaded as <b>${esc(name)}</b>. Check it finished in your Downloads; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
+    openSheet(`${sheetTop('Using the other tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab now shows the other tab’s version. A download of this tab’s version was started as <b>${esc(name)}</b>. Check it finished in your Downloads; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
   },
   ours: async () => {
-    const name = await downloadOtherTab();
-    if (!name) return; // couldn't keep the other version: change nothing
-    await keepThisTab();
-    openSheet(`${sheetTop('Kept this tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab’s version is saved in this browser. The other tab’s version was downloaded as <b>${esc(name)}</b>. Check it finished in your Downloads; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
+    const got = await downloadOtherTab();
+    if (!got) return; // couldn't keep the other version: change nothing
+    const { name } = got;
+    // The other tab saved again during the download: what was downloaded isn't the newest. Ask again.
+    if (!await keepThisTab(got.envelope)) { showTabConflict(true); return; }
+    openSheet(`${sheetTop('Kept this tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab’s version is saved in this browser. A download of the other tab’s version was started as <b>${esc(name)}</b>. Check it finished in your Downloads; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
   },
-}));
+  });
+}
+onTabConflict(() => showTabConflict());
 
 onLeaveFailure(() => new Promise(resolve => openSheet(`${sheetTop("Your latest changes couldn't be saved")}<p>Your work is still here. Download a copy before locking or switching.</p><div class="menu"><button data-act="download">Download before leaving</button><button data-act="stay">Stay here</button></div>`, {
   // If the copy can't be made, say so and stay unlocked: never lock away the only copy.

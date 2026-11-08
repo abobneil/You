@@ -331,6 +331,7 @@ function saveFix(c: Card, dateRows: { key: string; label: string }[]) {
 /** "Removed · Undo" in the shared toast. Undo brings back the card, its links and the cards around it. */
 function offerRemoveUndo(r: Removal) {
   offerUndo(`Removed “${isSensitive(r.card) ? maskValue(r.card.value) : r.card.value}”`, () => {
-    if (undoRemove(profile, r)) { save(); openCard(r.card.id, { msg: 'Brought back, with its links.' }); }
+    const back = undoRemove(profile, r);
+    if (back) { save(); openCard(r.card.id, { msg: back === 'separate' ? 'Brought back, with its links, as a separate history card: the cards around it changed since, so their history was left as it is now.' : 'Brought back, with its links.' }); }
   });
 }
