@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { areaById } from './areas';
-import { countText, groupByKind, groupByOrigin, groupByYear, originOf, previewOf, sortCards } from './browse';
+import { countText, groupByKind, groupByOrigin, groupByYear, originOf, previewOf, sortCards, UNKNOWN_YEAR, yearOf } from './browse';
 import { addCard } from './cards';
 import { emptyProfile } from './profile';
 import type { Card } from './types';
@@ -52,5 +52,17 @@ describe('browsing an area', () => {
   it('folds by year', () => {
     const p = setup();
     expect(groupByYear(sortCards(p.cards, 'recent')).map(g => g.year)).toEqual(['2021', '2020', '2019', '2016', '2015', '1995']);
+  });
+
+  it('keeps unknown life dates in their own labeled group, last, never placed by recorded time', () => {
+    const p = setup();
+    const u = addCard(p, { area: 'interests', kind: 'Book', value: 'Undated', since: '' }, undefined, '2026-11-08T12:00:00.000Z');
+    expect(sortCards(p.cards, 'recent').at(-1)).toBe(u);
+    expect(sortCards(p.cards, 'oldest').at(-1)).toBe(u);
+    expect(sortCards(p.cards, 'oldest')[0].value).toBe('Alien');
+    const groups = groupByYear(sortCards(p.cards, 'recent'));
+    expect(groups.map(g => g.year)).toEqual(['2021', '2020', '2019', '2016', '2015', '1995', UNKNOWN_YEAR]);
+    expect(groupByYear([u, ...p.cards.slice(0, 1)]).map(g => g.year)).toEqual(['2021', UNKNOWN_YEAR]);
+    expect(yearOf(u)).toBe('Date unknown');
   });
 });
