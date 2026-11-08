@@ -47,8 +47,11 @@ const failed = (source: string, what: string) => openSheet(`${sheetTop(`Import Â
 // ---------- each source ----------
 async function importContacts(files: File[]) {
   const contacts = (await Promise.all(files.map(f => f.text()))).flatMap(parseVcf);
-  show('Contacts', contactRows(contacts, profile.cards.find(c => c.kind === 'Full name')?.fields?.last || profile.name.trim().split(/\s+/).slice(-1)[0]));
+  show('Contacts', contactRows(contacts, ownLastName(), profile.name));
 }
+
+/** The person's last name, for guessing which contacts are family. */
+const ownLastName = () => profile.cards.find(c => c.kind === 'Full name')?.fields?.last || profile.name.trim().split(/\s+/).slice(-1)[0];
 
 /** Android Chrome's contact picker: no file needed, and only the contacts you pick are shared. */
 const nav = navigator as Navigator & { contacts?: { select(props: string[], o: { multiple: boolean }): Promise<any[]> } };
@@ -65,7 +68,7 @@ async function pickPhoneContacts() {
         addresses: a ? [{ types: ['home'], street: (a.addressLine ?? []).join(', '), unit: '', city: a.city ?? '', state: a.region ?? '', zip: a.postalCode ?? '', country: a.country ?? '' }] : [],
         birthday: '', org: '', title: '' };
     });
-    if (contacts.length) show('Contacts', contactRows(contacts, profile.cards.find(c => c.kind === 'Full name')?.fields?.last || profile.name.trim().split(/\s+/).slice(-1)[0]));
+    if (contacts.length) show('Contacts', contactRows(contacts, ownLastName(), profile.name));
   } catch { /* the person closed the picker */ }
 }
 

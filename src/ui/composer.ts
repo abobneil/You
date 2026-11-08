@@ -245,11 +245,11 @@ function render(focus = false) {
       return `<span class="chip">${linkText(l.fwd, o ? kindLabel(o) : '', o ? shownValue(o) : '')}<button type="button" class="x" data-act="drop-link" data-i="${i}"
         aria-label="Remove link to ${esc(o ? `${kindLabel(o)} ${shownValue(o)}` : 'this card')}">×</button></span>`; }).join('');
 
-  const valueLabel = !d.kind ? 'Value' : custom ? 'What is it?' : kind.name;
+  const valueLabel = !d.kind ? 'What is it called?' : custom ? 'What is it?' : kind.name;
   const valueRow = isDate
     ? `<div class="fx c-main"><span class="lab" id="c-vdate-lab">${esc(kind.name)}</span><div role="group" aria-labelledby="c-vdate-lab">${dateInputs(d.valueDate, 'vdate')}</div></div>`
     : `<div class="fx c-main"><label for="c-value">${esc(valueLabel)}</label><div>${valueFieldHtml('c-value', d.value, kind,
-        custom ? 'e.g. Eye doctor: Dr. Patel' : 'e.g. ' + example(d.kind))}${d.valueMsg ? `<p class="date-err" role="alert">${esc(d.valueMsg)}</p>` : ''}</div></div>`;
+        custom ? 'e.g. Eye doctor: Dr. Patel' : d.kind ? 'e.g. ' + example(d.kind) : '')}${d.valueMsg ? `<p class="date-err" role="alert">${esc(d.valueMsg)}</p>` : ''}</div></div>`;
   const whenLabel = replacing ? 'When did it change?' : before ? 'When did it start?' : 'When?';
   const sinceRow = showSince
     ? `<div class="fx c-when"><span class="lab" id="c-when-lab">${whenLabel}</span><div role="group" aria-labelledby="c-when-lab" aria-describedby="c-when-hint">${

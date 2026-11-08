@@ -1,5 +1,5 @@
 // C4d / CAP3: re-importing a contact keeps hand edits, never duplicates, and offers real updates.
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { setField } from '../cards';
 import { emptyProfile } from '../profile';
 import { applyProposals, planFor } from './match';
@@ -42,4 +42,15 @@ it('uses the contact UID and REV when the export has them', () => {
   expect(planFor(p, changed[0])).toBe('update');
   // An older export than the one already applied changes nothing.
   expect(planFor(p, proposals(withUid('Old Co', '20250101T000000Z'))[0])).toBe('have');
+});
+
+describe('the person’s own contact', () => {
+  it('defaults to "This is me" when the name matches the You, ignoring accents and case', async () => {
+    const { contactRows, ME } = await import('./vcard');
+    const own = parseVcf('BEGIN:VCARD\nVERSION:3.0\nFN:Renée Kim\nN:Kim;Renée;;;\nEND:VCARD\n');
+    const sister = parseVcf('BEGIN:VCARD\nVERSION:3.0\nFN:Jo Kim\nN:Kim;Jo;;;\nEND:VCARD\n');
+    const rows = contactRows([...own, ...sister], 'Kim', 'renee kim').rows;
+    expect(rows[0].choice).toBe(ME);
+    expect(rows[1].choice).toBe('Family member');
+  });
 });

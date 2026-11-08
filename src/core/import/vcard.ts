@@ -179,21 +179,24 @@ export function contactAsMe(c: Contact): Proposal[] {
   return out.map(p => id ? { ...p, sync: { source: 'contacts-me', id: p.kind === 'Phone' ? id + '/tel/' + phoneKey(p.value) : p.kind === 'Email' ? id + '/mail/' + p.value.toLowerCase() : id, at: '1970-01-01T00:00:00.000Z' } } : p);
 }
 
-export function defaultContactKind(c: Contact, ownLastName = ''): string {
+export function defaultContactKind(c: Contact, ownLastName = '', ownName = ''): string {
+  // The person's own card in their address book: offer "This is me" rather than filing them as family.
+  const norm = (s: string) => s.normalize('NFKD').replace(/\p{M}/gu, '').trim().toLocaleLowerCase().replace(/\s+/g, ' ');
+  if (ownName && norm(displayName(c)) === norm(ownName)) return ME;
   if ((c.org && !c.name.first && !c.name.last && (!c.fn || c.fn === c.org)) || /\b(office|clinic|inc|llc|dental|dentist|bank|school|hospital|company|services)\b/i.test(displayName(c))) return 'Contact';
   const last = c.name.last || displayName(c).trim().split(/\s+/).slice(-1)[0];
   if (ownLastName && last.toLocaleLowerCase() === ownLastName.toLocaleLowerCase()) return 'Family member';
   return 'Friend';
 }
-export function contactRows(contacts: Contact[], ownLastName = ''): ImportResult {
+export function contactRows(contacts: Contact[], ownLastName = '', ownName = ''): ImportResult {
   const rows: ImportRow[] = contacts.map(c => ({
     id: rowId('vcf'),
     group: 'Contacts',
     label: tidyCase(displayName(c)),
     sub: [c.tels[0] && fmtPhone(c.tels[0].value), c.emails[0]?.value].filter(Boolean).join(' · '),
     options: [...PERSON_KINDS.map(k => ({ id: k, label: k })), { id: ME, label: 'This is me' }],
-    choice: defaultContactKind(c, ownLastName),
-    build: (choice = defaultContactKind(c, ownLastName)) => (choice === ME ? contactAsMe(c) : contactAsPerson({ ...c, fn: tidyCase(displayName(c)) }, choice)),
+    choice: defaultContactKind(c, ownLastName, ownName),
+    build: (choice = defaultContactKind(c, ownLastName, ownName)) => (choice === ME ? contactAsMe(c) : contactAsPerson({ ...c, fn: tidyCase(displayName(c)) }, choice)),
   }));
   return { rows, notes: contacts.length ? [] : ['No contacts were found in that file.'] };
 }
