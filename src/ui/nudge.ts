@@ -1,3 +1,4 @@
+import { openSafety } from './safety';
 // A gentle, one-time suggestion to choose where to keep data, after the first few cards.
 // "Not now" or choosing a place means we never ask again; the status pill stays available.
 import { profile } from '../state';
@@ -14,6 +15,7 @@ const nudge = $('#nudge');
 function maybeNudge() {
   if (target.kind !== 'browser' || local.get(keyFor(currentId(), 'nudged')) || profile.cards.length < NUDGE_AT || !nudge.hidden) return;
   setTimeout(() => {
+    if (target.kind !== 'browser' || local.get(keyFor(currentId(), 'nudged'))) return;
     $('#nudge-name').textContent = profile.name ? `, ${profile.name}` : '';
     nudge.hidden = false;
   }, 700);
@@ -24,6 +26,7 @@ nudge.addEventListener('click', e => {
   if (!b) return;
   local.set(keyFor(currentId(), 'nudged'), new Date().toISOString());
   nudge.hidden = true;
+  if (b.dataset.n === 'safe') openSafety();
   if (b.dataset.n === 'choose') openStoragePicker('save');
 });
 

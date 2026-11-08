@@ -1,8 +1,9 @@
+import { openSafety } from './safety';
+import { downloadCopy } from '../storage/target';
 // Switching between Yous on this browser. Switching, adding and locking reload the page,
 // so the previous You's data and key are gone from memory.
 import { eraseBrowserCopy, profile, vault } from '../state';
 import { byRecent, currentId, setCurrent, startNew } from '../storage/profiles';
-import { target } from '../storage/target';
 import { $, esc } from './dom';
 import { closeSheet, openSheet, sheetTop } from './sheet';
 
@@ -29,7 +30,7 @@ export function openSwitcher() {
         <span class="yn"><b>${esc(e.label || 'Locked You')}</b><small>${isCur ? (unlocked ? 'Open now' : 'Selected') : 'Switch'}</small></span>
       </button></li>`;
     }).join('')}</ul>
-    <div class="menu">
+    <div class="menu"><button type="button" data-act="safe">Keep it safe</button>
       <button type="button" data-act="new">+ Add a new You</button>
       ${unlocked ? `<button type="button" data-act="lock">Lock ${name}</button>
         <button type="button" data-act="remove" class="soft">Remove ${name} from this browser…</button>` : ''}
@@ -39,13 +40,15 @@ export function openSwitcher() {
     pick: b => { if (b.dataset.id === cur && unlocked) return closeSheet(); switchTo(b.dataset.id!); },
     new: addNewYou,
     lock: lockNow,
+    safe: openSafety,
     remove: () => {
-      const elsewhere = target.kind !== 'browser'
-        ? `Your file ${target.name} stays where it is, so you can load it again later.`
-        : 'This is the only copy. Unless you’ve saved it somewhere, it will be gone for good.';
-      if (!confirm(`Remove ${profile.name || 'this You'} from this browser?\n\n${elsewhere}`)) return;
-      eraseBrowserCopy(cur);
-      reloadClean();
+      openSheet(`${sheetTop('Remove from this browser')}<h3 class="sh-title">Remove ${name}?</h3>
+        <p>This removes only this browser�s copy of this You. Other Yous and saved files stay.</p>
+        <p>If you have no saved file, this copy will be gone for good.</p>
+        <div class="menu"><button data-act="copy">Download a copy first</button><button data-act="remove">Remove this browser�s copy</button><button data-act="close">Cancel</button></div>`, {
+        copy: async () => { await downloadCopy(); },
+        remove: async () => { await eraseBrowserCopy(cur); reloadClean(); },
+      });
     },
   });
 }

@@ -749,3 +749,10 @@
   }
   .aud-url:focus { border-color: var(--ink); }
   .aud-msg:empty { display: none; }
+
+.safety-form { display: grid; gap: 10px; }
+.safety-form input:not([type=checkbox]) { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 9px; }
+.safety-form p { margin: 0; }
+.safety-form #plan-secret { display: grid; gap: 8px; }
+.safety-form #plan-secret[hidden] { display: none; }
+.plan-print-frame { position: fixed; width: 1px; height: 1px; border: 0; left: -10000px; }
