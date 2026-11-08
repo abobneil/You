@@ -1,0 +1,7 @@
+{
+  "parser": "linkedin",
+  "input": {
+    "Profile.csv": "Notes before headers\nFirst Name,Last Name\nÉlo,林"
+  },
+  "archive": true
+}

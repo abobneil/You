@@ -1,0 +1,13 @@
+{
+  "cards": [
+    {
+      "kind": "Education",
+      "value": "Arts, Fable School",
+      "since": "2010"
+    }
+  ],
+  "repeat": "no changes or revisions",
+  "reopen": "same cards and provenance",
+  "existingProfile": "unrelated Goal kept",
+  "skipped": "See parser source notes; clinical negation excluded"
+}

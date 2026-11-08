@@ -1,77 +1,52 @@
-// "Review what to add": every import ends here. Each row can be unticked; contacts can be filed as
-// a different kind of person, or marked "This is me". Nothing is added until "Add" is pressed.
-import { applyProposals, planFor, type Plan } from '../../core/import/match';
-import type { ImportResult, ImportRow, Proposal } from '../../core/import/types';
+// All imports are reviewed before changing the record.
+import { applyProposals, findMatch, fieldChanges, matchKey, planFor } from '../../core/import/match';
+import type { ImportResult } from '../../core/import/types';
 import { profile, save } from '../../state';
 import { esc } from '../dom';
 import { closeSheet, openSheet, sheetTop } from '../sheet';
 
-interface State { row: ImportRow; on: boolean; choice?: string }
-
-const BADGE: Record<Plan, string> = { new: 'New', fill: 'Adds details', update: 'Refreshes details', have: 'Already there' };
-
-function rowPlan(proposals: Proposal[]): Plan {
-  const plans = proposals.map(p => planFor(profile, p));
-  return plans.includes('new') ? 'new' : plans.includes('update') ? 'update' : plans.includes('fill') ? 'fill' : 'have';
-}
-
-/**
- * Shows the rows for review. `source` is stored on every card ("Imported from LinkedIn").
- * `onDone` gets the area the person will most want to see next.
- */
 export function openReview(source: string, result: ImportResult, onDone?: (area: string) => void) {
-  const states: State[] = result.rows.map(row => {
-    const s: State = { row, on: true, choice: row.choice };
-    s.on = row.on !== false && rowPlan(row.build(s.choice)) !== 'have';
-    return s;
-  });
-  render();
-
+  const states = result.rows.map(row => ({ row, choice: row.choice, on: row.on !== false, matchId: '' }));
+  type State = typeof states[number];
+  const proposals = (s: State) => s.row.build(s.choice).map(p => ({ ...p, matchId: s.matchId || undefined }));
+  const category = (s: State) => {
+    const plans = proposals(s).map(p => planFor(profile, p));
+    return plans.includes('new') ? 'New' : plans.some(p => p !== 'have') ? 'Updates' : 'Already there';
+  };
+  states.forEach(s => { if (category(s) === 'Already there') s.on = false; });
+  function rowHtml(s: State, i: number) {
+    const ps = proposals(s);
+    const changes = ps.flatMap(p => {
+      const m = findMatch(profile, p);
+      return m ? [...(p.sync && m.imports?.[p.sync.source]?.fields.$value === m.value && m.value !== p.value ? [['Title', p.value]] : []), ...fieldChanges(m, p)].map(([k, v]) => `<p class="rv-sub">${esc(k)}: ${esc(k === 'Title' ? m.value : m.fields?.[k] || 'Empty')} → ${esc(v || 'Empty')}</p>`) : [];
+    }).join('');
+    const possible = ps.filter(p => p.area === 'people' && !findMatch(profile, p)).flatMap(p => profile.cards.filter(c => c.area === 'people' && matchKey(c) === matchKey(p)));
+    return `<li class="rv-row${s.on ? ' on' : ''}"><button type="button" class="rv-check" data-act="toggle" data-i="${i}" role="checkbox" aria-checked="${s.on}" aria-label="Include ${esc(s.row.label)}"></button><div class="rv-main"><div class="rv-label">${esc(s.row.label)}</div><p class="rv-sub">${esc(s.row.sub || s.row.group)}</p>${changes}
+      ${s.row.options?.map(o => `<button type="button" data-act="pick" data-i="${i}" data-choice="${esc(o.id)}" aria-pressed="${o.id === s.choice}">${esc(o.label)}</button>`).join('') || ''}
+      ${possible.map(c => `<p class="hint">Possibly the same as ${esc(c.value)}</p><button type="button" data-act="match" data-i="${i}" data-id="${esc(c.id)}">Same person</button><span class="hint">Keep separate (default)</span>`).join('')}
+      ${s.matchId ? `<button type="button" data-act="match" data-i="${i}">Keep separate</button>` : ''}</div></li>`;
+  }
   function render() {
-    const groups = [...new Set(states.map(s => s.row.group))];
-    const chosen = states.filter(s => s.on);
-    const count = chosen.reduce((n, s) => n + s.row.build(s.choice).filter(p => planFor(profile, p) !== 'have').length, 0);
-    openSheet(`${sheetTop(`Import · ${esc(source)}`)}
-      <h3 class="sh-title">${states.length ? 'Review your import' : 'Nothing to add'}</h3>
-      ${(result.notes ?? []).map(n => `<p class="hint">${esc(n)}</p>`).join('')}
-      ${states.length ? `<div class="rv-tools"><span class="hint">${chosen.length} of ${states.length} selected</span><span class="spacer"></span>
-        <button class="link-btn" type="button" data-act="all">Select all</button><button class="link-btn" type="button" data-act="none">Select none</button></div>` : ''}
-      <div class="rv">${groups.map(g => `<h5>${esc(g)}</h5><ul>${states.map((s, i) => s.row.group !== g ? '' : rowHtml(s, i)).join('')}</ul>`).join('')}</div>
-      <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button>
-        ${states.length ? `<button class="btn primary" type="button" data-act="add" ${count ? '' : 'disabled'}>${count ? `Apply to ${count} card${count === 1 ? '' : 's'}` : 'Nothing new'}</button>` : ''}</div>`,
-    {
-      toggle: b => { const s = states[+b.dataset.i!]; s.on = !s.on; render(); },
-      pick: b => { const s = states[+b.dataset.i!]; s.choice = b.dataset.choice; s.on = true; render(); },
-      all: () => { states.forEach(s => { s.on = true; }); render(); },
-      none: () => { states.forEach(s => { s.on = false; }); render(); },
+    const selected = states.filter(s => s.on).flatMap(proposals);
+    // Simulate application so duplicate entries within the selection do not inflate the total.
+    const counts = applyProposals(structuredClone(profile), selected, source);
+    const count = counts.added + counts.filled + counts.updated;
+    openSheet(`${sheetTop(`Import · ${esc(source)}`)}<h3 class="sh-title">Review your import</h3><p class="hint">Source: ${esc(source)}. Dates keep the precision supplied in the export.</p>
+      <div class="rv-tools"><button class="link-btn" type="button" data-act="all">Select all</button><button class="link-btn" type="button" data-act="none">Select none</button></div>
+      <div class="rv">${['New', 'Updates', 'Already there'].map(g => `<details ${g === 'Already there' ? '' : 'open'}><summary>${g} (${states.filter(s => category(s) === g).length})</summary><ul>${states.map((s, i) => category(s) === g ? rowHtml(s, i) : '').join('')}</ul></details>`).join('')}</div>
+      <details><summary>Skipped and source notes (${result.notes?.length || 0})</summary>${result.notes?.map(n => `<p class="hint">${esc(n)}</p>`).join('') || '<p class="hint">No omissions reported.</p>'}</details>
+      <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="add" ${count ? '' : 'disabled'}>Apply to ${count} cards</button></div>`, {
+      toggle: b => { states[+b.dataset.i!].on = !states[+b.dataset.i!].on; render(); },
+      pick: b => { states[+b.dataset.i!].choice = b.dataset.choice; render(); },
+      match: b => { states[+b.dataset.i!].matchId = b.dataset.id || ''; render(); },
+      all: () => { states.forEach(s => s.on = true); render(); },
+      none: () => { states.forEach(s => s.on = false); render(); },
       add: () => {
-        const proposals = states.filter(s => s.on).flatMap(s => s.row.build(s.choice));
-        const { added, filled, updated, merged } = applyProposals(profile, proposals, source);
-        save();
-        done(added, filled, updated, merged, proposals[0]?.area);
+        const ps = states.filter(s => s.on).flatMap(proposals);
+        const c = applyProposals(profile, ps, source); save();
+        openSheet(`${sheetTop(`Import · ${esc(source)}`)}<h3 class="sh-title">Done</h3><p class="hint">Added ${c.added}, filled ${c.filled}, updated ${c.updated} cards.</p><button class="btn primary" type="button" data-act="ok">Done</button>`, { ok: () => { closeSheet(); if (ps[0]) onDone?.(ps[0].area); } });
       },
     });
   }
-
-  function rowHtml(s: State, i: number) {
-    const plan = rowPlan(s.row.build(s.choice));
-    return `<li class="rv-row${s.on ? ' on' : ''}">
-      <button type="button" class="rv-check" data-act="toggle" data-i="${i}" role="checkbox" aria-checked="${s.on}" aria-label="Include ${esc(s.row.label)}"></button>
-      <div class="rv-main">
-        <div class="rv-label"><span>${esc(s.row.label)}</span><span class="rv-badge ${plan}">${BADGE[plan]}</span></div>
-        ${s.row.sub ? `<div class="rv-sub">${esc(s.row.sub)}</div>` : ''}
-        ${s.row.options ? `<div class="rv-opts">${s.row.options.map(o =>
-          `<button type="button" data-act="pick" data-i="${i}" data-choice="${esc(o.id)}" class="${o.id === s.choice ? 'on' : ''}">${esc(o.label)}</button>`).join('')}</div>` : ''}
-      </div>
-    </li>`;
-  }
-
-  function done(added: number, filled: number, updated: number, merged: number, area?: string) {
-    openSheet(`${sheetTop(`Import · ${esc(source)}`)}
-      <h3 class="sh-title">Done</h3>
-      <p class="hint">${added ? `Added ${added} card${added === 1 ? '' : 's'}.` : 'No new cards.'}${filled ? ` Filled in details on ${filled}.` : ''}${updated ? ` Refreshed details on ${updated}.` : ''}${merged ? ` Folded ${merged} episode${merged === 1 ? '' : 's'} an earlier import filed as movies into their shows.` : ''}
-        ${added ? `New cards note they came from ${esc(source)}.` : ''}</p>
-      <div class="btns"><button class="btn primary" type="button" data-act="ok">${area ? 'Show me' : 'Done'}</button></div>`,
-    { ok: () => { closeSheet(); if (area) onDone?.(area); } });
-  }
+  render();
 }

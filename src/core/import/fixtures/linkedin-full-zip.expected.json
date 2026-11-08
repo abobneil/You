@@ -1,0 +1,29 @@
+{
+  "cards": [
+    {
+      "kind": "Full name",
+      "value": "Élo 林"
+    },
+    {
+      "kind": "Job",
+      "value": "Maker at Fable",
+      "since": "2020-01"
+    },
+    {
+      "kind": "Job",
+      "value": "Helper at Fable",
+      "since": "2018",
+      "until": "2019",
+      "past": true
+    },
+    {
+      "kind": "Education",
+      "value": "Arts, Fable School",
+      "since": "2010"
+    },
+    {
+      "kind": "Skill",
+      "value": "Weaving"
+    }
+  ]
+}

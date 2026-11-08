@@ -1,0 +1,28 @@
+{
+  "cards": [
+    {
+      "kind": "Book",
+      "value": "Fable Moon",
+      "fields": {
+        "author": "Author One",
+        "edition": "1"
+      }
+    },
+    {
+      "kind": "Book",
+      "value": "Fable Moon",
+      "fields": {
+        "author": "Author Two",
+        "edition": "2"
+      }
+    },
+    {
+      "kind": "Book",
+      "value": "Fable Moon",
+      "fields": {
+        "author": "Author One",
+        "edition": "3"
+      }
+    }
+  ]
+}

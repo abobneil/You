@@ -4,6 +4,8 @@ import type { AreaId, FuzzyDate } from '../types';
 
 /** A card an import would like to add (or use to fill in an existing card). */
 export interface Proposal {
+  /** Explicit match chosen in review; never inferred from a name alone. */
+  matchId?: string;
   area: AreaId;
   kind: string;
   value: string;

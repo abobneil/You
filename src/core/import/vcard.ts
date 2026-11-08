@@ -45,7 +45,7 @@ function splitEsc(s: string, sep: string): string[] {
 export function parseVcf(text: string): Contact[] {
   // Unfold: lines starting with a space or tab continue the previous one; QP soft breaks end in "=".
   const lines: string[] = [];
-  for (const raw of text.replace(/\r\n?/g, '\n').split('\n')) {
+  for (const raw of text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n')) {
     if (/^[ \t]/.test(raw) && lines.length) lines[lines.length - 1] += raw.slice(1);
     else if (lines.length && /ENCODING=QUOTED-PRINTABLE/i.test(lines[lines.length - 1]) && lines[lines.length - 1].endsWith('=')) lines[lines.length - 1] = lines[lines.length - 1].slice(0, -1) + raw;
     else lines.push(raw);
@@ -133,6 +133,9 @@ export function contactAsPerson(c: Contact, kind: string): Proposal[] {
   const fields: Record<string, string> = {};
   if (tel) fields.phone = fmtPhone(tel.value);
   if (email) fields.email = email.value;
+  if (c.org) fields.organization = c.org;
+  c.tels.forEach((t, i) => { fields[`phone${i + 1}`] = `${t.types.join(', ')}: ${t.value}`; });
+  c.emails.forEach((e, i) => { fields[`email${i + 1}`] = `${e.types.join(', ')}: ${e.value}`; });
   if (c.birthday) fields.birthday = c.birthday;
   if (adr) fields.address = oneLine(adr);
   return [{ area: 'people', kind, value: displayName(c), fields }];

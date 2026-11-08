@@ -1,0 +1,15 @@
+{
+  "cards": [
+    {
+      "kind": "Music",
+      "value": "Élo Ensemble",
+      "fields": {
+        "plays": "5"
+      }
+    }
+  ],
+  "repeat": "no changes or revisions",
+  "reopen": "same cards and provenance",
+  "existingProfile": "unrelated Goal kept",
+  "skipped": "See parser source notes; clinical negation excluded"
+}

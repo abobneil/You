@@ -1,0 +1,16 @@
+{
+  "cards": [
+    {
+      "kind": "Friend",
+      "value": "Élo 林",
+      "fields": {
+        "email": "elo@example.invalid",
+        "birthday": "1980-03-04"
+      }
+    }
+  ],
+  "repeat": "no changes or revisions",
+  "reopen": "same cards and provenance",
+  "existingProfile": "unrelated Goal kept",
+  "skipped": "See parser source notes; clinical negation excluded"
+}

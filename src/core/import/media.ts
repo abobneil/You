@@ -14,8 +14,8 @@ export function mediaRows(text: string): ImportResult & { source: string } {
       const title = col(r, 'Title'), author = col(r, 'Author');
       const shelf = status[col(r, 'Exclusive Shelf')] ?? '';
       const since = looseDate(col(r, 'Date Read')) || looseDate(col(r, 'Date Added'));
-      return { id: rowId('gr'), group: shelf || 'Books', label: title, sub: author,
-        build: () => [{ area: 'interests', kind: 'Book', value: title, since, fields: keep({ author, status: shelf, rating: stars(+col(r, 'My Rating')) }) }] };
+      return { id: rowId('gr'), group: shelf || 'Books', label: title, sub: `${author} · date from the export's '${col(r, 'Date Read') ? 'Date Read' : 'Date Added'}' column`,
+        build: () => [{ area: 'interests', kind: 'Book', value: title, since, fields: keep({ author, status: shelf, rating: stars(+col(r, 'My Rating')), sourceRating: col(r, 'My Rating') ? `${col(r, 'My Rating')}/5` : '', edition: col(r, 'ISBN13', 'ISBN', 'Book Id') }) }] };
     });
     return { rows, source: 'Goodreads' };
   }
@@ -26,7 +26,7 @@ export function mediaRows(text: string): ImportResult & { source: string } {
       const tv = /tv/i.test(col(r, 'Title Type'));
       return { id: rowId('imdb'), group: tv ? 'Shows' : 'Movies', label: col(r, 'Title'), sub: col(r, 'Year'),
         build: () => [{ area: 'interests', kind: 'Movie or show', value: col(r, 'Title'), since: looseDate(col(r, 'Date Rated')),
-          fields: keep({ type: tv ? 'Show' : 'Movie', year: col(r, 'Year'), status: 'Watched', rating: stars(+col(r, 'Your Rating') / 2) }) }] };
+          fields: keep({ type: tv ? 'Show' : 'Movie', year: col(r, 'Year'), status: 'Watched', rating: stars(+col(r, 'Your Rating') / 2), sourceRating: `${col(r, 'Your Rating')}/10`, creator: col(r, 'Directors') }) }] };
     });
     return { rows, source: 'IMDb' };
   }
@@ -36,7 +36,7 @@ export function mediaRows(text: string): ImportResult & { source: string } {
     const rows: ImportRow[] = letterboxd.filter(r => col(r, 'Name')).map(r => ({
       id: rowId('lb'), group: 'Movies', label: col(r, 'Name'), sub: col(r, 'Year'),
       build: () => [{ area: 'interests', kind: 'Movie or show', value: col(r, 'Name'), since: looseDate(col(r, 'Watched Date', 'Date')),
-        fields: keep({ type: 'Movie', year: col(r, 'Year'), status: 'Watched', rating: stars(+col(r, 'Rating')) }) }],
+        fields: keep({ type: 'Movie', year: col(r, 'Year'), status: 'Watched', rating: stars(+col(r, 'Rating')), sourceRating: col(r, 'Rating') ? `${col(r, 'Rating')}/5` : '' }) }],
     }));
     return { rows, source: 'Letterboxd' };
   }

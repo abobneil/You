@@ -1,0 +1,14 @@
+{
+  "parser": "vin",
+  "input": {
+    "Results": [
+      {
+        "ModelYear": "2020",
+        "Make": "FABLE",
+        "Model": "Moon",
+        "Trim": "X",
+        "FuelTypePrimary": "Electric"
+      }
+    ]
+  }
+}

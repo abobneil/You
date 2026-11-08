@@ -1,0 +1,4 @@
+{
+  "parser": "contacts",
+  "input": "BEGIN:VCARD\nFN:Unclosed"
+}

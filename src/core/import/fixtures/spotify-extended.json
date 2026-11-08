@@ -1,0 +1,6 @@
+{
+  "parser": "streaming",
+  "input": {
+    "Streaming_History_Audio.json": "[{\"ts\": \"2020-03-01T10:00:00Z\", \"ms_played\": 240000, \"master_metadata_track_name\": \"Fable Song\", \"master_metadata_album_artist_name\": \"\\u00c9lo Ensemble\"}, {\"ts\": \"2020-03-02T10:00:00Z\", \"ms_played\": 240000, \"master_metadata_track_name\": \"Fable Song\", \"master_metadata_album_artist_name\": \"\\u00c9lo Ensemble\"}, {\"ts\": \"2020-03-03T10:00:00Z\", \"ms_played\": 240000, \"master_metadata_track_name\": \"Fable Song\", \"master_metadata_album_artist_name\": \"\\u00c9lo Ensemble\"}, {\"ts\": \"2020-03-04T10:00:00Z\", \"ms_played\": 240000, \"master_metadata_track_name\": \"Fable Song\", \"master_metadata_album_artist_name\": \"\\u00c9lo Ensemble\"}, {\"ts\": \"2020-03-05T10:00:00Z\", \"ms_played\": 240000, \"master_metadata_track_name\": \"Fable Song\", \"master_metadata_album_artist_name\": \"\\u00c9lo Ensemble\"}]"
+  }
+}

@@ -21,12 +21,13 @@ const text = (cc: any): string => cc?.text || cc?.coding?.find((c: any) => c.dis
 const fhirDate = (...v: (string | undefined)[]) => looseDate((v.find(Boolean) ?? '').slice(0, 10));
 
 function fromFhir(r: any): HealthItem | null {
+  if (/entered-in-error|refuted/.test(r?.verificationStatus?.coding?.[0]?.code ?? '') || /not-done/.test(r?.status ?? '')) return null;
   switch (r?.resourceType) {
     case 'AllergyIntolerance': {
       const status = text(r.clinicalStatus) || r.clinicalStatus?.coding?.[0]?.code || '';
       const reaction = r.reaction?.[0];
       return { kind: 'Allergy', name: text(r.code), since: fhirDate(r.onsetDateTime, r.recordedDate), active: !/inactive|resolved/i.test(status),
-        fields: { reaction: text(reaction?.manifestation?.[0]), severity: cap(reaction?.severity || (r.criticality === 'high' ? 'Severe' : '')) } };
+        fields: { status: status || 'Unknown', reaction: text(reaction?.manifestation?.[0]), severity: cap(reaction?.severity || (r.criticality === 'high' ? 'Severe' : '')) } };
     }
     case 'MedicationStatement':
     case 'MedicationRequest': {
@@ -35,12 +36,12 @@ function fromFhir(r: any): HealthItem | null {
       return { kind: 'Medication', name: text(r.medicationCodeableConcept) || r.medicationReference?.display || '',
         since: fhirDate(r.effectivePeriod?.start, r.effectiveDateTime, r.authoredOn), until: fhirDate(r.effectivePeriod?.end),
         active: !/completed|stopped|cancelled|entered-in-error/i.test(status),
-        fields: { dose: dosage?.text ?? '', for: text(r.reasonCode?.[0]), prescriber: r.requester?.display ?? '' } };
+        fields: { status: status || 'Unknown', dose: [dosage?.doseAndRate?.[0]?.doseQuantity?.value, dosage?.doseAndRate?.[0]?.doseQuantity?.unit, dosage?.text].filter(v => v !== undefined && v !== '').join(' '), for: text(r.reasonCode?.[0]), prescriber: r.requester?.display ?? '' } };
     }
     case 'Condition': {
       const status = r.clinicalStatus?.coding?.[0]?.code ?? text(r.clinicalStatus);
       return { kind: 'Condition', name: text(r.code), since: fhirDate(r.onsetDateTime, r.onsetPeriod?.start, r.recordedDate),
-        until: fhirDate(r.abatementDateTime), active: !/resolved|inactive|remission/i.test(status), fields: {} };
+        until: fhirDate(r.abatementDateTime), active: !/resolved|inactive|remission/i.test(status), fields: { status: status || 'Unknown' } };
     }
     case 'Immunization':
       return { kind: 'Immunization', name: text(r.vaccineCode), since: fhirDate(r.occurrenceDateTime, r.date), active: true,
@@ -92,6 +93,7 @@ function fromCcda(xml: string): HealthItem[] {
     const kind = SECTIONS[code];
     if (!kind) continue;
     for (const entry of kids(section).filter(c => c.localName === 'entry')) {
+      if (local(entry, 'observation').some(o => o.getAttribute('negationInd') === 'true') || local(entry, 'substanceAdministration').some(o => o.getAttribute('negationInd') === 'true')) continue;
       const time = first(entry, 'effectiveTime');
       const low = hl7Date(first(time, 'low')?.getAttribute('value') ?? time?.getAttribute('value'));
       const high = hl7Date(first(time, 'high')?.getAttribute('value'));
@@ -128,6 +130,7 @@ export function parseHealth(raw: string): HealthItem[] {
   // Portals often list the same medication many times (one per refill); keep the earliest.
   const seen = new Map<string, HealthItem>();
   for (const i of items) {
+    if (i.kind === 'Allergy' && /no known|no allergy|unknown|not known/i.test(i.name)) continue;
     const k = i.kind + ':' + i.name.toLowerCase();
     const prev = seen.get(k);
     if (!prev || (i.since && (!prev.since || i.since < prev.since))) seen.set(k, { ...i, active: i.active || !!prev?.active });

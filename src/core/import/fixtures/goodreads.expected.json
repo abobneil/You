@@ -1,0 +1,17 @@
+{
+  "cards": [
+    {
+      "kind": "Book",
+      "value": "Moon\nGarden",
+      "since": "2020-03-04",
+      "fields": {
+        "author": "Élo Quill",
+        "status": "Read"
+      }
+    }
+  ],
+  "repeat": "no changes or revisions",
+  "reopen": "same cards and provenance",
+  "existingProfile": "unrelated Goal kept",
+  "skipped": "See parser source notes; clinical negation excluded"
+}

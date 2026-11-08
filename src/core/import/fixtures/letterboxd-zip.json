@@ -1,0 +1,5 @@
+{
+  "parser": "media",
+  "input": "Date,Name,Year,Letterboxd URI,Rating,Watched Date\n2020-01-01,Fable Moon,2019,https://example.invalid/x,4.5,2020-03-04",
+  "archive": true
+}

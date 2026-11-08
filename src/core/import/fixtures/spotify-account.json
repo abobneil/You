@@ -1,0 +1,6 @@
+{
+  "parser": "streaming",
+  "input": {
+    "StreamingHistory0.json": "[{\"endTime\": \"2020-03-01 10:00\", \"msPlayed\": 240000, \"trackName\": \"Fable Song\", \"artistName\": \"\\u00c9lo Ensemble\"}, {\"endTime\": \"2020-03-02 10:00\", \"msPlayed\": 240000, \"trackName\": \"Fable Song\", \"artistName\": \"\\u00c9lo Ensemble\"}, {\"endTime\": \"2020-03-03 10:00\", \"msPlayed\": 240000, \"trackName\": \"Fable Song\", \"artistName\": \"\\u00c9lo Ensemble\"}, {\"endTime\": \"2020-03-04 10:00\", \"msPlayed\": 240000, \"trackName\": \"Fable Song\", \"artistName\": \"\\u00c9lo Ensemble\"}, {\"endTime\": \"2020-03-05 10:00\", \"msPlayed\": 240000, \"trackName\": \"Fable Song\", \"artistName\": \"\\u00c9lo Ensemble\"}]"
+  }
+}

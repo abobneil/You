@@ -1,0 +1,4 @@
+{
+  "parser": "audible",
+  "input": "{\"schema\": \"you.audible.library\", \"version\": 1, \"marketplace\": \"us\", \"exported_at\": \"2026-11-01T00:00:00Z\", \"items\": [{\"id\": \"audible:us:B000000001\", \"asin\": \"B000000001\", \"marketplace\": \"us\", \"title\": \"Fable Moon\", \"authors\": [\"\\u00c9lo Quill\"], \"ownership\": {\"status\": \"subscription\"}, \"listening\": {\"state\": \"unknown\", \"position_ms\": 120000}}]}"
+}

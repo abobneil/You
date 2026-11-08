@@ -1,0 +1,4 @@
+{
+  "parser": "contacts",
+  "input": "﻿BEGIN:VCARD\nVERSION:4.0\nFN:Élo 林\nORG:Invented\n Studio\nTEL;TYPE=CELL:+44 2071234567\nTEL;TYPE=WORK:+1 2071234567\nEMAIL;TYPE=HOME:elo@example.invalid\nEMAIL;TYPE=WORK:elo@studio.invalid\nADR;TYPE=HOME:;;1 Imaginary Lane;Fable;;00000;GB\nBDAY:1980-03-04\nEND:VCARD"
+}

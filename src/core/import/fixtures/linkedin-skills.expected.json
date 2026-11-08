@@ -1,0 +1,12 @@
+{
+  "cards": [
+    {
+      "kind": "Skill",
+      "value": "Weaving"
+    }
+  ],
+  "repeat": "no changes or revisions",
+  "reopen": "same cards and provenance",
+  "existingProfile": "unrelated Goal kept",
+  "skipped": "See parser source notes; clinical negation excluded"
+}

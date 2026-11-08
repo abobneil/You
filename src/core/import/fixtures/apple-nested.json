@@ -1,0 +1,8 @@
+{
+  "parser": "streaming",
+  "input": {
+    "Apple Music - Play History Daily Tracks.csv": "Country,Track Identifier,Media type,Date Played,Hours,Play Duration Milliseconds,Source Type,Play Count,Skip Count,Track Description\nUS,1,AUDIO,20200304,10,1200000,IPHONE,5,0,Élo Ensemble - Fable Song"
+  },
+  "archive": true,
+  "nested": true
+}

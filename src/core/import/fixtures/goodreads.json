@@ -1,0 +1,4 @@
+{
+  "parser": "media",
+  "input": "﻿Book Id,Title,Author,Exclusive Shelf,My Rating,Date Read\n1,\"Moon\nGarden\",Élo Quill,read,4,2020/03/04"
+}
