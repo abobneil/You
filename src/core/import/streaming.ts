@@ -324,7 +324,7 @@ export function streamingRows(files: Record<string, string>, me = ''): ImportRes
       : t.what === 'artist' ? [plural(t.plays, 'play'), listened(t.ms)].filter(Boolean).join(', ') : '';
     const when = t.first === t.last ? t.first : `${t.first} to ${t.last}`;
     const ticked = (t.what !== 'artist' || topArtists.has(t)) && (!mine || !t.profile || t.profile === mine);
-    const p = proposal(t, at(t.service));
+    const p = proposal(t, t.last || at(t.service));
     return { id: rowId('stream'), group, label: t.name, sub: [count, when].filter(Boolean).join(' · '), on: ticked, build: () => [p] };
   });
   const reasons = new Map<string, number>();

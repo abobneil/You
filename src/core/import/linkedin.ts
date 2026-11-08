@@ -30,7 +30,7 @@ const keep = (o: Record<string, string>) => Object.fromEntries(Object.entries(o)
 
 const LEVELS: [RegExp, string][] = [[/native|bilingual/i, 'Native'], [/full professional|professional working/i, 'Fluent'], [/limited/i, 'Conversational'], [/elementary/i, 'Learning']];
 
-export function linkedinRows(files: Files, at = new Date().toISOString()): ImportResult {
+export function linkedinRows(files: Files, at = ''): ImportResult {
   const rows: ImportRow[] = [];
   const notes: string[] = [];
 
@@ -112,7 +112,7 @@ export function linkedinRows(files: Files, at = new Date().toISOString()): Impor
   if (!rows.length) notes.push('Nothing usable was found. Choose the zip LinkedIn emailed you, or the CSV files inside it.');
   for (const r of rows) {
     const build = r.build;
-    r.build = choice => build(choice).map(p => ({ ...p, sync: { source: 'linkedin', id: [p.kind, p.value, p.since ?? ''].join(':'), at } }));
+    r.build = choice => build(choice).map(p => ({ ...p, sync: { source: 'linkedin', id: [p.kind, p.kind === 'Job' ? (p.fields?.employer ?? p.value).toLowerCase() : p.value, p.since ?? ''].join(':'), at: at || p.until || p.since || '' } }));
   }
   return { rows, notes };
 }
