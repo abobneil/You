@@ -143,8 +143,19 @@ export interface Removal {
   card: Card;
   index: number;
   links: { link: Link; index: number }[];
-  /** The cards on either side of a replacement chain, as they were before the removal. */
-  touched: Card[];
+  /**
+   * The chain pointers the removal changed on the cards either side: each one's values before and
+   * after. Undo puts back only these, so later edits to those cards (wording, details, notes) stay.
+   */
+  chain: { id: string; before: ChainState; after: ChainState }[];
+}
+
+type ChainState = Partial<Pick<Card, 'replaces' | 'replacedBy' | 'status' | 'until'>>;
+const CHAIN_KEYS = ['replaces', 'replacedBy', 'status', 'until'] as const;
+const chainOf = (c: Card): ChainState => Object.fromEntries(CHAIN_KEYS.map(k => [k, c[k]]));
+const sameChain = (a: ChainState, b: ChainState) => CHAIN_KEYS.every(k => (a[k] ?? '') === (b[k] ?? ''));
+function setChain(c: Card, s: ChainState) {
+  for (const k of CHAIN_KEYS) { if (s[k] === undefined) delete c[k]; else (c as unknown as Record<string, unknown>)[k] = s[k]; }
 }
 
 /**
@@ -160,30 +171,41 @@ export function removeCard(p: Profile, id: string): Removal | undefined {
     card: structuredClone(c),
     index: p.cards.indexOf(c),
     links: p.links.map((link, index) => ({ link: structuredClone(link), index })).filter(x => x.link.a === id || x.link.b === id),
-    touched: [prev, next].filter((x): x is Card => !!x).map(x => structuredClone(x)),
+    chain: [],
   };
+  const before = [prev, next].filter((x): x is Card => !!x).map(x => ({ c: x, s: chainOf(x) }));
   if (prev && prev.replacedBy === c.id) {
     if (next) prev.replacedBy = next.id;
     else { if (c.status === 'active') { prev.status = 'active'; delete prev.until; } delete prev.replacedBy; }
   }
   if (next) { if (prev) next.replaces = prev.id; else delete next.replaces; }
+  for (const { c: x, s } of before) if (!sameChain(s, chainOf(x))) removal.chain.push({ id: x.id, before: s, after: chainOf(x) });
   p.cards = p.cards.filter(x => x.id !== id);
   p.links = p.links.filter(l => l.a !== id && l.b !== id);
   return removal;
 }
 
-/** Puts a removed card back: the card, its links and the cards around it, exactly as they were. */
-export function undoRemove(p: Profile, r: Removal): boolean {
+/**
+ * Puts a removed card back with its links, and re-links the chain around it. Only the chain pointers
+ * the removal changed are put back; any other change made since to the cards around it is kept.
+ * If those cards' chain changed since (so re-linking would undo that), the card comes back on its own
+ * in history instead, and the result is 'separate' so the screen can say so.
+ */
+export function undoRemove(p: Profile, r: Removal): boolean | 'separate' {
   if (byId(p, r.card.id)) return false;
-  for (const t of r.touched) {
-    const i = p.cards.findIndex(x => x.id === t.id);
-    if (i >= 0) p.cards[i] = structuredClone(t);
+  const card = structuredClone(r.card);
+  const intact = r.chain.every(t => { const c = byId(p, t.id); return !!c && sameChain(chainOf(c), t.after); })
+    && (!card.replaces || !!byId(p, card.replaces)) && (!card.replacedBy || !!byId(p, card.replacedBy));
+  if (intact) for (const t of r.chain) setChain(byId(p, t.id)!, t.before);
+  else {
+    delete card.replaces; delete card.replacedBy;
+    if (card.status === 'active') { card.status = 'past'; card.until = card.until || thisMonth(); }
   }
-  p.cards.splice(Math.min(r.index, p.cards.length), 0, structuredClone(r.card));
+  p.cards.splice(Math.min(r.index, p.cards.length), 0, card);
   for (const { link, index } of [...r.links].sort((a, b) => a.index - b.index)) {
     if (byId(p, link.a) && byId(p, link.b) && !p.links.some(l => l.id === link.id)) p.links.splice(Math.min(index, p.links.length), 0, structuredClone(link));
   }
-  return true;
+  return intact ? true : 'separate';
 }
 
 /** Card settings that can be corrected in place. Each correction keeps the earlier one in history. */
