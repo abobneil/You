@@ -166,9 +166,25 @@ export function store(): Promise<Store> {
   })();
 }
 
+/** The outline of a saved value that isn't JSON, safe to log: its size and shape, never its content. */
+export function outline(text: string): string {
+  const kind = (c: string | undefined) => c === undefined ? 'nothing' : /[{}[\]"]/.test(c) ? `'${c}'`
+    : /[A-Za-z0-9+/=]/.test(c) ? 'letter/digit' : /\s/.test(c) ? 'whitespace' : `U+${c.codePointAt(0)!.toString(16).padStart(4, '0')}`;
+  const t = text.trim();
+  return `${text.length} chars, ${text.split('\n').length - 1} newlines, starts with ${kind(t[0])}, ends with ${kind(t.at(-1))}`;
+}
+
 export async function load<T>(name: Name): Promise<T | null> {
-  const text = await (await store()).read(name);
-  return text === null ? null : JSON.parse(text) as T;
+  const s = await store();
+  const text = await s.read(name);
+  if (text === null) return null;
+  try { return JSON.parse(text) as T; }
+  catch {
+    console.warn(`[you/audible] the saved "${name}" in the ${s.kind} store isn't readable: ${outline(text)}`);
+    throw new Error(name === 'us'
+      ? 'The saved Audible connection on this computer is damaged. Disconnect, then connect again.'
+      : 'The unfinished Audible connection on this computer is damaged. Start connecting again.');
+  }
 }
 export async function save(name: Name, value: unknown) { await (await store()).write(name, JSON.stringify(value)); }
 export async function remove(name: Name) { await (await store()).remove(name); }

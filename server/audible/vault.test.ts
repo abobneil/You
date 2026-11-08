@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { fileStore, seal, unseal } from './vault.ts';
+import { fileStore, outline, seal, unseal } from './vault.ts';
 
 const secret = JSON.stringify({ adp_token: '{enc:abc}', device_private_key: '-----BEGIN RSA PRIVATE KEY-----\nxyz\n-----END RSA PRIVATE KEY-----' });
 
@@ -45,5 +45,13 @@ describe('the private-file store (Linux servers, anywhere without a keyring)', (
     expect(a).not.toBe(b);
     expect(unseal(a, 'pw')).toBe('hello');
     expect(unseal('{"plain":true}', undefined)).toBe('{"plain":true}');
+  });
+});
+
+describe('outline', () => {
+  it('describes a saved value without repeating any of it', () => {
+    const o = outline('{"adp_token":"secret-ish"');
+    expect(o).toBe('25 chars, 0 newlines, starts with \'{\', ends with \'"\'');
+    expect(o).not.toContain('secret');
   });
 });
