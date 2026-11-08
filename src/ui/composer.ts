@@ -29,6 +29,8 @@ interface Draft {
   tag?: string;
   /** Structured details (a vehicle's Year, Make…). */
   fields: Record<string, string>;
+  /** Details typed under other types, kept in case the person switches back. */
+  fieldsByKind: Record<string, Record<string, string>>;
   /** True once the name was typed by hand, so details stop filling it in. */
   nameTyped: boolean;
   mode: string | null;
@@ -39,7 +41,7 @@ let draft: Draft;
 
 export function openComposer(area: AreaId, preset: { kind?: string; replaceId?: string } = {}) {
   draft = { area, kind: preset.kind || firstOpenKind(area), custom: '', value: '', valueDate: '', since: '',
-    fields: {}, nameTyped: false, mode: null, replaceId: preset.replaceId, links: [] };
+    fields: {}, fieldsByKind: {}, nameTyped: false, mode: null, replaceId: preset.replaceId, links: [] };
   render(true);
 }
 
@@ -114,11 +116,21 @@ function render(focus = false) {
     kind: b => {
       read();
       if (b.dataset.kind === draft.kind) return;
+      // Switching type never throws away what was typed: each type keeps its own details for
+      // switching back, details that mean the same thing (Street, City…) come along, and a name
+      // typed by hand stays. Only a name that was built from the details is rebuilt.
+      const from = currentKind();
+      draft.fieldsByKind[draft.kind] = draft.fields;
       draft.kind = b.dataset.kind!;
       draft.mode = null;
-      draft.fields = {};
-      draft.nameTyped = false;
-      draft.value = '';
+      const to = currentKind();
+      const carried: Record<string, string> = {};
+      for (const f of to.fields ?? []) {
+        const same = from.fields?.find(g => g.id === f.id && g.label === f.label && !g.choices && !f.choices && g.format === f.format);
+        if (same && draft.fields[f.id]) carried[f.id] = draft.fields[f.id];
+      }
+      draft.fields = { ...carried, ...draft.fieldsByKind[draft.kind] };
+      if (!draft.nameTyped) draft.value = to.titleFrom ? to.titleFrom(draft.fields) : '';
       render();
       (sheetBody.querySelector<HTMLElement>(draft.kind === OTHER ? '#c-custom' : '#c-value, [data-date="vdate"] .mbtn'))?.focus();
     },

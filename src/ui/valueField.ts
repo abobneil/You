@@ -45,12 +45,17 @@ export function attachValueField(root: ParentNode, id: string, kind: KindInfo) {
     input.addEventListener('blur', showCheck);
   }
 
-  root.querySelectorAll<HTMLElement>('.vf-choices [data-choice]').forEach(b =>
+  // Only this field's own quick picks. (Every field's picks share the same markup, so looking them up
+  // from `root` would make one click write into every field on the sheet.)
+  const picks = [...(input.closest('.vf')?.querySelectorAll<HTMLElement>(':scope > .vf-choices [data-choice]') ?? [])];
+  const mark = () => picks.forEach(x => x.classList.toggle('on', x.dataset.choice === input.value.trim()));
+  input.addEventListener('input', mark);
+  picks.forEach(b =>
     b.addEventListener('click', () => {
       input.value = b.dataset.choice!;
-      root.querySelectorAll('.vf-choices [data-choice]').forEach(x => x.classList.toggle('on', x === b));
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true })); // saves, on an existing card
       input.focus();
+      if (b.dataset.choice === 'Other') input.select(); // so typing the real answer replaces "Other"
     }));
 }
