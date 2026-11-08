@@ -1,3 +1,4 @@
+import { renderLife } from './life';
 // Home screen, the overview of areas, and simple hash routing (#health opens Health).
 import { AREAS, areaById, type Area } from '../core/areas';
 import { profile } from '../state';
@@ -29,6 +30,9 @@ export function showHome() {
 
 export function route() {
   if (!isHome()) return;
+  const life = /^#\/?life(?:\/|$)/.test(location.hash);
+  $('#life').hidden = !life;
+  if (life) { overview.hidden = true; detail.hidden = true; renderLife(); return; }
   const { area: a, kind } = parseHash();
   overview.hidden = !!a;
   detail.hidden = !a;
@@ -39,6 +43,9 @@ export function route() {
 /** Redraws whatever is showing, without scrolling. */
 export function refresh() {
   if (!isHome()) return;
+  const life = /^#\/?life(?:\/|$)/.test(location.hash);
+  $('#life').hidden = !life;
+  if (life) { overview.hidden = true; detail.hidden = true; renderLife(); return; }
   const { area: a, kind } = parseHash();
   a ? renderArea(a, kind) : renderOverview();
 }
