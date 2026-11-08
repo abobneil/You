@@ -80,3 +80,12 @@ if (!resetting) {
   initTarget();
   start().then(where => { if (where === 'home') showHome(); });
 }
+
+// Keep the production app shell available without a network. Updates wait for all windows to close.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {
+      // Installation can be retried on the next launch; local recording remains available.
+    });
+  });
+}
