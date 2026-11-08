@@ -6,6 +6,7 @@ import { noteInput, autosizeNote } from './note';
 import { areaById, kindLabel, kindOf, tagOf, type KindInfo } from '../core/areas';
 import { activeOf, addCard, addCardBefore, addKeepsake, addLink, byId, defaultMode } from '../core/cards';
 import type { Keepsake } from '../core/keepsakes';
+import { findCustomKind, mergeCustomKind, newFieldId } from '../core/customKinds';
 import { fmtDate, isValidDate, startKey, endKey } from '../core/dates';
 import type { AreaId, Card, FuzzyDate } from '../core/types';
 import { profile, save } from '../state';
@@ -118,9 +119,14 @@ function firstOpenKind(area: AreaId): string {
 }
 
 const current = () => draft!;
+// Another card of an existing custom kind starts from that kind's details; new ones are added after them.
 const currentKind = (d = current()): KindInfo => d.kind === OTHER
-  ? { ...kindOf(d.area, d.custom || 'Note', profile), fields: d.customFields }
+  ? { ...kindOf(d.area, d.custom || 'Note', profile), fields: customFieldsFor(d) }
   : kindOf(d.area, d.kind, profile);
+const customFieldsFor = (d: Draft) => {
+  const existing = (d.custom && findCustomKind(profile, d.area, d.custom)?.fields) || [];
+  return [...existing, ...d.customFields.filter(f => !existing.some(x => x.id === f.id))];
+};
 
 /** Copies whatever is on screen into the draft. Sections that are closed keep what they had. */
 function read() {
@@ -247,7 +253,7 @@ function render(focus = false) {
     // A detail of the person's own: name it here, fill it in under Details.
     'custom-detail': () => {
       read();
-      d.customFields.push({ id: 'detail' + (d.customFields.length + 1), label: '', type: 'text' });
+      d.customFields.push({ id: newFieldId(), label: '', type: 'text' });
       d.open.add('details');
       render();
       sheetBody.querySelector<HTMLElement>(`#custom-label-${d.customFields.length - 1}`)?.focus();
@@ -407,12 +413,12 @@ function saveDraft() {
     }
   }
   if (d.kind === OTHER) {
-    profile.kinds ??= [];
-    const definition = { area: d.area, name, fields: d.customFields.filter(f => f.label) };
-    const index = profile.kinds.findIndex(k => k.area === d.area && k.name === name);
-    if (index < 0) profile.kinds.push(definition); else profile.kinds[index] = definition;
+    // Details only ever grow: existing ones are never removed or relabeled.
+    const remap = mergeCustomKind(profile, d.area, name, d.customFields);
+    d.fields = Object.fromEntries(Object.entries(d.fields).map(([k, v]) => [remap[k] ?? k, v]));
   }
-  const input = { note: d.note.trim() ? d.note : '', area: d.area, kind: name, value, since, tag: d.tag, fields: d.fields };
+  const kindName = d.kind === OTHER ? (findCustomKind(profile, d.area, name)?.name ?? name) : name;
+  const input = { note: d.note.trim() ? d.note : '', area: d.area, kind: kindName, value, since, tag: d.tag, fields: d.fields };
   const c = before
     ? addCardBefore(profile, input, d.mode!.slice(2))
     : addCard(profile, input, replacing ? d.mode!.slice(2) : undefined);
