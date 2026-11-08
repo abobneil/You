@@ -1,0 +1,29 @@
+{
+  "cards": [
+    {
+      "kind": "Medication",
+      "value": "Synthetic medicine",
+      "fields": {
+        "dose": "5 mg"
+      }
+    },
+    {
+      "kind": "Allergy",
+      "value": "Fable pollen"
+    },
+    {
+      "kind": "Condition",
+      "value": "Synthetic condition",
+      "since": "2019-01-01"
+    },
+    {
+      "kind": "Immunization",
+      "value": "Synthetic vaccine",
+      "since": "2020-03-04"
+    }
+  ],
+  "repeat": "no changes or revisions",
+  "reopen": "same cards and provenance",
+  "existingProfile": "unrelated Goal kept",
+  "skipped": "See parser source notes; clinical negation excluded"
+}

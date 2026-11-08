@@ -1,0 +1,15 @@
+{
+  "cards": [
+    {
+      "kind": "Vehicle",
+      "value": "2020 Fable Moon",
+      "fields": {
+        "year": "2020",
+        "make": "Fable",
+        "model": "Moon",
+        "trim": "X",
+        "fuel": "Electric"
+      }
+    }
+  ]
+}

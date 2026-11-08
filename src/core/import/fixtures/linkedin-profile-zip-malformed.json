@@ -1,0 +1,7 @@
+{
+  "parser": "linkedin",
+  "input": {
+    "Positions.csv": "wrong,header\nx,y"
+  },
+  "archive": true
+}

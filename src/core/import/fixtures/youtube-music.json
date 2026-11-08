@@ -1,0 +1,6 @@
+{
+  "parser": "streaming",
+  "input": {
+    "watch-history.json": "[{\"header\": \"YouTube Music\", \"title\": \"Watched Fable Song\", \"subtitles\": [{\"name\": \"\\u00c9lo Ensemble - Topic\"}], \"time\": \"2020-03-04T10:00:00Z\"}, {\"header\": \"YouTube Music\", \"title\": \"Watched Fable Song\", \"subtitles\": [{\"name\": \"\\u00c9lo Ensemble - Topic\"}], \"time\": \"2020-03-04T10:00:00Z\"}, {\"header\": \"YouTube Music\", \"title\": \"Watched Fable Song\", \"subtitles\": [{\"name\": \"\\u00c9lo Ensemble - Topic\"}], \"time\": \"2020-03-04T10:00:00Z\"}, {\"header\": \"YouTube Music\", \"title\": \"Watched Fable Song\", \"subtitles\": [{\"name\": \"\\u00c9lo Ensemble - Topic\"}], \"time\": \"2020-03-04T10:00:00Z\"}, {\"header\": \"YouTube Music\", \"title\": \"Watched Fable Song\", \"subtitles\": [{\"name\": \"\\u00c9lo Ensemble - Topic\"}], \"time\": \"2020-03-04T10:00:00Z\"}]"
+  }
+}

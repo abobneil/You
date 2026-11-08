@@ -1,0 +1,25 @@
+{
+  "cards": [
+    {
+      "kind": "Full name",
+      "value": "Elio Fable"
+    },
+    {
+      "kind": "Birthday",
+      "value": "Mar 4, 1980",
+      "since": "1980-03-04"
+    },
+    {
+      "kind": "Driver's license",
+      "value": "SYNTHETIC-ONLY"
+    },
+    {
+      "kind": "Address",
+      "value": "1 Imaginary Lane"
+    }
+  ],
+  "repeat": "no changes or revisions",
+  "reopen": "same cards and provenance",
+  "existingProfile": "unrelated Goal kept",
+  "skipped": "See parser source notes; clinical negation excluded"
+}

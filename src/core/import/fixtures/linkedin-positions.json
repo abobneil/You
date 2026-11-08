@@ -1,0 +1,6 @@
+{
+  "parser": "linkedin",
+  "input": {
+    "Positions.csv": "Notes before headers\nCompany Name,Title,Started On,Finished On\nFable,Maker,Jan 2020,\nFable,Helper,2018,2019"
+  }
+}

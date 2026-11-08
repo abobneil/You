@@ -1,0 +1,7 @@
+{
+  "parser": "streaming",
+  "input": {
+    "StreamingHistory0.json": "{broken"
+  },
+  "archive": false
+}

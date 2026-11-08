@@ -1,0 +1,18 @@
+{
+  "cards": [
+    {
+      "kind": "Friend",
+      "value": "Élo 林",
+      "fields": {
+        "email": "elo@example.invalid"
+      }
+    },
+    {
+      "kind": "Friend",
+      "value": "Élo 林",
+      "fields": {
+        "email": "other@example.invalid"
+      }
+    }
+  ]
+}

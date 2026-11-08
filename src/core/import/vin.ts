@@ -9,7 +9,7 @@ export interface VinInfo { year: string; make: string; model: string; trim: stri
 /** Turns vPIC's DecodeVinValues answer into vehicle details. */
 export function readVinResponse(json: any): VinInfo | null {
   const r = json?.Results?.[0];
-  if (!r || !r.Make) return null;
+  if (!r || !r.Make || !r.Model || !/^\d{4}$/.test(String(r.ModelYear)) || (r.ErrorCode && !/^0(?:,|$)/.test(String(r.ErrorCode)))) return null;
   const electrified = String(r.ElectrificationLevel ?? '');
   const fuelPrimary = String(r.FuelTypePrimary ?? '');
   const fuel = /PHEV|plug-in/i.test(electrified) ? 'Plug-in hybrid'
@@ -21,7 +21,12 @@ export function readVinResponse(json: any): VinInfo | null {
 }
 
 export async function lookupVin(vin: string): Promise<VinInfo | null> {
-  const res = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${encodeURIComponent(vin)}?format=json`);
-  if (!res.ok) throw new Error('lookup failed');
-  return readVinResponse(await res.json());
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/i.test(vin)) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${encodeURIComponent(vin)}?format=json`, { signal: controller.signal });
+    if (!res.ok) throw new Error('lookup failed');
+    return readVinResponse(await res.json());
+  } finally { clearTimeout(timer); }
 }

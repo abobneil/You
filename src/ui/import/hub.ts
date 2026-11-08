@@ -12,7 +12,7 @@ import { profile } from '../../state';
 import type { ImportResult } from '../../core/import/types';
 import { contactRows, parseVcf, type Contact } from '../../core/import/vcard';
 import { esc } from '../dom';
-import { openComposer } from '../composer';
+import { lookupVin, VIN_SERVICE } from '../../core/import/vin';
 import { openSheet, sheetTop } from '../sheet';
 import { openReview } from './review';
 import { canUseCamera, readPhoto, scanCamera } from './scan';
@@ -162,7 +162,7 @@ function sources(audible: AudibleStatus | null): Source[] {
         { label: 'Use a photo of the barcode', primary: !canUseCamera(), run: () => pick('image/*', false, licenseFromPhoto) }] },
     { id: 'vehicle', title: 'Vehicle', desc: 'Year, make, model, trim and fuel from the VIN.', icon: ICONS.vehicle,
       how: 'The VIN is on your registration, insurance card, or the driver’s side of the dashboard. Looking it up asks NHTSA, the US government’s free vehicle database.',
-      actions: [{ label: 'Add a vehicle', primary: true, run: () => { goTo('home'); openComposer('home', { kind: 'Vehicle' }); } }] },
+      actions: [{ label: 'Add a vehicle', primary: true, run: () => openVinImport() }] },
     { id: 'health', title: 'Health records', desc: 'Allergies, medications, conditions and immunizations from your patient portal.', icon: ICONS.health,
       how: 'In MyChart or your portal, look for <b>Download my record</b>, <b>Health Summary</b> or <b>Share my record</b>, and save the C-CDA (XML) or FHIR file. US providers are required to offer one.',
       actions: [{ label: 'Choose XML or JSON file', primary: true, run: () => pick('.xml,.json,.ndjson,.zip,text/xml,application/json', true, importHealth) }] },
@@ -223,5 +223,24 @@ export async function openImportHub(only?: SourceId[]) {
   {
     run: b => runners[b.dataset.k!]?.(),
     everything: () => openImportHub(),
+  });
+}
+
+function openVinImport(value = '', message = '') {
+  openSheet(`${sheetTop('Vehicle')}<h3 class="sh-title">Look up a vehicle</h3><label for="import-vin">VIN</label><input id="import-vin" maxlength="17" value="${esc(value)}"><p class="hint">${esc(message)}</p><button type="button" class="btn" data-act="lookup">Look up</button>`, {
+    lookup: () => {
+      const vin = (document.getElementById('import-vin') as HTMLInputElement).value.trim().toUpperCase();
+      if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return openVinImport(vin, 'Enter 17 letters and numbers, without I, O or Q.');
+      openSheet(`${sheetTop('Your choice')}<h3 class="sh-title">Send this VIN to ${esc(VIN_SERVICE)}?</h3><p>${esc(vin)}</p><p class="hint">Only this VIN is sent to the US government vehicle decoder.</p><button type="button" class="btn quiet" data-act="decline">Decline</button><button type="button" class="btn primary" data-act="send">Send VIN</button>`, {
+        decline: () => openVinImport(vin),
+        send: async () => {
+          try {
+            const info = await lookupVin(vin);
+            if (!info) return openVinImport(vin, 'The response was incomplete. Your VIN is kept; try again or add the vehicle by hand.');
+            show('NHTSA', {rows:[{id:'vin',group:'Vehicle',label:[info.year,info.make,info.model].join(' '),sub:'Details from NHTSA. Ownership dates are unknown.',build:()=>[{area:'home',kind:'Vehicle',value:[info.year,info.make,info.model].join(' '),fields:{vin,...info}}]}]});
+          } catch { openVinImport(vin, 'The lookup timed out or could not connect. Your VIN is kept; try again or add the vehicle by hand.'); }
+        },
+      });
+    },
   });
 }

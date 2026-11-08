@@ -1,0 +1,5 @@
+{
+  "parser": "media",
+  "input": "wrong,header\nx,y",
+  "archive": false
+}

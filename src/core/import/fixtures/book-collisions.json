@@ -1,0 +1,4 @@
+{
+  "parser": "media",
+  "input": "Book Id,Title,Author,Exclusive Shelf\n1,Fable Moon,Author One,read\n2,Fable Moon,Author Two,read\n3,Fable Moon,Author One,read"
+}

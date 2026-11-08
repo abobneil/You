@@ -1,0 +1,18 @@
+{
+  "cards": [
+    {
+      "kind": "Book",
+      "value": "Fable Moon",
+      "fields": {
+        "author": "Élo Quill",
+        "audibleOwnership": "Subscription",
+        "audibleStatus": "Unknown",
+        "audiblePosition": "2 min"
+      }
+    }
+  ],
+  "repeat": "no changes or revisions",
+  "reopen": "same cards and provenance",
+  "existingProfile": "unrelated Goal kept",
+  "skipped": "See parser source notes; clinical negation excluded"
+}

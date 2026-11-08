@@ -1,0 +1,6 @@
+{
+  "parser": "linkedin",
+  "input": {
+    "Education.csv": "Notes before headers\nSchool Name,Degree Name,Start Date,End Date\nFable School,Arts,2010,2012"
+  }
+}

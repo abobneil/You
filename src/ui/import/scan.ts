@@ -56,7 +56,7 @@ export function scanCamera(o: { title: string; hint: string; formats: Formats; a
     (async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-        if (finished) return finish(null);
+        if (finished) { stream.getTracks().forEach(t => t.stop()); return; }
         video.srcObject = stream;
         await video.play();
         status.textContent = 'Looking for the barcode…';
@@ -74,9 +74,10 @@ export function scanCamera(o: { title: string; hint: string; formats: Formats; a
             const found = await m.readBarcodes(ctx.getImageData(0, 0, canvas.width, canvas.height), { formats: o.formats, tryHarder: true, maxNumberOfSymbols: 1, textMode: 'Plain' });
             const hit = found.find(r => r.isValid && o.accept(r.text));
             if (hit) { finish(hit.text); closeSheet(); }
-          } finally { busy = false; }
+          } catch { clearInterval(timer); stream?.getTracks().forEach(t => t.stop()); status.textContent = 'The barcode could not be read. Cancel and try a sharper photo, or enter the details by hand.'; } finally { busy = false; }
         }, 300);
       } catch {
+        clearInterval(timer); stream?.getTracks().forEach(t => t.stop());
         status.textContent = 'The camera couldn’t be opened. Check the browser’s camera permission, or use a photo instead.';
       }
     })();

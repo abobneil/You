@@ -1,0 +1,20 @@
+{
+  "cards": [
+    {
+      "kind": "Job",
+      "value": "Maker at Fable",
+      "since": "2020-01"
+    },
+    {
+      "kind": "Job",
+      "value": "Helper at Fable",
+      "since": "2018",
+      "until": "2019",
+      "past": true
+    }
+  ],
+  "repeat": "no changes or revisions",
+  "reopen": "same cards and provenance",
+  "existingProfile": "unrelated Goal kept",
+  "skipped": "See parser source notes; clinical negation excluded"
+}

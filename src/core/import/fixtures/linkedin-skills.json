@@ -1,0 +1,6 @@
+{
+  "parser": "linkedin",
+  "input": {
+    "Skills.csv": "Notes before headers\nName\nWeaving"
+  }
+}

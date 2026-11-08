@@ -1,0 +1,4 @@
+{
+  "parser": "audible",
+  "input": "{\"schema\":\"you.audible.library\",\"version\":99}"
+}

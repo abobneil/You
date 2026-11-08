@@ -1,0 +1,13 @@
+{
+  "cards": [
+    {
+      "kind": "Movie or show",
+      "value": "Fable Moon",
+      "since": "2020-03-04"
+    }
+  ],
+  "repeat": "no changes or revisions",
+  "reopen": "same cards and provenance",
+  "existingProfile": "unrelated Goal kept",
+  "skipped": "See parser source notes; clinical negation excluded"
+}

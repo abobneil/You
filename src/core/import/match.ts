@@ -1,22 +1,33 @@
 // Matching imported cards against what's already there, and adding them.
 // Ordinary imports fill missing details. Explicit source snapshots can refresh unchanged imported fields.
-import { addCard, removeCard, setField } from '../cards';
+import { addCard, correctValue, removeCard, setField } from '../cards';
 import type { Card, Profile } from '../types';
 import type { Proposal } from './types';
 
-const digits = (s: string) => s.replace(/\D/g, '');
+export const phoneKey = (s: string) => {
+  const d = s.replace(/\D/g, '');
+  return s.trim().startsWith('+') ? '+' + d : d.startsWith('00') ? '+' + d.slice(2) : d.length === 10 ? '+1' + d : '+' + d;
+};
 
 /** A comparison key, so "(919) 449-8524" matches "919.449.8524" and emails ignore case. */
 export function matchKey(p: { area: string; kind: string; value: string }): string {
   const v = p.value.trim();
-  if (p.kind === 'Phone' || /phone/i.test(p.kind)) return 'tel:' + digits(v).slice(-10);
+  if (p.kind === 'Phone' || /phone/i.test(p.kind)) return 'tel:' + phoneKey(v);
   if (p.kind === 'Email') return 'mail:' + v.toLowerCase();
   // People can be filed under different kinds (Friend vs Family member); match on the name alone.
   const scope = p.area === 'people' ? 'people' : `${p.area}/${p.kind}`;
-  return scope + ':' + v.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return scope + ':' + v.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
 
 export function findMatch(profile: Profile, p: Proposal): Card | undefined {
+  if (p.matchId) return profile.cards.find(c => c.id === p.matchId && c.area === p.area);
+  if (p.area === 'people') {
+    const exact = p.sync && profile.cards.find(c => c.imports?.[p.sync!.source]?.id === p.sync!.id);
+    if (exact) return exact;
+    return profile.cards.find(c => c.area === 'people' && (
+      (!!p.fields?.email && c.fields?.email?.trim().toLowerCase() === p.fields.email.trim().toLowerCase()) ||
+      (!!p.fields?.phone && !!c.fields?.phone && phoneKey(c.fields.phone) === phoneKey(p.fields.phone))));
+  }
   if (p.sync) {
     const { source, id } = p.sync;
     const exact = profile.cards.find(c => c.area === p.area && c.kind === p.kind && c.imports?.[source]?.id === id);
@@ -24,11 +35,12 @@ export function findMatch(profile: Profile, p: Proposal): Card | undefined {
     const title = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     const candidates = profile.cards.filter(c => c.area === p.area && c.kind === p.kind && title(c.value) === title(p.value)
       && !c.imports?.[source]
-      && (!c.fields?.author || !p.fields?.author || c.fields.author.toLowerCase() === p.fields.author.toLowerCase()));
+      && (p.kind !== 'Book' || (!!c.fields?.author && !!p.fields?.author && c.fields.author.toLowerCase() === p.fields.author.toLowerCase()))
+      && (p.kind !== 'Book' || (c.fields?.edition ?? '') === (p.fields?.edition ?? '')));
     return candidates.length === 1 ? candidates[0] : undefined;
   }
   const key = matchKey(p);
-  return profile.cards.find(c => (c.area === p.area || p.area === 'people') && matchKey(c) === key);
+  return profile.cards.find(c => (c.area === p.area || p.area === 'people') && matchKey(c) === key && (p.kind !== 'Book' || (c.fields?.author ?? '').toLowerCase() === (p.fields?.author ?? '').toLowerCase()) && (p.kind !== 'Book' || (c.fields?.edition ?? '') === (p.fields?.edition ?? '')));
 }
 
 export type Plan = 'new' | 'fill' | 'update' | 'have';
@@ -44,12 +56,12 @@ export function absorbable(profile: Profile, p: Proposal): Card[] {
     const snap = c.imports?.[p.absorbs!.source];
     if (!snap || !ids.has(snap.id) || c.area !== p.area || c.kind !== p.kind) return false;
     const fields = c.fields ?? {};
-    const same = Object.keys({ ...fields, ...snap.fields }).every(k => (fields[k] ?? '') === (snap.fields[k] ?? ''));
+    const same = Object.keys({ ...fields, ...snap.fields }).filter(k => k !== '$value').every(k => (fields[k] ?? '') === (snap.fields[k] ?? ''));
     return same && !c.revisions?.length && !profile.links.some(l => l.a === c.id || l.b === c.id);
   });
 }
 
-function fieldChanges(m: Card, p: Proposal): [string, string][] {
+export function fieldChanges(m: Card, p: Proposal): [string, string][] {
   const previous = p.sync ? m.imports?.[p.sync.source] : undefined;
   if (previous && p.sync!.at <= previous.at) return [];
   return Object.entries(p.fields ?? {}).filter(([k, v]) => {
@@ -75,7 +87,7 @@ function basePlan(profile: Profile, p: Proposal): Plan {
   if (previous && p.sync!.at <= previous.at) return 'have';
   const changes = fieldChanges(m, p);
   // A newer snapshot that changes nothing is "already there": syncing again shouldn't flag every card.
-  if (changes.some(([k]) => m.fields?.[k])) return 'update';
+  if ((previous?.fields.$value === m.value && p.value !== m.value) || changes.some(([k]) => m.fields?.[k])) return 'update';
   const missing = changes.length > 0 || (!!p.sync && !previous)
     || (!!p.since && !m.since) || (!!p.tag && !m.tag);
   return missing ? 'fill' : 'have';
@@ -89,8 +101,9 @@ export function applyProposals(profile: Profile, proposals: Proposal[], from: st
     const m = findMatch(profile, p);
     if (m) {
       const plan = planFor(profile, p);
-      if (plan === 'have') continue;
+      if (plan === 'have') { if (p.sync && (!m.imports?.[p.sync.source] || p.sync.at > m.imports[p.sync.source].at)) rememberSync(m, p); continue; }
       let changed = false;
+      if (p.sync && m.imports?.[p.sync.source]?.fields.$value === m.value && p.value !== m.value) changed = correctValue(profile, m.id, p.value, now);
       for (const [k, v] of fieldChanges(m, p)) changed = setField(profile, m.id, k, v, now) || changed;
       if (p.since && !m.since) { m.since = p.since; changed = true; }
       if (p.tag && !m.tag) { m.tag = p.tag; changed = true; }
@@ -110,5 +123,5 @@ export function applyProposals(profile: Profile, proposals: Proposal[], from: st
 
 function rememberSync(c: Card, p: Proposal) {
   if (!p.sync) return;
-  c.imports = { ...c.imports, [p.sync.source]: { id: p.sync.id, at: p.sync.at, fields: { ...p.fields } } };
+  c.imports = { ...c.imports, [p.sync.source]: { id: p.sync.id, at: p.sync.at, fields: { ...p.fields, $value: p.value } } };
 }

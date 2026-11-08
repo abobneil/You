@@ -1,0 +1,4 @@
+{
+  "parser": "health",
+  "input": "{\"resourceType\": \"Bundle\", \"entry\": [{\"resource\": {\"resourceType\": \"AllergyIntolerance\", \"code\": {\"text\": \"Fable pollen\"}, \"recordedDate\": \"2020-03\"}}, {\"resource\": {\"resourceType\": \"MedicationStatement\", \"medicationCodeableConcept\": {\"text\": \"Synthetic medicine\"}, \"dosage\": [{\"doseAndRate\": [{\"doseQuantity\": {\"value\": 5, \"unit\": \"mg\"}}]}]}}, {\"resource\": {\"resourceType\": \"Condition\", \"code\": {\"text\": \"Synthetic condition\"}, \"onsetDateTime\": \"2019\"}}, {\"resource\": {\"resourceType\": \"Immunization\", \"vaccineCode\": {\"text\": \"Synthetic vaccine\"}, \"occurrenceDateTime\": \"2020-03-04\"}}, {\"resource\": {\"resourceType\": \"AllergyIntolerance\", \"code\": {\"text\": \"No known allergies\"}}}]}"
+}

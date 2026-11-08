@@ -1,0 +1,10 @@
+{
+  "parser": "linkedin",
+  "archive": true,
+  "input": {
+    "Profile.csv": "Notes before headers\nFirst Name,Last Name\nÉlo,林",
+    "Positions.csv": "Notes before headers\nCompany Name,Title,Started On,Finished On\nFable,Maker,Jan 2020,\nFable,Helper,2018,2019",
+    "Education.csv": "Notes before headers\nSchool Name,Degree Name,Start Date,End Date\nFable School,Arts,2010,2012",
+    "Skills.csv": "Notes before headers\nName\nWeaving"
+  }
+}

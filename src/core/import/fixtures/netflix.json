@@ -1,0 +1,7 @@
+{
+  "parser": "streaming",
+  "input": {
+    "NetflixViewingHistory.csv": "Title,Date\nFable Moon,3/4/20\nFable Moon,3/5/20"
+  },
+  "archive": false
+}
