@@ -143,7 +143,7 @@ export function contactKey(c: Contact): string {
 }
 
 /** A contact as one People card. `at` is when this export was made (its REV), or else when it was imported. */
-export function contactAsPerson(c: Contact, kind: string, at = new Date().toISOString()): Proposal[] {
+export function contactAsPerson(c: Contact, kind: string, at = ''): Proposal[] {
   const tel = preferred(c.tels, 'cell', 'mobile');
   const email = preferred(c.emails, 'home', 'internet');
   const adr = preferred(c.addresses, 'home');

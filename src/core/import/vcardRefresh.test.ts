@@ -25,7 +25,7 @@ it('matches the same contact after hand edits, and updates only what the person 
 
   // A newer export with a changed organization: offered as an update, hand edits kept.
   await new Promise(r => setTimeout(r, 5));
-  const newer = proposals(vcf('Globex Inc'));
+  const newer = proposals(vcf('Globex Inc')).map(p => ({ ...p, useIncoming: true }));
   expect(planFor(p, newer[0])).toBe('update');
   applyProposals(p, newer, 'Contacts');
   expect(p.cards.filter(c => c.value === 'Pat Example')).toHaveLength(1);

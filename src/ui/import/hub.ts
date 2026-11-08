@@ -98,14 +98,16 @@ async function licenseFromCamera() {
 }
 
 async function importHealth(files: File[]) {
+  const notes: string[] = [];
+  const parse = (text: string) => { const items = parseHealth(text); notes.push(...(items.notes ?? [])); return items; };
   const items = (await Promise.all(files.map(async f => {
     if (/\.zip$/i.test(f.name)) {
       const entries = readZip(new Uint8Array(await f.arrayBuffer()), name => /\.(xml|json|ndjson)$/i.test(name));
-      return Object.values(entries).flatMap(b => parseHealth(new TextDecoder().decode(b)));
+      return Object.values(entries).flatMap(b => parse(new TextDecoder().decode(b)));
     }
-    return parseHealth(await f.text());
+    return parse(await f.text());
   }))).flat();
-  show('Health records', healthRows(items));
+  show('Health records', healthRows(Object.assign(items, { notes })));
 }
 
 async function importMedia(files: File[]) {

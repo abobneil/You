@@ -25,7 +25,7 @@ describe('everyday use regressions', () => {
   contacts[0].fn = 'Alex Morgan Kim';
   const next = contactAsMe(contacts[0]);
   expect(next[0].sync?.id).toBe('me-1');
-  expect(next.every(c => planFor(p, c) === 'have')).toBe(true);
+  expect(next.some(c => planFor(p, c) === 'update')).toBe(true); // Same-time differences require review.
  });
  it('uses normalized email and phone when contacts have no UID', () => {
   const c = parseVcf('BEGIN:VCARD\nFN:Alex\nEMAIL:ALEX@EXAMPLE.COM\nEND:VCARD')[0];

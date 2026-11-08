@@ -6,6 +6,8 @@ import type { AreaId, FuzzyDate } from '../types';
 export interface Proposal {
   /** Explicit match chosen in review; never inferred from a name alone. */
   matchId?: string;
+  /** Explicit review choice for an undated export. */
+  useIncoming?: boolean;
   area: AreaId;
   kind: string;
   value: string;

@@ -71,9 +71,19 @@ export function absorbable(profile: Profile, p: Proposal): Card[] {
   });
 }
 
+export function needsTimeReview(m: Card, p: Proposal): boolean {
+  const old = p.sync && m.imports?.[p.sync.source];
+  return !!old && (!p.sync!.at || p.sync!.at === old.at) && (p.value !== old.fields.$value || (p.until ?? '') !== (old.fields.$until ?? '') || (p.past ? 'past' : 'active') !== (old.fields.$status === 'current' ? 'active' : old.fields.$status) || Object.entries(p.fields ?? {}).some(([k,v]) => (old.fields[k] ?? '') !== v));
+}
+
+const blocked = (m: Card, p: Proposal) => {
+  const old = p.sync && m.imports?.[p.sync.source];
+  return !!old && (!p.sync!.at ? !p.useIncoming : !!old.at && (p.sync!.at < old.at || (p.sync!.at === old.at && !p.useIncoming)));
+};
+
 export function fieldChanges(m: Card, p: Proposal): [string, string][] {
   const previous = p.sync ? m.imports?.[p.sync.source] : undefined;
-  if (previous && p.sync!.at <= previous.at) return [];
+  if (blocked(m, p)) return [];
   return Object.entries(p.fields ?? {}).filter(([k, v]) => {
     const current = m.fields?.[k] ?? '';
     if (previous && Object.hasOwn(previous.fields, k)) {
@@ -94,10 +104,10 @@ function basePlan(profile: Profile, p: Proposal): Plan {
   const m = findMatch(profile, p);
   if (!m) return 'new';
   const previous = p.sync ? m.imports?.[p.sync.source] : undefined;
-  if (previous && p.sync!.at <= previous.at) return 'have';
+  if (blocked(m, p)) return needsTimeReview(m, p) ? 'update' : 'have';
   const changes = fieldChanges(m, p);
   // A newer snapshot that changes nothing is "already there": syncing again shouldn't flag every card.
-  if ((previous && ((previous.fields.$until ?? '') !== (p.until ?? '') || previous.fields.$status !== (p.past ? 'past' : 'current'))) || (previous?.fields.$value === m.value && p.value !== m.value) || changes.some(([k]) => m.fields?.[k])) return 'update';
+  if ((previous && ((previous.fields.$until ?? '') !== (p.until ?? '') || previous.fields.$status !== (p.past ? 'past' : 'active'))) || (previous?.fields.$value === m.value && p.value !== m.value) || changes.some(([k]) => m.fields?.[k])) return 'update';
   const missing = changes.length > 0 || (!!p.sync && !previous)
     || (!!p.since && !m.since) || (!!p.tag && !m.tag);
   return missing ? 'fill' : 'have';
@@ -110,13 +120,24 @@ export function applyProposals(profile: Profile, proposals: Proposal[], from: st
     for (const c of absorbable(profile, p)) { removeCard(profile, c.id); merged++; }
     const m = findMatch(profile, p);
     if (m) {
+      if (blocked(m, p)) continue;
       const plan = planFor(profile, p);
       if (plan === 'have') { if (p.sync && (!m.imports?.[p.sync.source] || p.sync.at > m.imports[p.sync.source].at)) rememberSync(m, p); continue; }
       let changed = false;
       const previous = p.sync ? m.imports?.[p.sync.source] : undefined;
-      if (previous && p.sync!.at > previous.at) {
-        if ((m.until ?? '') === (previous.fields.$until ?? '') && (p.until ?? '') !== (m.until ?? '')) changed = correctMeta(profile, m.id, 'until', p.until ?? '', now) || changed;
-        if (m.status === previous.fields.$status && m.status !== (p.past ? 'past' : 'current')) { if (p.past) endCard(profile, m.id, p.until ?? '', now); else reopenCard(profile, m.id); changed = true; }
+      if (previous) {
+        const oldStatus = previous.fields.$status === 'current' ? 'active' : previous.fields.$status;
+        const status = p.past ? 'past' : 'active';
+        if (m.status === oldStatus && (m.until ?? '') === (previous.fields.$until ?? '')) {
+          if (m.status !== status) {
+            m.revisions.push({ field: 'status', value: m.status, at: now });
+            m.revisions.push({ field: 'until', value: m.until ?? '', at: now });
+            if (p.past) { endCard(profile, m.id, p.until ?? '', now); m.until = p.until ?? ''; }
+            else reopenCard(profile, m.id);
+            changed = true;
+          } else if (m.status === 'past') changed = correctMeta(profile, m.id, 'until', p.until ?? '', now) || changed;
+        }
+        if (m.since === previous.fields.$since && p.since !== undefined) changed = correctMeta(profile, m.id, 'since', p.since, now) || changed;
       }
       if (p.sync && m.imports?.[p.sync.source]?.fields.$value === m.value && p.value !== m.value) changed = correctValue(profile, m.id, p.value, now);
       for (const [k, v] of fieldChanges(m, p)) changed = setField(profile, m.id, k, v, now) || changed;
@@ -138,5 +159,7 @@ export function applyProposals(profile: Profile, proposals: Proposal[], from: st
 
 function rememberSync(c: Card, p: Proposal) {
   if (!p.sync) return;
-  c.imports = { ...c.imports, [p.sync.source]: { id: p.sync.id, at: p.sync.at, fields: { ...p.fields, $value: p.value, $until: p.until ?? '', $status: p.past ? 'past' : 'current' } } };
+  const old = c.imports?.[p.sync.source];
+  if (old && (!p.sync.at || (old.at && old.at >= p.sync.at))) return;
+  c.imports = { ...c.imports, [p.sync.source]: { id: p.sync.id, at: p.sync.at, fields: { ...p.fields, $value: p.value, $since: p.since ?? '', $until: p.until ?? '', $status: p.past ? 'past' : 'active' } } };
 }
