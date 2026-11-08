@@ -1,5 +1,6 @@
 // Contacts from Google, iCloud and Outlook: vCard (.vcf) files, versions 2.1, 3.0 and 4.0.
 // Also used for Android's contact picker, which gives the same shape.
+import { phoneKey } from './match';
 import { fmtDate } from '../dates';
 import { FORMATS } from '../formats';
 import type { FuzzyDate } from '../types';
@@ -7,6 +8,7 @@ import { looseDate, rowId, tidyCase } from './parse';
 import type { ImportResult, ImportRow, Proposal } from './types';
 
 export interface Contact {
+  uid?: string;
   fn: string;
   name: { first: string; middle: string; last: string; suffix: string };
   tels: { value: string; types: string[] }[];
@@ -71,6 +73,7 @@ export function parseVcf(text: string): Contact[] {
       return (m ? m[1] : /=/.test(p) ? '' : p).split(',').map(t => t.replace(/"/g, '').trim().toLowerCase()).filter(Boolean);
     });
     switch (name) {
+      case 'UID': c.uid = unescape(value).trim(); break;
       case 'FN': c.fn = unescape(value).trim(); break;
       case 'N': {
         const [last = '', first = '', middle = '', , suffix = ''] = splitEsc(value, ';');
@@ -157,7 +160,8 @@ export function contactAsMe(c: Contact): Proposal[] {
   if (home) { const f = addressFields(home); out.push({ area: 'home', kind: 'Address', value: [f.street, f.unit].filter(Boolean).join(' ') || f.city, fields: f }); }
   if (c.title || c.org) out.push({ area: 'work', kind: 'Job', value: c.title && c.org ? `${c.title} at ${c.org}` : c.title || c.org,
     fields: Object.fromEntries(Object.entries({ title: c.title, employer: c.org }).filter(([, v]) => v)) });
-  return out;
+  const id = c.uid || c.emails[0]?.value.trim().toLowerCase() || (c.tels[0] && phoneKey(c.tels[0].value));
+  return out.map(p => id ? { ...p, sync: { source: 'contacts-me', id: p.kind === 'Phone' ? id + '/tel/' + phoneKey(p.value) : p.kind === 'Email' ? id + '/mail/' + p.value.toLowerCase() : id, at: '1970-01-01T00:00:00.000Z' } } : p);
 }
 
 export function contactRows(contacts: Contact[]): ImportResult {

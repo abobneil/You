@@ -1,4 +1,5 @@
 import { local } from '../storage/local';
+import { openHelp } from './help';
 import { openSafety } from './safety';
 import { downloadCopy } from '../storage/target';
 // Switching between Yous on this browser. Switching, adding and locking reload the page,
@@ -32,7 +33,7 @@ export function openSwitcher() {
       </button></li>`;
     }).join('')}</ul>
     ${unlocked ? `<p class="hint">${profile.unreadable?.length ? `${profile.unreadable.length} item(s) couldn't be read and are kept as-is.` : ''}</p><label>Lock after no interaction <select id="lock-time">${[5,15,60,0].map(n => `<option value="${n}" ${n === timeoutMinutes() ? 'selected' : ''}>${n ? n + ' minutes' : 'Never'}</option>`).join('')}</select></label>` : ''}
-    <div class="menu"><button type="button" data-act="safe">Keep it safe</button>
+    <div class="menu"><button type="button" data-act="help">Help</button><button type="button" data-act="safe">Keep it safe</button>
       <button type="button" data-act="new">+ Add a new You</button>
       ${unlocked ? `<button type="button" data-act="lock">Lock ${name}</button>
         <button type="button" data-act="remove" class="soft">Remove ${name} from this browser…</button>` : ''}
@@ -42,6 +43,7 @@ export function openSwitcher() {
     pick: b => { if (b.dataset.id === cur && unlocked) return closeSheet(); switchTo(b.dataset.id!); },
     new: addNewYou,
     lock: lockNow,
+    help: openHelp,
     safe: openSafety,
     remove: () => {
       openSheet(`${sheetTop('Remove from this browser')}<h3 class="sh-title">Remove ${name}?</h3>
@@ -73,7 +75,7 @@ setInterval(() => { void checkLock(); }, 15000);
 // The round initial button in the home screen's top bar.
 const btn = $('#who-btn');
 export function renderWhoButton() {
-  btn.textContent = initial(profile.name);
+  btn.textContent = `${profile.name.split(' ')[0] || 'You'} · Menu`;
   btn.setAttribute('aria-label', `${profile.name || 'You'}: switch or lock`);
 }
 btn.addEventListener('click', openSwitcher);

@@ -376,7 +376,7 @@
 
   @media (max-width: 560px) {
     .fx { grid-template-columns: 1fr; gap: 4px; }
-    .saved > span:last-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .saved > span:last-child { white-space: normal; text-align: left; }
   }
 
   /* Storage status pill states */
@@ -739,7 +739,6 @@
     .crow .cs { grid-column: 1 / -1; grid-row: 2; }
   }
 
-
   /* Connecting Audible */
   .steps { margin: 14px 0 6px; padding-left: 20px; display: grid; gap: 16px; }
   .steps li { padding-left: 4px; }
@@ -946,3 +945,6 @@ html { scroll-padding-top: 76px; scroll-padding-bottom: 24px; }
   .who-btn { width: 40px; height: 40px; }
 }
 .pick-lab { display: block; margin: 8px 0 0; font-size: 12px; color: var(--soft); }
+
+.who-btn { width: auto; padding-inline: 10px; border-radius: 16px; white-space: nowrap; }
+.saved { white-space: normal; }

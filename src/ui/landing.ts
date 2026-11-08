@@ -20,7 +20,13 @@ document.addEventListener('keydown', e => {
   if (document.activeElement !== nameInput && e.key.length === 1 && !e.metaKey && !e.ctrlKey) nameInput.focus();
 });
 
-nameInput.addEventListener('input', () => nameInput.classList.toggle('filled', nameInput.value.trim().length > 0));
+const duplicateHint = document.createElement('p');
+duplicateHint.className = 'hint'; nameInput.parentElement!.after(duplicateHint);
+nameInput.addEventListener('input', () => {
+ nameInput.classList.toggle('filled', nameInput.value.trim().length > 0);
+ const name = nameInput.value.trim();
+ duplicateHint.textContent = listProfiles().some(e => e.label.toLocaleLowerCase() === name.toLocaleLowerCase()) ? `There's already an ${name} here. Open it, or continue to start a second one.` : '';
+});
 
 enterBtn.addEventListener('mousedown', e => e.preventDefault()); // keep the cursor in the field
 enterBtn.addEventListener('click', submit);
@@ -56,3 +62,5 @@ $<HTMLInputElement>('#file').addEventListener('change', async e => {
   input.value = '';
   if (f && (await importText(f))) { setTarget('browser'); emit('data-loaded'); }
 });
+
+$('#file').addEventListener('cancel', () => { duplicateHint.textContent = 'Nothing was opened.'; });

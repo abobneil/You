@@ -73,3 +73,11 @@ export function rangeProblem(since: FuzzyDate | undefined, until: FuzzyDate | un
   if (!since || !until || !isValidDate(since) || !isValidDate(until)) return '';
   return endKey(until) < startKey(since) ? `it ends (${fmtDate(until)}) before it starts (${fmtDate(since)}). Change one of the dates.` : '';
 }
+
+export function lifeDateProblem(date: string, allowFuture = false, now = new Date()): string {
+ if (!date) return '';
+ const year = Number(date.slice(0, 4));
+ if (year < 1850) return 'Use a year from 1850 onwards.';
+ if (!allowFuture && year > now.getFullYear() + 1) return 'That year is in the future. Check the year.';
+ return '';
+}

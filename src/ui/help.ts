@@ -1,0 +1,5 @@
+import { openSheet, sheetTop } from './sheet';
+import { openSafety } from './safety';
+export function openHelp() {
+ openSheet(`${sheetTop('Help')}<h3 class="sh-title">A private record of your life</h3><p>Add a little at a time: a home, a job, a person or a memory. Optional details can wait.</p><h4>Where it stays</h4><p>Your record is encrypted in this browser. Clearing browser data removes that copy. Use the save status at the top to save an encrypted file somewhere safe. Keep a separate backup.</p><h4>Save and open</h4><p>Choose This device to save a file. On another device, choose “or load your data”, open your file and enter its passphrase.</p><h4>Lock and switch</h4><p>Open Menu beside your name to lock your record or switch to another You.</p><h4>Forgotten passphrase</h4><p>Nobody can recover it. Check your password manager or where you wrote it down. Your file stays untouched.</p><h4>Import</h4><p>Choose Import to bring in contacts or other supported records. Review the changes before applying them.</p><div class="menu"><button data-act="safe">Keep it safe</button></div>`, { safe: openSafety });
+}

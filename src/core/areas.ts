@@ -33,6 +33,7 @@ export interface Kind {
   /** One line shown when adding this kind, when its meaning needs spelling out. */
   hint?: string;
   /** Structured details (a vehicle's Year, Make, Model…). All optional. */
+  primary?: string[];
   fields?: Field[];
   /** Builds the card's name from its details while the name hasn't been typed by hand. */
   titleFrom?: (f: Record<string, string>) => string;
@@ -70,7 +71,7 @@ const PHONE_TAGS: Tag[] = [
   { id: 'other', label: 'Other', icon: '<path d="M5 4h3l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v3a2 2 0 0 1-2 2A15 15 0 0 1 3 6a2 2 0 0 1 2-2z"/>' },
 ];
 
-const k = (name: string, many = false, extra: Partial<Kind> = {}): Kind => ({ name, many, ...extra });
+const k = (name: string, many = false, extra: Partial<Kind> = {}): Kind => ({ name, many, ...extra, primary: extra.primary ?? extra.fields?.slice(0, 2).map(f => f.id) });
 
 /** Builds a Field: f('vin', 'VIN', { format: 'vin', sensitive: true }). */
 const f = (id: string, label: string, extra: Partial<Field> = {}): Field => ({ id, label, ...extra });
@@ -141,7 +142,7 @@ export const AREAS: Area[] = [
   { id: 'work', title: 'Work', hint: 'Jobs, skills, résumé',
     icon: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 12h18"/>',
     kinds: [
-      k('Job', false, { fields: [f('title', 'Job title'), f('employer', 'Employer'),
+      k('Job', true, { primary: ['employer', 'title'], fields: [f('title', 'Job title'), f('employer', 'Employer'),
           f('type', 'Type', { choices: ['Full-time', 'Part-time', 'Contract', 'Self-employed', 'Internship'] }),
           f('location', 'Location'), money('salary', 'Salary'), f('manager', 'Manager'), f('workEmail', 'Work email', { format: 'email' })],
         titleFrom: x => (x.title && x.employer ? `${x.title} at ${x.employer}` : join(x.title, x.employer)), summary: ['location', 'type'] }),
@@ -184,7 +185,7 @@ export const AREAS: Area[] = [
   { id: 'home', title: 'Home', hint: 'Where you live, what you own',
     icon: '<path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-5h4v5"/>',
     kinds: [
-      k('Address', false, { hint: 'Where you live. Moving replaces it, so the places you’ve lived stay in your history.',
+      k('Address', false, { primary: ['street', 'city'], hint: 'Where you live. Moving replaces it, so the places you’ve lived stay in your history.',
         fields: [f('street', 'Street', { placeholder: '225 Fox Run Dr.' }), f('unit', 'Apt / unit'), f('city', 'City'),
           f('state', 'State', { format: 'upper', placeholder: 'NC' }), f('zip', 'ZIP', { format: 'zip' }), f('country', 'Country')],
         titleFrom: x => join(x.street, x.unit), summary: ['city', 'state'] }),

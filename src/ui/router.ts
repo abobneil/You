@@ -29,6 +29,7 @@ export function showHome() {
 }
 
 export function route() {
+  if (history.state?.youSheet) return;
   if (!isHome()) return;
   const life = /^#\/?life(?:\/|$)/.test(location.hash);
   $('#life').hidden = !life;
