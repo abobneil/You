@@ -52,8 +52,17 @@ export async function syncAudible(show: Show) {
 }
 
 /** Sign in to Amazon, paste the address it ends on, and this computer becomes an Audible device. */
-export async function connectAudible(show: Show, kept: string) {
-  if (!window.confirm(audibleTraffic + '\n\nAllow this connection?')) return;
+export function connectAudible(show: Show, kept: string) {
+  // Asked in the app's own sheet, naming every host, before anything leaves this computer.
+  openSheet(`${sheetTop('Connect Audible')}
+    <h3 class="sh-title">Allow this connection?</h3>
+    <p class="hint">${esc(audibleTraffic)}</p>
+    <div class="btns"><button type="button" class="btn quiet" data-act="close">Cancel</button><button type="button" class="btn primary" data-act="allow">Allow and sign in</button></div>`, {
+    allow: () => { void signInAudible(show, kept); },
+  });
+}
+
+async function signInAudible(show: Show, kept: string) {
   let url: string;
   try { url = (await call<{ url: string }>('sign-in', {}, 15_000)).url; }
   catch (e) { return show('Audible', { rows: [], notes: [message(e)] }); }

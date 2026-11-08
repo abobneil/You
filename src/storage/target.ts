@@ -145,7 +145,9 @@ function showFileConflict() {
             }
           },
         });
-      } catch { alert('This version could not be compared. Download your copy first, then open the other file.'); }
+      } catch {
+        openSheet(`${sheetTop('Compare versions')}<h3 class="sh-title">This version couldn’t be compared</h3><p>Nothing was changed. Download your copy first, then open the other file.</p><div class="menu"><button type="button" data-act="download">Download your copy</button><button type="button" data-act="close">Close</button></div>`, { download: () => downloadCopy(true) });
+      }
     },
     both: () => downloadCopy(true),
     other: async () => { await downloadCopy(true); const { importText } = await import('../ui/session'); if (handle) await importText(await handle.getFile()); },
@@ -219,7 +221,7 @@ export async function chooseSaveFile(): Promise<boolean> {
     if (!(await writeFile())) { await fallBackToDownload(h); return false; }
     return true;
   } catch (e) {
-    if ((e as Error)?.name !== 'AbortError') alert('That file could not be used. Try another location.');
+    if ((e as Error)?.name !== 'AbortError') openSheet(`${sheetTop('Save to a file')}<h3 class="sh-title">That file couldn’t be used</h3><p>Nothing was saved there, and your work is still here. Try another location.</p><div class="menu"><button type="button" data-act="again">Choose another location</button><button type="button" data-act="close">Close</button></div>`, { again: () => { void chooseSaveFile(); } });
     return false;
   }
 }
@@ -242,7 +244,7 @@ export async function chooseOpenFile(importFile: (file: Blob) => Promise<boolean
     renderPill();
     return true;
   } catch (e) {
-    if ((e as Error)?.name !== 'AbortError') alert('That file could not be opened.');
+    if ((e as Error)?.name !== 'AbortError') openSheet(`${sheetTop('Open a file')}<h3 class="sh-title">That file couldn’t be opened</h3><p>Nothing was changed. If you have another saved copy, you can try that one.</p><div class="menu"><button type="button" data-act="again">Choose another file</button><button type="button" data-act="close">Close</button></div>`, { again: () => { void chooseOpenFile(importFile); } });
     else openSheet(`${sheetTop('Open a file')}<p>Nothing was opened.</p>`);
     return false;
   }
