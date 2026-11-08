@@ -183,7 +183,10 @@ export async function decode(passphrase: string, env: Envelope): Promise<{ profi
 }
 
 /** "Alex Kim" → "alex-kim.you.json" */
-export function fileNameFor(name: string): string {
-  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return (slug || 'you') + FILE_EXT;
+export function fileNameFor(name: string, occupied: string[] = []): string {
+  const slug = name.trim().normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+  const base = slug || 'you';
+  let candidate = base + FILE_EXT, n = 2;
+  while (occupied.includes(candidate)) candidate = `${base}-${n++}${FILE_EXT}`;
+  return candidate;
 }

@@ -18,3 +18,14 @@ it('shows overwrites, defaults ambiguous names separate, allows selection and le
  h.handlers.all();expect(h.html).toContain('Apply to 1 cards');
  h.handlers.add();expect(profile.cards[0].fields?.author).toBe('Changed');expect(save).toHaveBeenCalledOnce();
 });
+
+import { contactAsMe, contactRows, parseVcf } from '../../core/import/vcard';
+it('preselects This is me and lists a repeated contact as already there', () => {
+ profile.cards = [];
+ const contacts = parseVcf('BEGIN:VCARD\nUID:alex\nFN:Alex Kim\nEMAIL:alex@example.com\nEND:VCARD');
+ applyProposals(profile, contactAsMe(contacts[0]), 'Contacts');
+ openReview('Contacts', contactRows(contacts));
+ expect(h.html).toContain('Already there (1)');
+ expect(h.html).toContain('value="me" selected');
+ expect(h.html).toContain('Apply to 0 cards');
+});

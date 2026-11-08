@@ -1,3 +1,4 @@
+import { lifeDateProblem } from '../core/dates';
 // "Add a card", kept light: pick what it is, type one line, say when (a year is enough), Add.
 // Everything else (details, a note, photos and files, links) waits behind quiet toggles, and
 // whether it replaces the current card is one plain sentence with a "Change" link.
@@ -16,14 +17,14 @@ import { attachValueField, valueFieldHtml } from './valueField';
 import { shownValue } from './sensitive';
 import { tagRowHtml } from './tags';
 import { maskValue } from '../core/formats';
-import { act, closeSheet, onSheetClose, openSheet, sheetBody, sheetTop } from './sheet';
+import { draftUndoPending, act, closeSheet, onSheetClose, openSheet, sheetBody, sheetTop } from './sheet';
 import { attachHtml, busy, draftThumbs, keepFiles, pickFiles, showPictures } from './keepsakes';
 import { dropRows } from '../storage/keepsakeAccess';
 import { attachDetails, detailDates, detailsHtml, readDetails } from './details';
 
 const OTHER = '__other';
 /** How many of an area's kinds show before "More…". */
-const SUGGEST = 6;
+const SUGGEST = matchMedia('(max-width: 560px)').matches ? 3 : 6;
 
 type Section = 'details' | 'note' | 'files' | 'links';
 
@@ -98,7 +99,8 @@ onSheetClose(() => {
   if (!draft || draft.saved || !draft.keepsakes.length) return;
   const youId = draft.youId, ids = draft.keepsakes.map(k => k.id);
   clearTimeout(dropTimer);
-  dropTimer = setTimeout(() => dropRows(youId, ids), 15_000);
+  const clean = () => { if (draftUndoPending()) { dropTimer = setTimeout(clean, 1000); return; } void dropRows(youId, ids); };
+  dropTimer = setTimeout(clean, 16_000);
 });
 
 export function openComposer(area: AreaId, preset: { kind?: string; replaceId?: string; beforeId?: string; since?: string } = {}) {
@@ -155,7 +157,7 @@ function modeOptions(d: Draft, actives: Card[], kind: KindInfo): string {
       <span>${label}</span><small>${effect}</small></button>`;
   return `<div class="c-opts" role="group" aria-label="What this card does">${[
     ...actives.map(c => opt('r:' + c.id, `Replaces ${named(c)}`, `${esc(shownValue(c))} moves to your history, ending when this starts.`)),
-    opt('add', 'Add alongside', actives.length === 1 ? `${esc(shownValue(actives[0]))} stays current too.` : 'The ones you have stay current too.'),
+    opt('add', 'Alongside it', actives.length === 1 ? `${esc(shownValue(actives[0]))} stays current too.` : 'The ones you have stay current too.'),
     ...profile.cards.filter(c => c.area === d.area && c.kind === d.kind && !kind.many).map(c =>
       opt('b:' + c.id, `Came before ${named(c)}`, `This goes into your history, ending when ${esc(shownValue(c))} started.`)),
   ].join('')}</div>`;
@@ -193,7 +195,7 @@ function render(focus = false) {
       aria-pressed="${k.name === d.kind}">${esc(k.name)}${has ? '<span class="vh"> (you have one)</span>' : ''}</button>`;
   }).join('')
     + (shown.length < all.length ? `<button type="button" class="more-kinds" data-act="more-kinds">More…</button>` : '')
-    + `<button type="button" data-act="kind" data-kind="${OTHER}" class="${custom ? 'on' : ''}" aria-pressed="${custom}">Something else…</button>`;
+    + `<button ${!d.moreKinds && matchMedia('(max-width: 560px)').matches ? 'hidden' : ''} type="button" data-act="kind" data-kind="${OTHER}" class="${custom ? 'on' : ''}" aria-pressed="${custom}">Something else…</button>`;
 
   const linkChips = d.links.map((l, i) =>
     { const o = byId(profile, l.id);
@@ -211,8 +213,8 @@ function render(focus = false) {
         dateInputs(d.since, 'since')}<div class="hint" id="c-when-hint">A year is enough.</div></div></div>`
     : '';
   const modeRow = actives.length || d.mode?.startsWith('b:')
-    ? `<div class="c-mode"><p>${modeSentence(d, actives)} <button type="button" class="link-btn" data-act="mode-open" aria-expanded="${d.modeOpen}">${d.modeOpen ? 'Done' : 'Change'}</button></p>
-        ${d.modeOpen ? modeOptions(d, actives, kind) : ''}</div>`
+    ? `<div class="c-mode"><p>${modeSentence(d, actives)} <button ${d.kind === 'Job' ? 'hidden' : ''} type="button" class="link-btn" data-act="mode-open" aria-expanded="${d.modeOpen}">${d.modeOpen ? 'Done' : 'Change'}</button></p>
+        ${d.modeOpen || d.kind === 'Job' ? modeOptions(d, actives, kind) : ''}</div>`
     : '';
 
   const sections = [
@@ -375,6 +377,8 @@ function saveDraft() {
     ...(showSince ? [{ key: 'since', label: 'When' }] : []),
     ...(d.open.has('details') ? detailDates(kind, 'cf') : []),
   ])) return;
+  const lifeProblem = lifeDateProblem(isDate ? d.valueDate : d.since, d.area === 'goals');
+  if (lifeProblem) return dateError(sheetBody, isDate ? 'vdate' : 'since', lifeProblem);
 
   let value = d.value.trim() || (kind.titleFrom ? kind.titleFrom(d.fields) : '');
   let since = showSince ? d.since : '';
@@ -428,5 +432,7 @@ const EXAMPLES: Record<string, string> = {
   'Health insurance': 'Aetna PPO', Book: 'East of Eden', Friend: 'Sam Rivera', Goal: 'Run a marathon',
   Vehicle: '2019 blue Honda Civic', Utility: 'Duke Energy', Internet: 'Spectrum 300 Mbps', Skill: 'Spanish',
   Education: 'BA, UNC Chapel Hill', Partner: 'Jordan Lee',
+  Dentist: 'Dr. Priya Shah', Medication: 'Lisinopril 10 mg', Immunization: 'Flu vaccine', Condition: 'Asthma', 'Emergency contact': 'Sam Rivera', Certification: 'First aid certificate', Award: 'Volunteer of the year', 'Profile link': 'linkedin.com/in/alex', 'Home insurance': 'Allstate home policy', 'Family member': 'Aunt Rosa', Child: 'Jamie', Pet: 'Milo the cat', Mentor: 'Dr. Chen', Music: 'Nina Simone', 'Movie or show': 'The Good Place', Podcast: '99% Invisible', Food: 'Sunday lentil soup', Hobby: 'Watercolour painting', Sport: 'Weekend swimming', 'Place visited': 'Lisbon', 'Place to go': 'Kyoto', Habit: 'Walk after lunch', Learning: 'Conversational Italian', Someday: 'Live near the sea', 'Bucket list': 'See the northern lights', Value: 'Make time for family',
+  'Bank account': 'Everyday checking at Chase', 'Credit card': 'Travel Visa', Bill: 'Monthly electricity', 'Retirement account': 'School district pension', Investment: 'Vanguard index fund', 'Insurance policy': 'State Farm auto policy', 'Tax preparer': 'Morgan at H&R Block', 'Saving for': 'A trip to Lisbon',
 };
 const example = (kind: string) => EXAMPLES[kind] || kind;

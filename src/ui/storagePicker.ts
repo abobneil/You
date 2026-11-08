@@ -1,3 +1,4 @@
+import { openHelp } from './help';
 import { openSafety } from './safety';
 // "Where should we keep your data?" — modeled on draw.io's "Save to…" picker.
 import { canWriteFiles, chooseOpenFile, chooseSaveFile, downloadCopy, pillClick, setTarget, target, writeFile } from '../storage/target';
@@ -24,18 +25,19 @@ const STORES: Store[] = [
 /** mode 'save' = choose where to keep it; 'open' = load data saved before. */
 export function openStoragePicker(mode: 'save' | 'open') {
   const open = mode === 'open';
-  const list = STORES.filter(s => !(open && s.id === 'browser'));
+  const list = STORES.filter(s => !s.soon && !(open && s.id === 'browser'));
   const current = (s: Store) => !open && target.kind === (s.id === 'device' ? 'file' : s.id);
   openSheet(`${sheetTop(open ? 'Load your data' : 'Save your data')}
     <h3 class="sh-title">${open ? 'Where is your data?' : 'Where should we keep your data?'}</h3>
     <p class="hint">${open ? 'Open the file you saved before.' : 'It never touches our servers. You can change this any time.'}</p>
-    <div class="stores">${list.map(s => `<button type="button" class="store${s.soon ? ' soon' : ''}${current(s) ? ' on' : ''}"
+    <p class="hint">Using Google Drive, OneDrive or Dropbox? Save the file into that folder on your computer.</p><div class="stores">${list.map(s => `<button type="button" class="store${s.soon ? ' soon' : ''}${current(s) ? ' on' : ''}"
         data-act="${s.soon ? 'soon' : s.id}"${s.soon ? ' aria-disabled="true"' : ''}>
         <svg viewBox="0 0 24 24" aria-hidden="true">${s.icon}</svg>
         <span><b>${esc(s.title)}</b><small>${esc(s.desc)}</small></span>
       </button>`).join('')}</div>
-    <div class="menu"><button type="button" data-act="safe">Keep it safe</button></div><div class="btns"><button class="btn quiet" type="button" data-act="close">${open ? 'Cancel' : 'Decide later'}</button></div>`,
+    <div class="menu"><button type="button" data-act="help">Help</button><button type="button" data-act="safe">Keep it safe</button></div><div class="btns"><button class="btn quiet" type="button" data-act="close">${open ? 'Cancel' : 'Decide later'}</button></div>`,
   {
+    help: openHelp,
     safe: openSafety,
     soon: () => {},
     browser: () => { setTarget('browser'); closeSheet(); },
@@ -63,6 +65,7 @@ function openStorageMenu() {
   {
     now: () => { writeFile(); closeSheet(); },
     dl: async () => { await downloadCopy(); closeSheet(); },
+    help: openHelp,
     safe: openSafety,
     change: () => openStoragePicker('save'),
     forget: () => {

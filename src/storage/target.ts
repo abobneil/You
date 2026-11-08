@@ -1,4 +1,6 @@
 import { cleanLinks } from '../core/relations';
+import { occupiedFileNames } from './profiles';
+import { closeSheet } from '../ui/sheet';
 import { compare, combine } from '../core/compare';
 import { openWith } from '../core/crypto';
 import { normalize } from '../core/profile';
@@ -155,10 +157,10 @@ function showFileConflict() {
  */
 async function fallBackToDownload(h: FileHandle) {
   // Never delete a chosen file, including when write or close failed.
-  alert('This browser won’t let You save into files on your device, so you’ll get a downloaded copy instead.\n\n'
-    + 'After you make changes, download a fresh copy from the bar at the top. In Chrome or Edge, You can save straight into the file.');
-  setTarget('download', h.name);
-  await downloadCopy();
+  const dated = h.name.replace(/\.you\.json$/, '') + ` (${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}).you.json`;
+  openSheet(`${sheetTop('Keep your latest copy')}<h3 class="sh-title">${esc(h.name)} isn't up to date</h3><p>Your latest changes are here in this browser. The file could not be updated and stays untouched. Download a dated copy to keep these changes.</p><div class="btns"><button class="btn quiet" data-act="close">Later</button><button class="btn primary" data-act="download">Download latest copy</button></div>`, {
+    download: async () => { setTarget('download', dated); await downloadCopy(); closeSheet(); },
+  });
 }
 
 /** Starts a download of `blob` as `name`. */
@@ -187,7 +189,7 @@ export async function downloadCopy(separate = false): Promise<boolean> {
   if (!vault) return false;
   try {
     const blob = await encodeBlob(vault, profile, sealedFor(profile.id!));
-    startDownload(blob, separate ? separateName('this browser') : target.kind === 'download' && target.name ? target.name : fileNameFor(profile.name));
+    startDownload(blob, separate ? separateName('this browser') : target.kind === 'download' && target.name ? target.name : fileNameFor(profile.name, occupiedFileNames(profile.id ?? '')));
   } catch (e) { cannotDownload(e); return false; }
   if (target.kind === 'download') { dirty = false; renderPill(); }
   return true;
@@ -206,14 +208,14 @@ async function downloadOtherTab(): Promise<string | null> {
 
 /** Asks where to save, then starts saving there. Returns false if the person cancelled. */
 export async function chooseSaveFile(): Promise<boolean> {
-  if (!canWriteFiles) { setTarget('download', fileNameFor(profile.name)); downloadCopy(); return true; }
+  if (!canWriteFiles) { setTarget('download', fileNameFor(profile.name, occupiedFileNames(profile.id ?? ''))); downloadCopy(); return true; }
   try {
-    const h = await w.showSaveFilePicker!({ suggestedName: fileNameFor(profile.name), types: FILE_TYPES });
+    const h = await w.showSaveFilePicker!({ suggestedName: fileNameFor(profile.name, occupiedFileNames(profile.id ?? '')), types: FILE_TYPES });
     await idb.set(handleKey(), h);
     setTarget('file', h.name);
     handle = h; conflict = false; await writer.load(h);
     dirty = true;
-    if (!(await writeFile())) await fallBackToDownload(h);
+    if (!(await writeFile())) { await fallBackToDownload(h); return false; }
     return true;
   } catch (e) {
     if ((e as Error)?.name !== 'AbortError') alert('That file could not be used. Try another location.');
@@ -240,6 +242,7 @@ export async function chooseOpenFile(importFile: (file: Blob) => Promise<boolean
     return true;
   } catch (e) {
     if ((e as Error)?.name !== 'AbortError') alert('That file could not be opened.');
+    else openSheet(`${sheetTop('Open a file')}<p>Nothing was opened.</p>`);
     return false;
   }
 }
@@ -254,8 +257,8 @@ export function renderPill() {
   if (browser.status === 'failed') html = `<span class="dot"></span><span>Couldn't save in this browser (${browser.reason}) · <b>Download a copy / Retry</b></span>`;
   else if (browser.status === 'saving') { state = ''; html = '<span class="spin"></span><span>Saving in this browser…</span>'; }
   else if (target.kind === 'browser') html = `<span class="dot"></span><span>Only in this browser · <b>Choose where to keep it</b></span>`;
-  else if (needsPermission) html = `<span class="dot"></span><span>Reconnect <b>${n}</b></span>`;
-  else if (failed) html = `<span class="dot"></span><span>Couldn't save · <b>Try again</b></span>`;
+  else if (needsPermission) html = `<span class="dot"></span><span>${n} isn't up to date · <b>Fix</b></span>`;
+  else if (failed) html = `<span class="dot"></span><span>${n} isn't up to date · <b>Fix</b></span>`;
   else if (target.kind === 'download' && dirty) html = `<span class="dot"></span><span>Unsaved changes · <b>Download ${n}</b></span>`;
   else if (saving || dirty) { state = ''; html = `<span class="spin"></span><span>Saving to ${n}…</span>`; }
   // A started download isn't a verified save, so this stays neutral rather than showing a check.

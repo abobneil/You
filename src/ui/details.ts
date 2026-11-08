@@ -24,8 +24,10 @@ const key = (prefix: string, f: Field) => `${prefix}-${f.id}`;
 export function detailsHtml(kind: KindInfo, values: Record<string, string> = {}, prefix = 'fd', saved = false): string {
   if (!kind.fields?.length) return '';
   const filled = kind.fields.filter(f => values[f.id]).length;
-  const collapse = saved && filled > 0 && filled < kind.fields.length;
-  const rows = kind.fields.map(f => `<div class="fx${f.choices ? ' has-choices' : ''}"${collapse && !values[f.id] ? ' data-empty hidden' : ''}>
+  const primary = kind.primary ?? kind.fields.slice(0, 2).map(f => f.id);
+  const secondary = kind.fields.filter(f => !primary.includes(f.id) && !values[f.id]);
+  const collapse = saved ? filled > 0 && filled < kind.fields.length : secondary.length > 0;
+  const rows = kind.fields.map(f => `<div class="fx${f.choices ? ' has-choices' : ''}"${collapse && !values[f.id] && (saved || !primary.includes(f.id)) ? ' data-empty hidden' : ''}>
       <label for="${key(prefix, f)}">${esc(f.label)}</label>
       ${f.type === 'date'
         ? dateInputs(values[f.id], key(prefix, f))
@@ -37,7 +39,7 @@ export function detailsHtml(kind: KindInfo, values: Record<string, string> = {},
         <span class="hint" data-vin-status="${key(prefix, f)}"></span></div>` : ''}
     </div>`).join('');
   const more = collapse
-    ? `<button type="button" class="link-btn more-details" data-more>Show all ${kind.fields.length} details</button>` : '';
+    ? `<button type="button" class="link-btn more-details" data-more>${saved ? 'Show all details' : `More details (${secondary.length})`}</button>` : '';
   return `<div class="details"><h5>Details</h5>${rows}${more}</div>`;
 }
 

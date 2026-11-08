@@ -50,6 +50,7 @@ export function openSheet(html: string, h: Record<string, Handler> = {}, opts: {
     nextOpener = null;
     trail.length = 0;
     draft = null;
+    if (!pendingBack) history.pushState({ ...history.state, youSheet: true }, '');
   }
   if (opts.draft) draft = opts.draft;
   sheetBody.innerHTML = html;
@@ -129,7 +130,10 @@ sheet.addEventListener('keydown', e => {
 // is done right away in afterClose(); the event only covers a close the browser forced itself.
 let closedEarly = false;
 sheet.addEventListener('close', () => { if (closedEarly) closedEarly = false; else afterClose(); closedEarly = false; });
+let pendingBack = 0;
+window.addEventListener('popstate', () => { if (pendingBack) { pendingBack--; if (sheet.open) history.pushState({ ...history.state, youSheet: true }, ''); return; } if (sheet.open) dismiss(); });
 function afterClose() {
+  if (history.state?.youSheet) { pendingBack++; history.back(); }
   closedEarly = true;
   const done = finishing;
   finishing = false;
@@ -158,7 +162,7 @@ const toast = $('#toast');
 const toastText = $('#toast-text');
 let toastAction: (() => void) | null = null;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
-const UNDO_MS = 8000;
+const UNDO_MS = 15000;
 
 /** Shows "<text> · Undo" in the shared toast; Undo (or Ctrl+Z) runs `action`. */
 export function offerUndo(text: string, action: () => void) {
@@ -169,8 +173,8 @@ export function offerUndo(text: string, action: () => void) {
   armToast();
 }
 function armToast() { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, UNDO_MS); }
-function hideToast() { clearTimeout(toastTimer); toast.hidden = true; toastAction = null; }
-function runUndo() { const a = toastAction; hideToast(); a?.(); }
+function hideToast() { if (toast.matches(':hover') || toast.contains(document.activeElement)) { armToast(); return; } clearTimeout(toastTimer); toast.hidden = true; toastAction = null; }
+function runUndo() { const a = toastAction; clearTimeout(toastTimer); toast.hidden = true; toastAction = null; a?.(); }
 
 $('#toast-undo').addEventListener('click', runUndo);
 // The timer waits while the toast is being pointed at or focused.
@@ -188,3 +192,5 @@ document.addEventListener('keydown', e => {
 /** Small heading row with a close button. `kicker` may contain trusted markup. */
 export const sheetTop = (kicker: string) => `<div class="sh-top"><span class="sh-kicker">${kicker}</span>
   <button class="sh-close" type="button" data-act="close" aria-label="Close">${ICON.close}</button></div>`;
+
+export const draftUndoPending = () => !!toastAction;

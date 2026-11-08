@@ -1,3 +1,4 @@
+import { fileNameFor } from './fileFormat';
 import { deleteYouKeepsakes, idbKeepsakeStore } from './keepsakeStore';
 import { migrateVault, vaultStore } from './vaultStore';
 // Several Yous can live in one browser, each with its own passphrase, data and save location.
@@ -9,6 +10,7 @@ export interface ProfileEntry {
   id: string;
   /** Shown on the unlock screen and the switcher. Not encrypted. */
   label: string;
+  createdAt?: string;
   lastOpened?: string;
 }
 
@@ -44,7 +46,7 @@ export function setCurrent(id: string) { local.set(CURRENT, id); session.set(fal
 export function upsertProfile(id: string, label: string) {
   const list = listProfiles();
   const e = list.find(x => x.id === id);
-  if (e) { e.label = label; e.lastOpened = new Date().toISOString(); } else list.push({ id, label, lastOpened: new Date().toISOString() });
+  if (e) { e.label = label; e.lastOpened = new Date().toISOString(); } else list.push({ id, label, createdAt: new Date().toISOString(), lastOpened: new Date().toISOString() });
   saveIndex(list);
 }
 
@@ -95,5 +97,8 @@ export function placeLabel(e: ProfileEntry, list = listProfiles()) {
   const n = same.length > 1 ? ` (${same.findIndex(x => x.id === e.id) + 1})` : '';
   const when = e.lastOpened ? new Date(e.lastOpened) : null;
   const opened = when ? ` · last opened ${same.length > 1 ? when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : when.toLocaleDateString()}` : '';
-  return `${e.label}${n} · ${name ? 'saves to ' + name : 'only in this browser'}${opened}`;
+  const created = e.createdAt ? ` · created ${new Date(e.createdAt).toLocaleDateString()}` : '';
+  return `${e.label}${n} · ${name ? 'saves to ' + name : 'only in this browser'}${created}${opened}`;
 }
+
+export const occupiedFileNames = (except: string) => listProfiles().filter(e => e.id !== except).flatMap(e => [fileNameFor(e.label), local.get(keyFor(e.id, 'targetName')) || '']);

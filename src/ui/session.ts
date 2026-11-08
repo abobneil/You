@@ -95,7 +95,7 @@ export async function importText(source: Blob | string): Promise<boolean> {
     const ok = await askPassphrase('file', async p => {
       try { got = await decode(p, env); return true; }
       catch (e) { if (e instanceof WrongPassphrase) return false; throw e; }
-    });
+    }, { links: [{ label: 'Forgot it?', run: () => openSheet(`${sheetTop('Forgotten passphrase')}<h3 class="sh-title">Your file stays untouched</h3><p>Nobody can recover this passphrase. Check your password manager or where you wrote it down. You can try again when you find it.</p>`) }] });
     if (!ok || !got) return false;
     ({ profile: loaded, vault: key } = got as { profile: Profile; vault: Vault });
   } else {

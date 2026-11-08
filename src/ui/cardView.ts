@@ -1,3 +1,4 @@
+import { lifeDateProblem } from '../core/dates';
 // One card, opened. It reads first: what it says, when it was true, its details, note, files, links
 // and history. Changing it is a deliberate step, each explained before it happens:
 //   Fix a mistake     correct it in place; the earlier wording is kept (nothing saves until Save)
@@ -10,7 +11,7 @@ import {
   atTheTime, contextOverlap, byId, correctMeta, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink, setField, setNote,
   undoRemove, type Removal,
 } from '../core/cards';
-import { fmtDate, fmtISO, nowISO, rangeProblem, thisMonth } from '../core/dates';
+import { fmtDate, fmtISO, nowISO, rangeProblem } from '../core/dates';
 import type { Card } from '../core/types';
 import { profile, save } from '../state';
 import { checkDates, dateError, dateInputs, readDate } from './dateInput';
@@ -63,7 +64,7 @@ export function openCard(id: string, opts: Opts = {}) {
 
   const ending = mode === 'end'
     ? `<div class="block cv-end"><h5 id="cv-end-lab">When did it end?</h5>
-        <div role="group" aria-labelledby="cv-end-lab">${dateInputs(thisMonth().slice(0, 4), 'end')}</div>
+        <div role="group" aria-labelledby="cv-end-lab">${dateInputs('', 'end')}</div>
         <p class="hint">A year is enough. It moves to your history, and you can reopen it.</p>
         <div class="btns"><button class="btn quiet" type="button" data-act="end-cancel">Cancel</button><button class="btn primary" type="button" data-act="end-confirm">Move to history</button></div></div>`
     : '';
@@ -116,7 +117,7 @@ export function openCard(id: string, opts: Opts = {}) {
     'end-confirm': () => {
       if (!checkDates(sheetBody, [{ key: 'end', label: 'When it ended' }])) return;
       const end = readDate(sheetBody, 'end');
-      const bad = rangeProblem(c.since, end);
+      const bad = lifeDateProblem(end) || rangeProblem(c.since, end);
       if (bad) return dateError(sheetBody, 'end', `When it ended: ${bad}`);
       endCard(profile, id, end);
       save();
@@ -212,8 +213,7 @@ function openFix(c: Card, opts: Opts) {
   openSheet(`${sheetTop(`${esc(a.title)} · ${esc(kindLabel(c))} · fixing a mistake`)}
     <h3 class="sh-title">Fix a mistake</h3>
     <p class="hint">Change what’s wrong, then Save. The earlier wording stays in this card’s history, so nothing is lost. Cancel changes nothing.</p>
-    <div class="fx"><label for="e-kind">Kind</label><select id="e-kind">${kinds.map(k =>
-      `<option value="${esc(k)}"${k === e.kind ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
+
     ${isDate
       ? `<div class="fx"><span class="lab" id="e-vdate-lab">${esc(kind.name)}</span><div role="group" aria-labelledby="e-vdate-lab">${dateInputs(e.since, 'vdate')}</div></div>`
       : `<div class="fx"><label for="v-value">${esc(kind.name)}</label>${valueFieldHtml('v-value', e.value, kind)}</div>`}
@@ -223,6 +223,8 @@ function openFix(c: Card, opts: Opts) {
     ${kind.fields?.length && !e.allDetails && !kind.fields.some(f => e.fields[f.id])
       ? '<div class="block"><button class="c-tog" type="button" data-act="all-details">+ Details</button></div>'
       : detailsHtml(kind, e.fields, 'vf', true)}
+    <details><summary>Change what kind of card this is</summary>    <div class="fx"><label for="e-kind">Kind</label><select id="e-kind">${kinds.map(k =>
+      `<option value="${esc(k)}"${k === e.kind ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select></div></details>
     <div class="block">${noteInput('v-note', e.note)}</div>
     ${links.length ? `<div class="block"><h5>Linked</h5><div class="chips">${links.map(x => {
       const gone = e.unlink.includes(x.link.id);
@@ -290,7 +292,9 @@ function saveFix(c: Card, dateRows: { key: string; label: string }[]) {
   if (isDate && !e.since) {
     return dateError(sheetBody, 'vdate', `${kind.name}: add at least the year.`);
   }
-  const bad = c.status === 'active' ? '' : rangeProblem(e.since, e.until);
+  const sinceProblem = lifeDateProblem(e.since, c.area === 'goals');
+  if (sinceProblem) return dateError(sheetBody, isDate ? 'vdate' : 'since', sinceProblem);
+  const bad = lifeDateProblem(e.until) || (c.status === 'active' ? '' : rangeProblem(e.since, e.until));
   if (bad) {
     return dateError(sheetBody, 'until', `Ended: ${bad}`);
   }
