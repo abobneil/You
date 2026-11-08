@@ -40,6 +40,19 @@ let edit: Edit | undefined;
 
 /** Opens a card, switching to its area first if needed. */
 export function openCard(id: string, opts: Opts = {}) {
+  if ((!opts.mode || opts.mode === 'read') && !sheetBody.closest<HTMLDialogElement>('dialog')?.open) {
+    if (!byId(profile, id)) return;
+    openSheet(`${sheetTop('Your card')}<h3 class="sh-title">Opening card…</h3><p role="status" id="card-opening">Getting your card ready…</p>`);
+    const placeholder = sheetBody.querySelector('#card-opening');
+    requestAnimationFrame(() => setTimeout(() => {
+      if (placeholder?.isConnected && sheetBody.closest<HTMLDialogElement>('dialog')?.open) renderCard(id, opts);
+    }, 0));
+    return;
+  }
+  renderCard(id, opts);
+}
+
+function renderCard(id: string, opts: Opts = {}) {
   const c = byId(profile, id);
   if (!c) return;
   if (!/^#\/?life(?:\/|$)/.test(location.hash) && location.hash.slice(1).split('/')[0] !== c.area) location.hash = '#' + c.area;

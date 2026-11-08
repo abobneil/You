@@ -33,6 +33,7 @@ let handlers: Record<string, Handler> = {};
 let draft: DraftHook | null = null;
 /** Set by closeSheet(): the panel finished its job (saved), so there's nothing to undo. */
 let finishing = false;
+let onDismiss: (() => void) | undefined;
 /** Controls that led to the current panel, newest last, so "Back" can land on the one that left. */
 const trail: FocusKey[] = [];
 const closeListeners: (() => void)[] = [];
@@ -41,8 +42,12 @@ const closeListeners: (() => void)[] = [];
  * Shows `html` in the dialog. Clicks on elements with data-act="name" call handlers[name].
  * Pass `draft` from a panel with typed input; panels opened from it (the link picker) keep it.
  */
-export function openSheet(html: string, h: Record<string, Handler> = {}, opts: { draft?: DraftHook } = {}) {
+export function openSheet(html: string, h: Record<string, Handler> = {}, opts: { draft?: DraftHook; onDismiss?: () => void } = {}) {
   const wasOpen = sheet.open;
+  // Replacing a busy panel is navigation too: stop its work before installing the next owner.
+  const replaced = onDismiss;
+  onDismiss = undefined;
+  if (wasOpen) replaced?.();
   const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const had = wasOpen && active && sheetBody.contains(active) ? keyOf(active) : null;
   if (!wasOpen) {
@@ -55,6 +60,7 @@ export function openSheet(html: string, h: Record<string, Handler> = {}, opts: {
   if (opts.draft) draft = opts.draft;
   sheetBody.innerHTML = html;
   handlers = h;
+  onDismiss = opts.onDismiss;
   const title = titleEl();
   if (title) {
     title.id ||= 'sheet-title';
@@ -138,6 +144,9 @@ function afterClose() {
   if (history.state?.youSheet) { pendingBack++; history.back(); }
   closedEarly = true;
   const done = finishing;
+  const dismissed = onDismiss;
+  onDismiss = undefined;
+  if (!done) dismissed?.();
   finishing = false;
   let undo: (() => void) | null = null;
   if (!done && draft) {

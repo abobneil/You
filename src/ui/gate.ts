@@ -147,7 +147,11 @@ form.addEventListener('submit', async e => {
   go.textContent = s.busy;
   setMessage('');
   let ok = false, problem = '';
-  try { ok = await s.submit(p); }
+    try {
+      await new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+      if (current !== s) return;
+      ok = await s.submit(p);
+    }
   catch (e) {
     // Never leave the screen stuck on "Unlocking…": say what happened in plain words.
     console.error(e);

@@ -3,9 +3,12 @@
 // Bytes are written before the record that mentions them, and decrypted only when someone looks.
 import type { Vault } from '../core/crypto';
 import { checkFile, MAX_KEEPSAKE_BYTES, openBytes, sealBytes, sha256Hex, type Keepsake, type SealedBytes } from '../core/keepsakes';
-import { runIn } from './vaultStore';
+import { openYouData, runIn } from './vaultStore';
 
 export interface KeepsakeStore {
+  putMany?(rows: Array<[string, SealedBytes]>): Promise<void>;
+  /** Atomic promotion: missing staged rows abort without changing the destination. */
+  promote?(from: string, to: string, ids: string[], keep: Set<string>, signal?: AbortSignal): Promise<void>;
   get(key: string): Promise<SealedBytes | null>;
   /** Resolves only once the write has committed. */
   put(key: string, value: SealedBytes): Promise<void>;
@@ -17,16 +20,58 @@ export interface KeepsakeStore {
 export const rowKey = (youId: string, keepsakeId: string) => `${youId}/${keepsakeId}`;
 const range = (prefix: string) => IDBKeyRange.bound(prefix, prefix + '￿');
 const asBytes = (x: unknown) => (x instanceof Uint8Array ? x : new Uint8Array(x as ArrayBuffer));
+// IndexedDB can clone an immutable Blob by reference when promoting staged rows. Typed arrays
+// require another full byte copy for every cursor read and put. Existing byte-array rows still read.
+const stored = (value: SealedBytes) => ({ iv: value.iv, data: new Blob([value.data as BlobPart]) });
 
 export const idbKeepsakeStore: KeepsakeStore = {
+  putMany: rows => transaction(s => { for (const [key, value] of rows) s.put(stored(value), key); }),
+  promote: (from, to, ids, keep, signal) => transaction((s, tx) => {
+    const expected = new Set(ids);
+    const request = s.openCursor(range(from + '/'));
+    request.onsuccess = () => {
+      const c = request.result;
+      if (!c) { if (expected.size) tx.abort(); return; }
+      const id = String(c.key).slice(from.length + 1);
+      if (!expected.delete(id)) { tx.abort(); return; }
+      s.put(c.value, rowKey(to, id));
+      c.delete();
+      c.continue();
+    };
+    const obsolete = s.openKeyCursor(range(to + '/'));
+    obsolete.onsuccess = () => {
+      const c = obsolete.result;
+      if (!c) return;
+      if (!keep.has(String(c.key).slice(to.length + 1))) s.delete(c.key);
+      c.continue();
+    };
+  }, signal),
   get: async key => {
     const v = await runIn<{ iv: unknown; data: unknown } | undefined>('keepsakes', 'readonly', s => s.get(key));
-    return v ? { iv: asBytes(v.iv), data: asBytes(v.data) } : null;
+    return v ? { iv: asBytes(v.iv), data: v.data instanceof Blob ? new Uint8Array(await v.data.arrayBuffer()) : asBytes(v.data) } : null;
   },
-  put: async (key, value) => { await runIn('keepsakes', 'readwrite', s => s.put({ iv: value.iv, data: value.data }, key)); },
+  put: async (key, value) => { await runIn('keepsakes', 'readwrite', s => s.put(stored(value), key)); },
   del: async key => { await runIn('keepsakes', 'readwrite', s => s.delete(key)); },
   keys: async prefix => (await runIn('keepsakes', 'readonly', s => s.getAllKeys(range(prefix)))).map(String),
 };
+
+async function transaction(action: (s: IDBObjectStore, tx: IDBTransaction) => void, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  const db = await openYouData();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('keepsakes', 'readwrite');
+      const abort = () => tx.abort();
+      const finish = () => signal?.removeEventListener('abort', abort);
+      tx.oncomplete = () => { finish(); resolve(); };
+      tx.onabort = tx.onerror = () => { finish(); reject(signal?.reason || tx.error || new Error('Keepsake transaction aborted')); };
+      signal?.addEventListener('abort', abort, { once: true });
+      if (signal?.aborted) { tx.abort(); return; }
+      try { action(tx.objectStore('keepsakes'), tx); }
+      catch (e) { tx.abort(); reject(e); }
+    });
+  } finally { db.close(); }
+}
 
 /** An in-memory store, for tests. */
 export function memoryKeepsakeStore(): KeepsakeStore & { rows: Map<string, SealedBytes> } {

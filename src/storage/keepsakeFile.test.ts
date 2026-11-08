@@ -265,3 +265,20 @@ describe('combining a copy saved with a different passphrase', () => {
     }
   });
 });
+
+it('cancels copy creation between keepsakes without changing the stored originals', async () => {
+  const s = await setup();
+  const controller = new AbortController();
+  const keys = await s.store.keys('');
+  let requested = 0;
+  await expect(encodeBlob(s.vault, s.p, async id => {
+    requested++;
+    controller.abort();
+    return s.getSealed(id);
+  }, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+  expect(requested).toBe(1);
+  expect(await s.store.keys('')).toEqual(keys);
+  for (const [i, k] of s.ks.entries()) {
+    expect(await loadKeepsake(s.store, s.vault, s.p.id!, k)).toEqual(s.originals[i]);
+  }
+});
