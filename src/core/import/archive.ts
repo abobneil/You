@@ -1,5 +1,5 @@
 import { Unzip, UnzipInflate } from 'fflate';
-export const ARCHIVE_LIMIT = 'This file is larger than You can read (limit 500 MB unpacked, 200 MB per file, 10,000 files). Nothing was changed.';
+export const ARCHIVE_LIMIT = 'This file is too large to read (limit 500 MB unpacked, 200 MB per file, 10,000 files). Nothing was changed.';
 export const budget = () => ({ bytes: 0, entries: 0 });
 /** Stream output in small chunks: never allocate an entry based on an untrusted size. */
 export function readZip(bytes: Uint8Array, accept: (name: string) => boolean, tally = budget()): Record<string, Uint8Array> {

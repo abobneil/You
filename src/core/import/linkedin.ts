@@ -3,7 +3,7 @@
 // and PhoneNumbers. Connections are left out on purpose: hundreds of contacts aren't your life record.
 import { readZip } from './archive';
 import { fmtDate } from '../dates';
-import { FORMATS } from '../formats';
+import { finishPhone } from '../formats';
 import { col, csvObjects, looseDate, rowId } from './parse';
 import type { ImportResult, ImportRow, Proposal } from './types';
 
@@ -104,7 +104,7 @@ export function linkedinRows(files: Files, at = new Date().toISOString()): Impor
     if (!n) continue;
     const t = col(r, 'Type').toLowerCase();
     const tag = /mobile|cell/.test(t) ? 'cell' : /work/.test(t) ? 'work' : /home/.test(t) ? 'home' : 'other';
-    const value = FORMATS.phone.apply(n);
+    const value = finishPhone(n);
     rows.push(row('Contact info', value, 'Phone', { area: 'about', kind: 'Phone', value, tag }));
   }
 

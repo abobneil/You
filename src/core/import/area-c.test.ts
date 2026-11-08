@@ -93,3 +93,13 @@ END:VCARD`;
   const newest = contactAsPerson(parseVcf(text('2027-01-01T00:00:00Z','+1 202 555 0102','Teacher'))[0],'Friend');
   applyProposals(p,newest,'Contacts'); expect(p.cards[0].fields?.phone).toBe('');
 });
+
+it('an unrated Goodreads book has no rating rather than 0/5, and a short vCard phone stays as typed', () => {
+  const csv = 'Book Id,Title,Author,My Rating,Exclusive Shelf,Date Added\n1,Unrated,Ann Writer,0,to-read,2024/01/02\n2,Rated,Ann Writer,4,read,2024/01/02';
+  const [unrated, rated] = proposals(mediaRows(csv));
+  expect(unrated.fields?.sourceRating).toBeUndefined();
+  expect(unrated.fields?.rating).toBeUndefined();
+  expect(rated.fields?.sourceRating).toBe('4/5');
+  const [c] = parseVcf('BEGIN:VCARD\nVERSION:3.0\nFN:Sam Rivera\nTEL;TYPE=CELL:+1 555 0100\nEND:VCARD');
+  expect(JSON.stringify(contactAsPerson(c, 'Friend'))).toContain('+1 555 0100');
+});

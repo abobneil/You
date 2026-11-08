@@ -2,7 +2,7 @@
 // Also used for Android's contact picker, which gives the same shape.
 import { phoneKey } from './match';
 import { fmtDate } from '../dates';
-import { FORMATS } from '../formats';
+import { FORMATS, finishPhone } from '../formats';
 import type { FuzzyDate } from '../types';
 import { looseDate, rowId, tidyCase } from './parse';
 import type { ImportResult, ImportRow, Proposal } from './types';
@@ -119,7 +119,7 @@ export function phoneTag(types: string[]): string {
   return 'other';
 }
 
-const fmtPhone = (v: string) => FORMATS.phone.apply(v);
+const fmtPhone = (v: string) => finishPhone(v);
 const fmtZip = (v: string) => FORMATS.zip.apply(v) || v;
 const preferred = <T extends { types: string[] }>(list: T[], ...want: string[]) =>
   list.find(x => x.types.includes('pref')) ?? list.find(x => want.some(w => x.types.includes(w))) ?? list[0];

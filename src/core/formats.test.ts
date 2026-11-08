@@ -92,3 +92,16 @@ describe('detail formats', () => {
     expect(vin.check('KNDC')).toMatch(/17/);
   });
 });
+
+describe('whole phone numbers from imports', () => {
+  it('tidies numbers whose digits fit and keeps others exactly as written', async () => {
+    const { finishPhone } = await import('./formats');
+    expect(finishPhone('+1 555 0100')).toBe('+1 555 0100');
+    expect(finishPhone('555 0100')).toBe('555 0100');
+    expect(finishPhone('919.449.8524')).toBe('(919) 449-8524');
+    expect(finishPhone('+1 919 449 8524')).toBe('+1 (919) 449-8524');
+    expect(finishPhone('919-449-8524 x12')).toBe('(919) 449-8524 x12');
+    expect(finishPhone('9194498524123')).toBe('9194498524123');
+    expect(finishPhone('+44 20 7946 0958')).toBe('+44 20 7946 0958');
+  });
+});
