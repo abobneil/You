@@ -7,7 +7,7 @@
 import { noteInput, autosizeNote } from './note';
 import { areaById, kindLabel, kindOf, type KindInfo } from '../core/areas';
 import {
-  atTheTime, byId, correctMeta, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink, setField, setNote,
+  atTheTime, contextOverlap, byId, correctMeta, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink, setField, setNote,
   undoRemove, type Removal,
 } from '../core/cards';
 import { fmtDate, fmtISO, nowISO, rangeProblem, thisMonth } from '../core/dates';
@@ -18,7 +18,7 @@ import { esc, linkText } from './dom';
 import { openComposer } from './composer';
 import { openLinkPicker } from './linkPicker';
 import { attachValueField, valueFieldHtml } from './valueField';
-import { isSensitive, shownValue, valueHtml } from './sensitive';
+import { isSensitive, shownValue, valueHtml, sensitiveDetail, secretHtml } from './sensitive';
 import { tagRowHtml } from './tags';
 import { attachDetails, detailDates, detailsHtml, readDetails, shownField } from './details';
 import { maskValue } from '../core/formats';
@@ -68,6 +68,7 @@ export function openCard(id: string, opts: Opts = {}) {
         <div class="btns"><button class="btn quiet" type="button" data-act="end-cancel">Cancel</button><button class="btn primary" type="button" data-act="end-confirm">Move to history</button></div></div>`
     : '';
   const actions = mode === 'end' ? '' : `<div class="block cv-actions">
+      ${!on ? action('before', 'Add what came before', 'Add an earlier card to this history.') : ''}
       ${on ? action('change', 'Something changed', `Moved, a new job, a new number? Add the new one; this one moves to your history.`, true) : ''}
       ${action('fix', 'Fix a mistake', 'Correct a typo or a wrong date. The earlier wording is kept.')}
       ${on ? action('end', 'This ended', 'It’s no longer true. It moves to your history; you can reopen it.') : ''}
@@ -81,8 +82,8 @@ export function openCard(id: string, opts: Opts = {}) {
     <p class="cv-when">${esc([when, statusLine].filter(Boolean).join(' · '))}</p>
     ${opts.msg ? `<p class="cv-msg" role="status">${esc(opts.msg)}${opts.reopen ? ' <button class="link-btn" type="button" data-act="reopen">Reopen</button>' : ''}</p>` : ''}
     ${details.length || extra.length ? `<div class="block"><h5>Details</h5><dl class="cv-details">${details.map(f =>
-      `<dt>${esc(f.label)}</dt><dd>${esc(shownField(f, c.fields![f.id]))}</dd>`).join('')}${extra.map(k =>
-      `<dt>${esc(fieldLabel(c, k))}</dt><dd>${esc(c.fields![k])}</dd>`).join('')}</dl></div>` : ''}
+      `<dt>${esc(f.label)}</dt><dd>${sensitiveDetail(c, f.id) ? secretHtml(c.fields![f.id]) : esc(shownField(f, c.fields![f.id]))}</dd>`).join('')}${extra.map(k =>
+      `<dt>${esc(fieldLabel(c, k))}</dt><dd>${sensitiveDetail(c, k) ? secretHtml(c.fields![k]) : esc(c.fields![k])}</dd>`).join('')}</dl></div>` : ''}
     ${c.note ? `<div class="block"><h5>Note</h5><p class="note-text">${esc(c.note)}</p></div>` : ''}
     ${cardKeepsakesHtml(c, opts.keepsakes)}
     <div class="block"><h5>Linked</h5><div class="chips">${links.map(x =>
@@ -92,7 +93,7 @@ export function openCard(id: string, opts: Opts = {}) {
       prev ? `<span class="hint">Replaced</span> ${cardChip(prev.id, esc(shownValue(prev)))}` : '',
       next ? `<span class="hint">Replaced by</span> ${cardChip(next.id, esc(shownValue(next)))}` : ''].join(' ')}</div></div>` : ''}
     ${near.length ? `<div class="block"><h5>At the time</h5><div class="chips">${near.map(o =>
-      cardChip(o.id, linkText('', kindLabel(o), shownValue(o)))).join('')}</div></div>` : ''}
+      cardChip(o.id, (contextOverlap(c, o) === 'possible' ? 'possibly · ' : '') + linkText('', kindLabel(o), shownValue(o)))).join('')}</div></div>` : ''}
     ${revisionsHtml(c, kind)}
     ${removedKeepsakesHtml(c)}
     <p class="hint cv-recorded">Recorded in You on ${esc(fmtISO(c.recordedAt))}${c.source ? ` · from ${esc(c.source.from)}${c.source.at ? `, ${esc(fmtISO(c.source.at))}` : ''}` : ''}. This is when it was written down, not a date in your life.</p>
@@ -108,6 +109,7 @@ export function openCard(id: string, opts: Opts = {}) {
       onBack: () => openCard(id, { focus: '[data-act="add-link"]' }),
     }),
     fix: () => openCard(id, { mode: 'fix' }),
+    before: () => openComposer(c.area, { kind: c.kind, beforeId: c.id }),
     change: () => openComposer(c.area, { kind: c.kind, replaceId: c.id }),
     end: () => openCard(id, { mode: 'end', focus: '[data-date="end"] [data-d="y"]' }),
     'end-cancel': () => openCard(id, { focus: '[data-act="end"]' }),
@@ -122,11 +124,15 @@ export function openCard(id: string, opts: Opts = {}) {
     },
     reopen: () => { reopenCard(profile, id); save(); openCard(id, { msg: 'Back to current.', focus: '[data-act="fix"]' }); },
     remove: () => {
+      const effect = prev ? next ? `${shownValue(prev)} stays in your history.` : `${shownValue(prev)} becomes current again.` : 'The other cards stay as they are.';
+      openSheet(`${sheetTop('Remove this card?')}<p>It was added by mistake. ${esc(effect)} You can undo this for a few seconds.</p><div class="btns"><button class="btn quiet" data-act="cancel">Cancel</button><button class="btn" data-act="confirm">Remove</button></div>`, { cancel: () => openCard(id), confirm: () => {
       const r = removeCard(profile, id);
       if (!r) return;
       save();
       closeSheet();
       offerRemoveUndo(r);
+      }});
+      sheetBody.querySelector<HTMLElement>('[data-act="cancel"]')?.focus();
     },
   });
 
@@ -174,10 +180,10 @@ function revisionsHtml(c: Card, kind: KindInfo): string {
     const fd = r.field && r.field !== 'note' && !r.field.startsWith('keepsake:') ? r.field : undefined;
     const ks = r.field?.startsWith('keepsake:');
     const fdInfo = fd ? (kind.fields?.find(x => x.id === fd) ?? areaById(c.area)?.kinds.flatMap(k => k.fields ?? []).find(x => x.id === fd)) : undefined;
-    const hide = r.field === 'note' || ks ? false : fd ? !!fdInfo?.sensitive : isSensitive(c);
+    const hide = r.field === 'note' || ks ? false : fd ? sensitiveDetail(c, fd) : isSensitive(c);
     const label = r.field === 'note' ? 'Note: ' : ks ? altRevisionLabel(c, r.field!) : fd ? `${esc(fieldLabel(c, fd))}: ` : '';
     const shown = fdInfo?.type === 'date' ? fmtDate(r.value) : r.value;
-    return `<li class="note-text">${label}“${esc(hide ? maskValue(shown) : shown)}”${when}</li>`;
+    return `<li class="note-text">${label}“${hide ? secretHtml(shown) : esc(shown)}”${when}</li>`;
   }).join('');
   return `<div class="block"><h5>Earlier wording</h5><ul class="revs">${items}</ul></div>`;
 }

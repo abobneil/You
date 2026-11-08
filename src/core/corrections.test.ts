@@ -99,8 +99,9 @@ describe('Remove can be undone exactly', () => {
     const now = addCard(p, { area: 'home', kind: 'Address', value: '3 Pine Rd', since: '2020' }, mid.id, T1);
     const before = structuredClone(p);
     const r = removeCard(p, mid.id)!;
-    expect(byId(p, old.id)!.status).toBe('active');
-    expect(byId(p, now.id)!.replaces).toBeUndefined();
+    expect(byId(p, old.id)!.status).toBe('past');
+    expect(byId(p, old.id)!.until).toBe('2010');
+    expect(byId(p, now.id)!.replaces).toBe(old.id);
     undoRemove(p, r);
     expect(p).toEqual(before);
   });

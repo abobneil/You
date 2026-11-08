@@ -1,3 +1,4 @@
+export { sensitiveDetail } from '../core/privacy';
 // Sensitive values (Social Security number, Passport…) are hidden everywhere as •••-••-6789.
 // Press and hold the eye icon to show one; it hides again the moment you let go.
 // Works with a mouse, touch, and the keyboard (hold Space or Enter on the eye).
@@ -17,7 +18,7 @@ const EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 
 
 /** An eye button. `target` is data-card="<id>" for displayed values or data-input="<id>" for fields. */
 export const revealButton = (target: string) =>
-  `<button type="button" class="reveal" ${target} aria-label="Press and hold to show" title="Press and hold to show">${EYE}</button>`;
+  `<button type="button" class="reveal" ${target} aria-pressed="false" aria-label="Press and hold to show" title="Press and hold to show">${EYE}</button>`;
 
 /** A card's value as HTML: plain, or masked with a hold-to-reveal eye. */
 export function valueHtml(c: Card): string {
@@ -34,6 +35,7 @@ function show(btn: HTMLElement) {
     if (c && span) span.textContent = c.value;
   }
   if (btn.dataset.input) document.getElementById(btn.dataset.input)?.classList.add('show');
+  btn.setAttribute('aria-pressed', 'true');
   btn.classList.add('on');
   showing.add(btn);
 }
@@ -46,6 +48,7 @@ function hideAll() {
       if (c && span) span.textContent = maskValue(c.value);
     }
     if (btn.dataset.input) document.getElementById(btn.dataset.input)?.classList.remove('show');
+    btn.setAttribute('aria-pressed', 'false');
     btn.classList.remove('on');
   }
   showing.clear();
@@ -77,3 +80,22 @@ document.addEventListener('keydown', e => {
   if (!e.repeat) show(btn);
 }, true);
 document.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') hideAll(); }, true);
+
+const secrets = new Map<string, string>();
+let secretId = 0;
+export function secretHtml(value: string): string {
+ const id = String(++secretId); secrets.set(id, value);
+ return `<span><span class="masked-row">${esc(maskValue(value))}</span><button type="button" class="link-btn" data-secret-row="${id}" aria-pressed="false" aria-label="Show sensitive detail">Show</button></span>`;
+}
+document.addEventListener('click', e => {
+ const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-secret-row]'); if (!btn) return;
+ e.stopPropagation(); const value = secrets.get(btn.dataset.secretRow!) ?? '';
+ const show = btn.getAttribute('aria-pressed') !== 'true';
+ btn.setAttribute('aria-pressed', String(show)); btn.setAttribute('aria-label', show ? 'Hide sensitive detail' : 'Show sensitive detail'); btn.textContent = show ? 'Hide' : 'Show';
+ btn.parentElement!.querySelector('.masked-row')!.textContent = show ? value : maskValue(value);
+}, true);
+
+// Revealed-row values belong to the open sheet, never to a locked session.
+new MutationObserver(() => {
+ if (document.body.classList.contains('gated') || !document.querySelector('[data-secret-row]')) secrets.clear();
+}).observe(document.body, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });

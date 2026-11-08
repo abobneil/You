@@ -101,9 +101,9 @@ onSheetClose(() => {
   dropTimer = setTimeout(() => dropRows(youId, ids), 15_000);
 });
 
-export function openComposer(area: AreaId, preset: { kind?: string; replaceId?: string; since?: string } = {}) {
+export function openComposer(area: AreaId, preset: { kind?: string; replaceId?: string; beforeId?: string; since?: string } = {}) {
   draft = { note: '', area, kind: preset.kind || firstOpenKind(area), custom: '', customFields: [], value: '', valueDate: '', since: preset.since || '',
-    fields: {}, fieldsByKind: {}, nameTyped: false, mode: null, modeOpen: false, replaceId: preset.replaceId, links: [],
+    fields: {}, fieldsByKind: {}, nameTyped: false, mode: preset.beforeId ? 'b:' + preset.beforeId : null, modeOpen: false, replaceId: preset.replaceId, links: [],
     keepsakes: [], keepsakeMsg: '', open: new Set(), moreKinds: false, valueMsg: '', youId: profile.id ?? '', saved: false };
   typedAtStart = typed();
   render(true);
@@ -156,7 +156,7 @@ function modeOptions(d: Draft, actives: Card[], kind: KindInfo): string {
   return `<div class="c-opts" role="group" aria-label="What this card does">${[
     ...actives.map(c => opt('r:' + c.id, `Replaces ${named(c)}`, `${esc(shownValue(c))} moves to your history, ending when this starts.`)),
     opt('add', 'Add alongside', actives.length === 1 ? `${esc(shownValue(actives[0]))} stays current too.` : 'The ones you have stay current too.'),
-    ...actives.filter(c => !c.replaces && !kind.many).map(c =>
+    ...profile.cards.filter(c => c.area === d.area && c.kind === d.kind && !kind.many).map(c =>
       opt('b:' + c.id, `Came before ${named(c)}`, `This goes into your history, ending when ${esc(shownValue(c))} started.`)),
   ].join('')}</div>`;
 }
@@ -210,7 +210,7 @@ function render(focus = false) {
     ? `<div class="fx c-when"><span class="lab" id="c-when-lab">${whenLabel}</span><div role="group" aria-labelledby="c-when-lab" aria-describedby="c-when-hint">${
         dateInputs(d.since, 'since')}<div class="hint" id="c-when-hint">A year is enough.</div></div></div>`
     : '';
-  const modeRow = actives.length
+  const modeRow = actives.length || d.mode?.startsWith('b:')
     ? `<div class="c-mode"><p>${modeSentence(d, actives)} <button type="button" class="link-btn" data-act="mode-open" aria-expanded="${d.modeOpen}">${d.modeOpen ? 'Done' : 'Change'}</button></p>
         ${d.modeOpen ? modeOptions(d, actives, kind) : ''}</div>`
     : '';

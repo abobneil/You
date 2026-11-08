@@ -1,3 +1,4 @@
+import { cleanLinks } from '../core/relations';
 // The .you.json file. docs/FORMAT.md is the contract; this module writes and reads it.
 //   version 1 – plain JSON from before encryption (read only; encrypted on the next save)
 //   version 2 – one encrypted envelope; also the browser copy's format
@@ -62,7 +63,7 @@ function classify(data: any, keepsakes: () => AsyncIterable<RawKeepsake>): ReadR
   if (data && data.app === 'you' && (data.version === 2 || data.version === 3)) throw new DamagedFile('its encryption details are missing');
   const raw = data && data.app === 'you' ? data.profile : data;
   if (!raw || typeof raw.name !== 'string' || !raw.name) throw new Error('Not You data');
-  return { kind: 'plain', profile: normalize(raw) };
+  return { kind: 'plain', profile: cleanLinks(normalize(raw)) };
 }
 
 /** Works out what a file contains. Throws if it isn't You data, or is a version this app doesn't know. */
@@ -178,7 +179,7 @@ export async function encodeBlob(vault: Vault, p: Profile, getSealed: (id: strin
 /** Unlocks an envelope. Throws WrongPassphrase if the passphrase doesn't fit. */
 export async function decode(passphrase: string, env: Envelope): Promise<{ profile: Profile; vault: Vault }> {
   const { plaintext, vault } = await unlock(passphrase, env);
-  return { profile: normalize(JSON.parse(plaintext)), vault };
+  return { profile: cleanLinks(normalize(JSON.parse(plaintext))), vault };
 }
 
 /** "Alex Kim" → "alex-kim.you.json" */

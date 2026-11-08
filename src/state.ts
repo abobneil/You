@@ -1,3 +1,4 @@
+import { cleanLinks } from './core/relations';
 // The open You's data in memory, the unlocked key, and "something changed" notifications.
 // Nothing is written anywhere until there is a key: the browser copy is encrypted too.
 import { newId } from './core/cards';
@@ -41,7 +42,7 @@ export async function useNewer() {
   const text = await vaultStore.get(profile.id!);
   if (!text || !vault) return;
   const id = profile.id;
-  const newer = normalize(JSON.parse(await openWith(vault, JSON.parse(text))));
+  const newer = cleanLinks(normalize(JSON.parse(await openWith(vault, JSON.parse(text)))));
   newer.id = id; // the browser slot decides which You this is
   profile = newer;
   guard.begin(text);
@@ -140,7 +141,7 @@ export const storedEnvelope = async (id = currentId()) => { if (!id) return null
 /** Data saved by earlier, unencrypted versions of You, waiting to be protected. */
 export function legacyProfile(): Profile | null {
   try {
-    const p = normalize(JSON.parse(local.get(KEYS.profile) || 'null'));
+    const p = cleanLinks(normalize(JSON.parse(local.get(KEYS.profile) || 'null')));
     return p.name ? p : null;
   } catch { return null; }
 }

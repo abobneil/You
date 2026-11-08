@@ -19,7 +19,7 @@ import { $, esc, linkText } from './dom';
 import { shownField, summaryText } from './details';
 import { maskValue } from '../core/formats';
 import { openImport, SOURCES_FOR_AREA } from './import/sources';
-import { isSensitive, shownValue, valueHtml } from './sensitive';
+import { sensitiveDetail, isSensitive, shownValue, valueHtml } from './sensitive';
 import { tagIcon } from './tags';
 
 /** Kinds with this many cards or fewer show them right in the area; bigger kinds fold to a row. */
@@ -236,12 +236,11 @@ function searchParts(c: Card): [string, string][] {
   const parts: [string, string][] = [['', `${shownValue(c)} ${kindLabel(c)} ${originOf(c)} ${yearOf(c)}`]];
   for (const [id, v] of Object.entries(c.fields ?? {})) {
     const f = fieldOf(id);
-    parts.push(['details', f ? shownField(f, v) : v]);
+    parts.push(['details', sensitiveDetail(c, id) ? maskValue(v) : f ? shownField(f, v) : v]);
   }
   if (c.note) parts.push(['note', c.note]);
   for (const r of c.revisions) {
-    const f = r.field ? fieldOf(r.field) : undefined;
-    const hide = r.field ? !!f?.sensitive : isSensitive(c);
+    const hide = r.field ? sensitiveDetail(c, r.field) : isSensitive(c);
     parts.push(['earlier wording', hide ? maskValue(r.value) : r.value]);
   }
   for (const k of c.keepsakes ?? []) parts.push([k.removedAt ? 'a removed file' : 'a file', `${k.name} ${k.alt ?? ''}`]);

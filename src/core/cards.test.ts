@@ -133,7 +133,7 @@ describe('dated and undated kinds', () => {
   it('facts like Full name show no date line; a later name change does', () => {
     const p = seed();
     const first = addCard(p, { area: 'about', kind: 'Full name', value: 'Neil Chester', since: '' });
-    expect(rangeText(first)).toBe('');
+    expect(rangeText(first)).toBe('Date unknown');
     const changed = addCard(p, { area: 'about', kind: 'Full name', value: 'Neil A. Chester', since: '2030-06' }, first.id);
     expect(rangeText(changed)).toBe('Changed Jun 2030');
     expect(rangeText(first)).toBe('Until Jun 2030');
@@ -177,11 +177,12 @@ describe('adding a card that came before', () => {
     expect(activeOf(p, 'home', 'Address')).toEqual([fox]);
   });
 
-  it('is refused when the later card already has one before it', () => {
+  it('splices before a card with a predecessor', () => {
     const p = seed();
     const a = addCard(p, { area: 'home', kind: 'Address', value: 'A', since: '2010' });
     const b = addCard(p, { area: 'home', kind: 'Address', value: 'B', since: '2020' }, a.id);
-    expect(addCardBefore(p, { area: 'home', kind: 'Address', value: 'C', since: '2015' }, b.id)).toBeUndefined();
+    const c = addCardBefore(p, { area: 'home', kind: 'Address', value: 'C', since: '2015' }, b.id)!;
+    expect(c.replaces).toBe(a.id); expect(a.replacedBy).toBe(c.id); expect(b.replaces).toBe(c.id);
   });
 
   it('property and where you live are separate', () => {
