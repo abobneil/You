@@ -24,7 +24,7 @@ export function openSwitcher() {
     <h3 class="sh-title">Switch You</h3>
     <ul class="yous">${list.map(e => {
       const isCur = e.id === cur;
-      return `<li><button type="button" data-act="pick" data-id="${e.id}" class="${isCur ? 'on' : ''}">
+      return `<li><button type="button" data-act="pick" data-id="${esc(e.id)}" class="${isCur ? 'on' : ''}">
         <span class="av">${esc(initial(e.label))}</span>
         <span class="yn"><b>${esc(e.label || 'Locked You')}</b><small>${isCur ? (unlocked ? 'Open now' : 'Selected') : 'Switch'}</small></span>
       </button></li>`;

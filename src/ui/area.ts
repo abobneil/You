@@ -92,7 +92,7 @@ function tileHtml(c: Card) {
     .map(x => `<span class="chip">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}</span>`).join('');
   const sum = summaryText(c, kindOf(c.area, c.kind));
   const t = tagOf(c);
-  return `<div class="tile${c.status === 'active' ? '' : ' past'}" role="button" tabindex="0" data-act="card" data-id="${c.id}">
+  return `<div class="tile${c.status === 'active' ? '' : ' past'}" role="button" tabindex="0" data-act="card" data-id="${esc(c.id)}">
     <span class="k"><i></i>${esc(kindLabel(c))}</span>
     <span class="v">${t ? tagIcon(t) : ''}${valueHtml(c)}</span>
     ${sum ? `<span class="sum">${esc(sum)}</span>` : ''}
@@ -105,7 +105,7 @@ function tileHtml(c: Card) {
 function rowHtml(c: Card, showKind: boolean) {
   const sum = summaryText(c, kindOf(c.area, c.kind));
   const t = tagOf(c);
-  return `<li class="crow${c.status === 'active' ? '' : ' past'}" role="button" tabindex="0" data-act="card" data-id="${c.id}">
+  return `<li class="crow${c.status === 'active' ? '' : ' past'}" role="button" tabindex="0" data-act="card" data-id="${esc(c.id)}">
     <span class="cv">${t ? tagIcon(t) : ''}${valueHtml(c)}</span>
     <span class="cs">${esc([showKind ? kindLabel(c) : '', sum].filter(Boolean).join(' · '))}</span>
     <span class="cd">${esc(rangeText(c))}</span>
@@ -216,7 +216,7 @@ function eventHtml(c: Card) {
     ? (prev ? `replaced ${esc(shownValue(prev))}` : 'added')
     : (next ? `replaced by ${esc(shownValue(next))}` : 'ended');
   const when = c.status === 'active' ? (fmtDate(c.since) || `Added ${fmtISO(c.recordedAt)}`) : rangeText(c);
-  return `<li class="ev ${c.status === 'active' ? 'on' : 'past'}"><button type="button" data-act="card" data-id="${c.id}">
+  return `<li class="ev ${c.status === 'active' ? 'on' : 'past'}"><button type="button" data-act="card" data-id="${esc(c.id)}">
     <div class="when">${esc(when)}</div>
     <div class="what">${esc(kindLabel(c))}: ${esc(shownValue(c))} <span class="note">· ${note}</span></div>
   </button></li>`;
