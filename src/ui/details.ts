@@ -42,17 +42,19 @@ export function detailsHtml(kind: KindInfo, values: Record<string, string> = {},
 }
 
 // ---------- VIN: look up details (asks first, since it uses the network), or read a barcode photo ----------
-const VIN_OK = 'you.vinConsent';
+local.remove('you.vinConsent'); // older versions remembered one yes for every later lookup
 /** Vehicle details the lookup can fill (same names as the Vehicle fields). */
 const VIN_FILL = ['year', 'make', 'model', 'trim', 'fuel'] as const;
 
 async function vinLookup(input: HTMLInputElement, prefix: string, status: HTMLElement) {
   const vin = input.value.trim().toUpperCase();
   if (vin.length !== 17) { status.textContent = 'Enter all 17 characters of the VIN first.'; return; }
-  if (!local.get(VIN_OK)) {
-    if (!confirm(`Look up this VIN with ${VIN_SERVICE}?\n\nOnly the VIN is sent, to the US government’s free vehicle database. Nothing else about you leaves this device.`)) return;
-    local.set(VIN_OK, '1');
-  }
+  // Asked every time, naming the service and the exact VIN: consent to one lookup never covers another.
+  if (!confirm(`Send this VIN to ${VIN_SERVICE}?
+
+${vin}
+
+Only this VIN is sent, to the US government’s free vehicle database. Nothing else about you leaves this device. The details it finds are filled in for you to check before you save.`)) { status.textContent = 'Nothing was sent.'; return; }
   status.textContent = 'Looking it up…';
   try {
     const info = await lookupVin(vin);
@@ -65,11 +67,10 @@ async function vinLookup(input: HTMLInputElement, prefix: string, status: HTMLEl
       if (!el || !v || el.value.trim()) continue;
       el.value = v;
       el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
       el.closest<HTMLElement>('[data-empty]')?.removeAttribute('hidden');
       filled++;
     }
-    status.textContent = filled ? `Filled in ${filled} detail${filled === 1 ? '' : 's'} from NHTSA.` : 'Those details are already filled in.';
+    status.textContent = filled ? `Filled in ${filled} detail${filled === 1 ? '' : 's'} from NHTSA. Check them, then save.` : 'Those details are already filled in.';
   } catch {
     status.textContent = 'The lookup didn’t work. Check your connection and try again.';
   }
