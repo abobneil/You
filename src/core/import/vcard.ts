@@ -7,6 +7,8 @@ import { looseDate, rowId, tidyCase } from './parse';
 import type { ImportResult, ImportRow, Proposal } from './types';
 
 export interface Contact {
+  uid?: string;
+  revisedAt?: string;
   fn: string;
   name: { first: string; middle: string; last: string; suffix: string };
   tels: { value: string; types: string[] }[];
@@ -71,6 +73,8 @@ export function parseVcf(text: string): Contact[] {
       return (m ? m[1] : /=/.test(p) ? '' : p).split(',').map(t => t.replace(/"/g, '').trim().toLowerCase()).filter(Boolean);
     });
     switch (name) {
+      case 'UID': c.uid = value.trim(); break;
+      case 'REV': { const date = new Date(value.trim()); if (!Number.isNaN(date.getTime())) c.revisedAt = date.toISOString(); break; }
       case 'FN': c.fn = unescape(value).trim(); break;
       case 'N': {
         const [last = '', first = '', middle = '', , suffix = ''] = splitEsc(value, ';');
@@ -123,7 +127,7 @@ export const ME = 'me';
 function addressFields(a: Contact['addresses'][number]) {
   return { street: a.street, unit: a.unit, city: a.city, state: a.state.length <= 3 ? a.state.toUpperCase() : a.state, zip: fmtZip(a.zip), country: a.country };
 }
-const oneLine = (a: Contact['addresses'][number]) => [a.street, a.unit, a.city, a.state, a.zip].filter(Boolean).join(', ');
+const oneLine = (a: Contact['addresses'][number]) => [a.street, a.unit, a.city, a.state, a.zip, a.country].filter(Boolean).join(', ');
 
 /** A contact as one People card. */
 export function contactAsPerson(c: Contact, kind: string): Proposal[] {
@@ -134,11 +138,12 @@ export function contactAsPerson(c: Contact, kind: string): Proposal[] {
   if (tel) fields.phone = fmtPhone(tel.value);
   if (email) fields.email = email.value;
   if (c.org) fields.organization = c.org;
+  if (c.title) fields.title = c.title;
   c.tels.forEach((t, i) => { fields[`phone${i + 1}`] = `${t.types.join(', ')}: ${t.value}`; });
   c.emails.forEach((e, i) => { fields[`email${i + 1}`] = `${e.types.join(', ')}: ${e.value}`; });
   if (c.birthday) fields.birthday = c.birthday;
   if (adr) fields.address = oneLine(adr);
-  return [{ area: 'people', kind, value: displayName(c), fields }];
+  return [{ area: 'people', kind, value: displayName(c), fields, sync: { source: 'contacts', id: c.uid || c.emails[0]?.value.toLowerCase() || c.tels[0]?.value || displayName(c), at: c.revisedAt || new Date().toISOString() } }];
 }
 
 /** "This is me": a contact as your own About cards, plus your address and job. */

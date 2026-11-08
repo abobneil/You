@@ -1,6 +1,6 @@
 // Matching imported cards against what's already there, and adding them.
 // Ordinary imports fill missing details. Explicit source snapshots can refresh unchanged imported fields.
-import { addCard, correctValue, removeCard, setField } from '../cards';
+import { addCard, correctValue, correctMeta, endCard, reopenCard, removeCard, setField } from '../cards';
 import type { Card, Profile } from '../types';
 import type { Proposal } from './types';
 
@@ -35,12 +35,15 @@ export function findMatch(profile: Profile, p: Proposal): Card | undefined {
     const title = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     const candidates = profile.cards.filter(c => c.area === p.area && c.kind === p.kind && title(c.value) === title(p.value)
       && !c.imports?.[source]
+      && (!/^(Netflix|Spotify|Apple Music|YouTube Music)$/.test(source) || !Object.keys(c.imports ?? {}).some(k => /^(Netflix|Spotify|Apple Music|YouTube Music)$/.test(k)))
+      && (p.kind !== 'Movie or show' || (!!p.fields?.year && c.fields?.year === p.fields.year))
+      && (!['Job', 'Education'].includes(p.kind) || (!!p.since && c.since === p.since))
       && (p.kind !== 'Book' || (!!c.fields?.author && !!p.fields?.author && c.fields.author.toLowerCase() === p.fields.author.toLowerCase()))
       && (p.kind !== 'Book' || (c.fields?.edition ?? '') === (p.fields?.edition ?? '')));
     return candidates.length === 1 ? candidates[0] : undefined;
   }
   const key = matchKey(p);
-  return profile.cards.find(c => (c.area === p.area || p.area === 'people') && matchKey(c) === key && (p.kind !== 'Book' || (c.fields?.author ?? '').toLowerCase() === (p.fields?.author ?? '').toLowerCase()) && (p.kind !== 'Book' || (c.fields?.edition ?? '') === (p.fields?.edition ?? '')));
+  return profile.cards.find(c => (c.area === p.area || p.area === 'people') && matchKey(c) === key && (p.kind !== 'Movie or show' || (!!p.fields?.year && c.fields?.year === p.fields.year)) && (!['Job', 'Education'].includes(p.kind) || c.since === p.since) && (p.kind !== 'Book' || (c.fields?.author ?? '').toLowerCase() === (p.fields?.author ?? '').toLowerCase()) && (p.kind !== 'Book' || (c.fields?.edition ?? '') === (p.fields?.edition ?? '')));
 }
 
 export type Plan = 'new' | 'fill' | 'update' | 'have';
@@ -56,7 +59,7 @@ export function absorbable(profile: Profile, p: Proposal): Card[] {
     const snap = c.imports?.[p.absorbs!.source];
     if (!snap || !ids.has(snap.id) || c.area !== p.area || c.kind !== p.kind) return false;
     const fields = c.fields ?? {};
-    const same = Object.keys({ ...fields, ...snap.fields }).filter(k => k !== '$value').every(k => (fields[k] ?? '') === (snap.fields[k] ?? ''));
+    const same = Object.keys({ ...fields, ...snap.fields }).filter(k => !k.startsWith('$')).every(k => (fields[k] ?? '') === (snap.fields[k] ?? ''));
     return same && !c.revisions?.length && !profile.links.some(l => l.a === c.id || l.b === c.id);
   });
 }
@@ -87,7 +90,7 @@ function basePlan(profile: Profile, p: Proposal): Plan {
   if (previous && p.sync!.at <= previous.at) return 'have';
   const changes = fieldChanges(m, p);
   // A newer snapshot that changes nothing is "already there": syncing again shouldn't flag every card.
-  if ((previous?.fields.$value === m.value && p.value !== m.value) || changes.some(([k]) => m.fields?.[k])) return 'update';
+  if ((previous && ((previous.fields.$until ?? '') !== (p.until ?? '') || previous.fields.$status !== (p.past ? 'past' : 'current'))) || (previous?.fields.$value === m.value && p.value !== m.value) || changes.some(([k]) => m.fields?.[k])) return 'update';
   const missing = changes.length > 0 || (!!p.sync && !previous)
     || (!!p.since && !m.since) || (!!p.tag && !m.tag);
   return missing ? 'fill' : 'have';
@@ -103,6 +106,11 @@ export function applyProposals(profile: Profile, proposals: Proposal[], from: st
       const plan = planFor(profile, p);
       if (plan === 'have') { if (p.sync && (!m.imports?.[p.sync.source] || p.sync.at > m.imports[p.sync.source].at)) rememberSync(m, p); continue; }
       let changed = false;
+      const previous = p.sync ? m.imports?.[p.sync.source] : undefined;
+      if (previous && p.sync!.at > previous.at) {
+        if ((m.until ?? '') === (previous.fields.$until ?? '') && (p.until ?? '') !== (m.until ?? '')) changed = correctMeta(profile, m.id, 'until', p.until ?? '', now) || changed;
+        if (m.status === previous.fields.$status && m.status !== (p.past ? 'past' : 'current')) { if (p.past) endCard(profile, m.id, p.until ?? '', now); else reopenCard(profile, m.id); changed = true; }
+      }
       if (p.sync && m.imports?.[p.sync.source]?.fields.$value === m.value && p.value !== m.value) changed = correctValue(profile, m.id, p.value, now);
       for (const [k, v] of fieldChanges(m, p)) changed = setField(profile, m.id, k, v, now) || changed;
       if (p.since && !m.since) { m.since = p.since; changed = true; }
@@ -123,5 +131,5 @@ export function applyProposals(profile: Profile, proposals: Proposal[], from: st
 
 function rememberSync(c: Card, p: Proposal) {
   if (!p.sync) return;
-  c.imports = { ...c.imports, [p.sync.source]: { id: p.sync.id, at: p.sync.at, fields: { ...p.fields, $value: p.value } } };
+  c.imports = { ...c.imports, [p.sync.source]: { id: p.sync.id, at: p.sync.at, fields: { ...p.fields, $value: p.value, $until: p.until ?? '', $status: p.past ? 'past' : 'current' } } };
 }

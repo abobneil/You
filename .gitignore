@@ -6,3 +6,5 @@ Thumbs.db
 # Personal data files should never be committed by accident.
 *.you.json
 exports/
+
+.helper-build/

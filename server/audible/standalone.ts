@@ -5,7 +5,7 @@ import { handle } from './plugin.ts';
 export const PORT = 49631;
 export function helperServer(appUrl: string) {
   const app = new URL(appUrl);
-  if (app.protocol !== 'https:' && app.origin !== 'http://127.0.0.1:4173') throw new Error('Configure an HTTPS app URL.');
+  if (app.protocol !== 'https:' && !(['127.0.0.1', 'localhost'].includes(app.hostname) && app.protocol === 'http:')) throw new Error('Configure an HTTPS app URL.');
   const origins = [app.origin, 'http://127.0.0.1:4173'];
   return createServer((req, res) => {
     const host = req.headers.host;

@@ -148,11 +148,11 @@ describe('health records', () => {
       { resource: { resourceType: 'Immunization', vaccineCode: { text: 'COVID-19 vaccine' }, occurrenceDateTime: '2021-04-02', protocolApplied: [{ doseNumberPositiveInt: 2 }] } },
     ] };
     const items = parseHealth(JSON.stringify(bundle));
-    expect(items.map(i => `${i.kind}:${i.name}`)).toEqual(['Allergy:Penicillin', 'Medication:Lisinopril 10 mg', 'Condition:Hypertension', 'Immunization:COVID-19 vaccine']);
+    expect(items.map(i => `${i.kind}:${i.name}`)).toEqual(['Allergy:Penicillin', 'Medication:Lisinopril 10 mg', 'Medication:Lisinopril 10 mg', 'Condition:Hypertension', 'Immunization:COVID-19 vaccine']);
     expect(items[0].fields).toMatchObject({ reaction: 'Hives', severity: 'Severe' });
     expect(items[1].since).toBe('2022-01-10'); // earliest of the duplicates
     const rows = healthRows(items).rows.map(r => r.build()[0]);
-    expect(rows[3]).toMatchObject({ kind: 'Immunization', since: '2021-04-02', fields: { dose: 'Dose 2' } });
+    expect(rows[4]).toMatchObject({ kind: 'Immunization', since: '2021-04-02', fields: { dose: 'Dose 2' } });
   });
 
   it('C-CDA documents', () => {

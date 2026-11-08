@@ -8,6 +8,7 @@ import type { ImportResult, ImportRow, Proposal } from './types';
 export interface HealthItem {
   kind: 'Allergy' | 'Medication' | 'Condition' | 'Immunization';
   name: string;
+  id?: string;
   since: string;
   until?: string;
   active: boolean;
@@ -21,7 +22,7 @@ const text = (cc: any): string => cc?.text || cc?.coding?.find((c: any) => c.dis
 const fhirDate = (...v: (string | undefined)[]) => looseDate((v.find(Boolean) ?? '').slice(0, 10));
 
 function fromFhir(r: any): HealthItem | null {
-  if (/entered-in-error|refuted/.test(r?.verificationStatus?.coding?.[0]?.code ?? '') || /not-done/.test(r?.status ?? '')) return null;
+  if ((r?.verificationStatus?.coding ?? []).some((c: any) => /entered-in-error|refuted/.test(c.code ?? '')) || /not-done|not-taken|entered-in-error/.test(r?.status ?? '')) return null;
   switch (r?.resourceType) {
     case 'AllergyIntolerance': {
       const status = text(r.clinicalStatus) || r.clinicalStatus?.coding?.[0]?.code || '';
@@ -84,16 +85,16 @@ function named(doc: Document, el?: Element): string {
   return first(el, 'originalText')?.textContent?.trim() ?? '';
 }
 
-function fromCcda(xml: string): HealthItem[] {
+function fromCcda(xml: string, notes: string[] = []): HealthItem[] {
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) return [];
   const items: HealthItem[] = [];
   for (const section of local(doc.documentElement, 'section')) {
     const code = kids(section).find(c => c.localName === 'code')?.getAttribute('code') ?? '';
     const kind = SECTIONS[code];
-    if (!kind) continue;
+    if (!kind) { notes.push('1 unsupported health section skipped.'); continue; }
     for (const entry of kids(section).filter(c => c.localName === 'entry')) {
-      if (local(entry, 'observation').some(o => o.getAttribute('negationInd') === 'true') || local(entry, 'substanceAdministration').some(o => o.getAttribute('negationInd') === 'true')) continue;
+      if (local(entry, 'observation').some(o => o.getAttribute('negationInd') === 'true') || local(entry, 'substanceAdministration').some(o => o.getAttribute('negationInd') === 'true')) { notes.push('1 negated health entry skipped.'); continue; }
       const time = first(entry, 'effectiveTime');
       const low = hl7Date(first(time, 'low')?.getAttribute('value') ?? time?.getAttribute('value'));
       const high = hl7Date(first(time, 'high')?.getAttribute('value'));
@@ -124,29 +125,30 @@ function fromCcda(xml: string): HealthItem[] {
 
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : '');
 
-export function parseHealth(raw: string): HealthItem[] {
+export function parseHealth(raw: string): HealthItem[] & { notes?: string[] } {
+  const notes: string[] = [];
   const t = raw.trim();
-  const items = t.startsWith('<') ? fromCcda(t) : fhirResources(t).map(fromFhir).filter((x): x is HealthItem => !!x && !!x.name);
+  const items = t.startsWith('<') ? fromCcda(t, notes) : fhirResources(t).map(r => { const i = fromFhir(r); if (i && r.id) i.id = r.resourceType + ':' + r.id; if (!i) notes.push(`1 health resource skipped: ${r?.status || r?.verificationStatus?.coding?.[0]?.code || r?.resourceType || 'unsupported'}.`); return i; }).filter((x): x is HealthItem => !!x && !!x.name);
   // Portals often list the same medication many times (one per refill); keep the earliest.
   const seen = new Map<string, HealthItem>();
   for (const i of items) {
     if (i.kind === 'Allergy' && /no known|no allergy|unknown|not known/i.test(i.name)) continue;
-    const k = i.kind + ':' + i.name.toLowerCase();
+    const k = i.id || i.kind + ':' + i.name.toLowerCase() + ':' + i.since;
     const prev = seen.get(k);
     if (!prev || (i.since && (!prev.since || i.since < prev.since))) seen.set(k, { ...i, active: i.active || !!prev?.active });
   }
-  return [...seen.values()];
+  return Object.assign([...seen.values()], { notes });
 }
 
-export function healthRows(items: HealthItem[]): ImportResult {
+export function healthRows(items: HealthItem[] & { notes?: string[] }, at = new Date().toISOString()): ImportResult {
   const keep = (o: Record<string, string>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v));
   const rows: ImportRow[] = items.map(i => {
-    const p: Proposal = { area: 'health', kind: i.kind, value: i.name, since: i.since, fields: keep(i.fields),
+    const p: Proposal = { area: 'health', kind: i.kind, value: i.name, since: i.since, sync: { source: 'health', id: i.id || [i.kind, i.name, i.since].join(':'), at }, fields: keep(i.fields),
       past: !i.active && i.kind !== 'Immunization', until: !i.active ? i.until ?? '' : undefined };
     return { id: rowId('hx'), group: GROUP[i.kind], label: i.name,
       sub: [i.since && fmtDate(i.since), !i.active && i.kind !== 'Immunization' ? 'ended' : ''].filter(Boolean).join(' · '),
       build: () => [p] };
   });
-  return { rows, notes: rows.length ? ['Medical records can list old or duplicate items. Untick anything that isn’t right.']
-    : ['No allergies, medications, conditions or immunizations were found in that file.'] };
+  return { rows, notes: [...(items.notes ?? []), ...(rows.length ? ['Medical records can list old or duplicate items. Untick anything that isn’t right.']
+    : ['No allergies, medications, conditions or immunizations were found in that file.'])] };
 }

@@ -1,0 +1,49 @@
+﻿BEGIN:VCARD
+VERSION:3.0
+N:林;Élo;;;
+FN:Élo 林
+ORG:Invented
+  Studio
+TITLE:Potter
+TEL;TYPE=CELL:+44 20 7123 4567
+TEL;TYPE=WORK:+1 207 555 0000
+EMAIL;TYPE=HOME:elo@example.invalid
+EMAIL;TYPE=WORK:elo@studio.invalid
+ADR;TYPE=HOME:;;1 Imaginary Lane;Fable;;00000;GB
+BDAY:1980-03-04
+NOTE:A long note that is fol
+ ded across lines
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+N:Kim;Alex;Jordan;;
+FN:Alex Jordan Kim
+TEL;TYPE=cell;VALUE=uri:tel:+1-919-555-0100
+TEL;TYPE=work:+1 919 555 0111
+EMAIL;TYPE=home:alex@example.invalid
+EMAIL;TYPE=work:alex@work.invalid
+ADR;TYPE=home:;;2 Oak Ave;Cary;NC;27511;USA
+BDAY:19800314
+ORG:Wake Schools
+TITLE:Teacher
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Sam Lee
+EMAIL:sam.lee.one@example.invalid
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Sam Lee
+EMAIL:sam.lee.two@example.invalid
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Robin Grey
+TEL;TYPE=CELL:+44 20 7123 9999
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Robin Gray
+TEL;TYPE=CELL:+1 207 123 9999
+END:VCARD
