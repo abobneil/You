@@ -135,23 +135,71 @@ export function reopenCard(p: Profile, id: string) {
   delete c.until;
 }
 
+/** What `removeCard` took out, so "Undo" can put every piece back exactly where it was. */
+export interface Removal {
+  card: Card;
+  index: number;
+  links: { link: Link; index: number }[];
+  /** The cards on either side of a replacement chain, as they were before the removal. */
+  touched: Card[];
+}
+
 /**
  * Only for cards added by mistake. If the card had replaced another, that one becomes active again,
- * so removing a mistaken replacement leaves the history as it was.
+ * so removing a mistaken replacement leaves the history as it was. Returns what's needed to undo it.
  */
-export function removeCard(p: Profile, id: string) {
+export function removeCard(p: Profile, id: string): Removal | undefined {
   const c = byId(p, id);
   if (!c) return;
   const prev = byId(p, c.replaces);
+  const next = byId(p, c.replacedBy);
+  const removal: Removal = {
+    card: structuredClone(c),
+    index: p.cards.indexOf(c),
+    links: p.links.map((link, index) => ({ link: structuredClone(link), index })).filter(x => x.link.a === id || x.link.b === id),
+    touched: [prev, next].filter((x): x is Card => !!x).map(x => structuredClone(x)),
+  };
   if (prev && prev.replacedBy === c.id) {
     prev.status = 'active';
     delete prev.until;
     delete prev.replacedBy;
   }
-  const next = byId(p, c.replacedBy);
   if (next) delete next.replaces;
   p.cards = p.cards.filter(x => x.id !== id);
   p.links = p.links.filter(l => l.a !== id && l.b !== id);
+  return removal;
+}
+
+/** Puts a removed card back: the card, its links and the cards around it, exactly as they were. */
+export function undoRemove(p: Profile, r: Removal): boolean {
+  if (byId(p, r.card.id)) return false;
+  for (const t of r.touched) {
+    const i = p.cards.findIndex(x => x.id === t.id);
+    if (i >= 0) p.cards[i] = structuredClone(t);
+  }
+  p.cards.splice(Math.min(r.index, p.cards.length), 0, structuredClone(r.card));
+  for (const { link, index } of [...r.links].sort((a, b) => a.index - b.index)) {
+    if (byId(p, link.a) && byId(p, link.b) && !p.links.some(l => l.id === link.id)) p.links.splice(Math.min(index, p.links.length), 0, structuredClone(link));
+  }
+  return true;
+}
+
+/** Card settings that can be corrected in place. Each correction keeps the earlier one in history. */
+export type MetaField = 'since' | 'until' | 'tag' | 'kind';
+
+/**
+ * Corrects when a card started or ended, its sub-type or its kind ("I typed 2000, it was 2001").
+ * The earlier setting is kept as a revision, so its meaning is never lost. Unchanged values record nothing.
+ */
+export function correctMeta(p: Profile, id: string, key: MetaField, value: string, now = new Date().toISOString()): boolean {
+  const c = byId(p, id);
+  if (!c) return false;
+  const v = key === 'kind' ? value.trim() : value;
+  const old = (c[key] ?? '') as string;
+  if (v === old || (key === 'kind' && !v) || (key === 'until' && c.status === 'active')) return false;
+  c.revisions.push({ field: key, value: old, at: now });
+  if (v) c[key] = v; else if (key === 'since') c.since = ''; else if (key === 'until') delete c.until; else if (key === 'tag') delete c.tag;
+  return true;
 }
 
 export function addLink(p: Profile, a: string, b: string, fwd = '', back = fwd): Link | undefined {

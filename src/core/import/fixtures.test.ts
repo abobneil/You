@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { readFileSync, readdirSync } from 'node:fs';
 import { DOMParser } from '@xmldom/xmldom';
 import { zipSync, strToU8 } from 'fflate';

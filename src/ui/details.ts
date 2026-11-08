@@ -166,3 +166,7 @@ export function summaryText(c: Card, kind: KindInfo): string {
 /** Non-sensitive details as plain text, for searching. */
 export const searchableDetails = (c: Card, kind: KindInfo) =>
   (kind.fields ?? []).filter(f => !f.sensitive && c.fields?.[f.id]).map(f => c.fields![f.id]).join(' ');
+
+/** The date details of a kind, for checking them before saving. */
+export const detailDates = (kind: KindInfo, prefix = 'fd') =>
+  (kind.fields ?? []).filter(f => f.type === 'date').map(f => ({ key: key(prefix, f), label: f.label }));
