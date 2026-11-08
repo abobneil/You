@@ -146,7 +146,8 @@ let toastAction: (() => void) | null = null;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 const UNDO_MS = 8000;
 
-function offerUndo(text: string, action: () => void) {
+/** Shows "<text> · Undo" in the shared toast; Undo (or Ctrl+Z) runs `action`. */
+export function offerUndo(text: string, action: () => void) {
   toastAction = action;
   toastText.textContent = text;
   toast.hidden = false;
