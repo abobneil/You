@@ -40,14 +40,24 @@ function damagedBrowserCopy(slot: string, stored: string) {
     <p class="hint">If you have a saved file, open that instead. You can also save this copy as a file to keep it, or start a new You.</p>
     <div class="menu"><button data-act="open">Open a saved file</button><button data-act="keep">Save this copy as a file</button><button data-act="close">Start a new You</button></div>`, {
     open: () => { closeSheet(); openStoragePicker('open'); },
-    keep: () => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([stored], { type: 'application/json' }));
-      a.download = `${label} (copy that couldn't be read).you.json`;
-      document.body.append(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    },
+    keep: () => saveAsFile(stored, `${label} (copy that couldn't be read).you.json`),
   });
+}
+
+/** Hands the person a file with exactly these bytes. */
+function saveAsFile(text: string, name: string) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/** True when this browser holds a copy of that You that can't be read (damaged, or changed outside You). */
+async function unreadableHere(id: string): Promise<boolean> {
+  const stored = await storedEnvelope(id);
+  if (!stored) return false;
+  try { return readText(stored).kind !== 'locked'; } catch { return true; }
 }
 
 /**
@@ -173,6 +183,18 @@ export async function importText(source: Blob | string): Promise<boolean> {
         anyway: async () => { await downloadCopy(true); resolve(true); },
       }));
       if (!proceed) return give();
+    } else if (await unreadableHere(loaded.id)) {
+      // The browser copy of this You can't be read, so it can't be unlocked and compared. Offer to keep it
+      // as a file, then open this one in its place. Nothing is replaced without that choice.
+      const label = listProfiles().find(e => e.id === loaded.id)?.label || loaded.name || 'this You';
+      const damaged = (await storedEnvelope(loaded.id))!;
+      const replace = await new Promise<boolean>(resolve => openSheet(`${sheetTop('Already in this browser')}<h3 class="sh-title">${esc(label)}’s copy in this browser can’t be read</h3>
+        <p>You can open this file in its place. The unreadable copy is saved as a file first, so nothing is lost.</p>
+        <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="open">Save the unreadable copy, then open this file</button></div>`, {
+        open: () => { closeSheet(); resolve(true); }, close: () => { closeSheet(); resolve(false); },
+      }));
+      if (!replace) return give();
+      saveAsFile(damaged, `${label} (copy that couldn't be read).you.json`);
     } else {
       // This browser already has this You, locked. Unlock that copy first so the two can be compared.
       const label = listProfiles().find(e => e.id === loaded.id)?.label || loaded.name || 'this You';

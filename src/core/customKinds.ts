@@ -53,7 +53,7 @@ export function repairCustomKinds(p: Profile): boolean {
     const ids = Object.keys(c.fields).filter(k => !k.startsWith('$'));
     if (!ids.length) continue;
     p.kinds ??= [];
-    let kind = p.kinds.find(k => k.area === c.area && k.name === c.kind);
+    let kind = p.kinds.find(k => k.area === c.area && sameName(k.name, c.kind));
     if (!kind) { kind = { area: c.area, name: c.kind, fields: [] }; p.kinds.push(kind); }
     for (const id of ids) {
       if (kind.fields.some(f => f.id === id)) continue;

@@ -13,7 +13,7 @@ import { shownValue } from '../ui/sensitive';
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, keepThisTab, otherTabVersion, isLockedInPlace } from '../state';
+import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encodeBlob, encodeFile, fileNameFor } from './fileFormat';
 import { sealedFor } from './keepsakeAccess';
@@ -313,9 +313,10 @@ function showTabConflict(again = false) {
   if (isLockedInPlace()) return;
   openSheet(`${sheetTop('This You was changed in another tab')}<h3 class="sh-title">Another tab saved newer changes</h3>${again ? '<p><b>The other tab saved again while its copy was downloading, so nothing was overwritten.</b> Choose again; its newest version will be downloaded.</p>' : ''}<p>Both versions can be kept. Whichever you choose, the other one is downloaded first as its own file.</p><div class="menu"><button data-act="newer">Use the other tab’s version (download this tab’s first)</button><button data-act="ours">Keep this tab’s version (download the other tab’s first)</button></div>`, {
   newer: async () => {
+    const mark = editMark(); // anything typed after this isn't in the download, so it must not be replaced
     if (!await downloadCopy(true)) return; // couldn't keep this tab's version: change nothing
     const name = separateName('this browser');
-    await useNewer();
+    if (!await useNewer(mark)) return; // something was typed meanwhile: the choice is offered again
     openSheet(`${sheetTop('Using the other tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab now shows the other tab’s version. A download of this tab’s version was started as <b>${esc(name)}</b>. Check it finished in your Downloads; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
   },
   ours: async () => {

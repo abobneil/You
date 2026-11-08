@@ -64,12 +64,20 @@ export const setDraftCheck = (fn: () => boolean) => { draftOpen = fn; };
 const replacedListeners: (() => void)[] = [];
 /** Runs after the open record was swapped for the newer copy another tab saved, so the screen can redraw. */
 export const onReplaced = (fn: () => void) => { replacedListeners.push(fn); };
-/** Loads the newer copy another tab saved, in place (or by reloading if nothing can redraw). */
-export async function useNewer() {
+/** The current edit count, so a caller can tell later whether anything was typed in between. */
+export const editMark = () => editCount;
+/**
+ * Loads the newer copy another tab saved, in place (or by reloading if nothing can redraw).
+ * If anything was typed here since `since` (by default, since this call began), nothing is replaced:
+ * the person is asked again, so an edit made while the other copy was loading is never dropped.
+ * Returns whether the newer copy was loaded.
+ */
+export async function useNewer(since = editCount): Promise<boolean> {
   const text = await vaultStore.get(profile.id!);
-  if (!text || !vault) return;
+  if (!text || !vault) return false;
   const id = profile.id;
   const newer = cleanLinks(normalize(JSON.parse(await openWith(vault, JSON.parse(text)))));
+  if (editCount !== since) { tabConflict(); return false; }
   newer.id = id; // the browser slot decides which You this is
   profile = newer;
   guard.begin(text);
@@ -78,6 +86,7 @@ export async function useNewer() {
   if (browserSaveState().status === 'failed') void persist();
   if (replacedListeners.length) replacedListeners.forEach(fn => fn());
   else location.reload();
+  return true;
 }
 /** The other tab's version, as stored now (decrypted with this tab's key) with its exact stored text, or null. */
 export async function otherTabVersion(): Promise<{ profile: Profile; envelope: string } | null> {

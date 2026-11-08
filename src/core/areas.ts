@@ -329,7 +329,9 @@ export const isAreaId = (id: string): id is AreaId => AREAS.some(a => a.id === i
 /** A kind's settings. Kinds the person invents are dated, text, and added alongside. */
 export type KindInfo = Kind & { many: boolean; dated: boolean; value: 'text' | 'date' };
 export function kindOf(area: AreaId, kind: string, profile?: Profile): KindInfo {
-  const found: Kind | undefined = areaById(area)?.kinds.find(x => x.name === kind) ?? profile?.kinds?.find(x => x.area === area && x.name === kind);
+  // Kinds the person named match however they were capitalized ("gizmo" and "Gizmo" are one kind).
+  const found: Kind | undefined = areaById(area)?.kinds.find(x => x.name === kind)
+    ?? profile?.kinds?.find(x => x.area === area && x.name.trim().toLowerCase() === kind.trim().toLowerCase());
   return { ...found, name: kind, many: found ? !!found.many : true, dated: found?.dated ?? true, value: found?.value ?? 'text' };
 }
 
