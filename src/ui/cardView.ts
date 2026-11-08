@@ -37,7 +37,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     ${isDate
       ? `<div class="fx"><span class="lab">${esc(c.kind)}</span>${dateInputs(c.since, 'vdate')}</div>`
       : `<div class="fx"><label for="v-value">${kind.titleFrom ? 'Name' : 'Value'}</label>${valueFieldHtml('v-value', c.value, kind)}</div>`}
-    <div class="block">${c.note ? `<p style="white-space:pre-wrap">${esc(c.note)}</p>` : ''}<button class="chip" type="button" data-act="note">${c.note ? 'Edit note' : 'Add a note'}</button><div id="note-editor" hidden>${noteInput('v-note', c.note ?? '')}</div></div>
+    <div class="block">${c.note ? `<p class="note-text">${esc(c.note)}</p>` : ''}<button class="chip" type="button" data-act="note">${c.note ? 'Edit note' : 'Add a note'}</button><div id="note-editor" hidden>${noteInput('v-note', c.note ?? '')}</div></div>
     ${tagRowHtml(kind, c.tag)}
     ${detailsHtml(kind, c.fields, 'vf', true)}
     ${!isDate && (kind.dated || c.since) ? `<div class="fx"><span class="lab">${kind.dated ? 'Since' : 'Changed'}</span>${dateInputs(c.since, 'since')}</div>` : ''}
@@ -46,7 +46,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     ${c.revisions.length ? `<div class="block"><h5>Earlier wording</h5><ul class="revs">${[...c.revisions].reverse()
       .map(r => { const fd = r.field ? kind.fields?.find(x => x.id === r.field) : undefined;
         const hide = r.field === 'note' ? false : fd ? fd.sensitive : isSensitive(c);
-        return `<li style="white-space:pre-wrap">${r.field === 'note' ? 'Note: ' : ''}${fd ? `${esc(fd.label)}: ` : ''}“${esc(hide ? maskValue(r.value) : r.value)}” · changed ${esc(fmtISO(r.at))}</li>`; })
+        return `<li class="note-text">${r.field === 'note' ? 'Note: ' : ''}${fd ? `${esc(fd.label)}: ` : ''}“${esc(hide ? maskValue(r.value) : r.value)}” · changed ${esc(fmtISO(r.at))}</li>`; })
       .join('')}</ul></div>` : ''}
     <div class="block"><h5>Linked</h5><div class="chips">${links.map(x =>
       `<button class="chip" type="button" data-act="open" data-id="${esc(x.other.id)}">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}<span class="x" data-act="unlink" data-link="${esc(x.link.id)}" title="Remove link">×</span></button>`).join('')}

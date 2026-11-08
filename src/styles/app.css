@@ -749,3 +749,7 @@
   }
   .aud-url:focus { border-color: var(--ink); }
   .aud-msg:empty { display: none; }
+
+/* Notes: the person's own words keep their line breaks. */
+.note-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-input { width: 100%; resize: vertical; }
