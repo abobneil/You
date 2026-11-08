@@ -28,7 +28,7 @@ describe('file format', () => {
     const a = addCard(p, { area: 'health', kind: 'Doctor', value: 'Dr. Lee', since: '2021' });
     const b = addCard(p, { area: 'work', kind: 'Job', value: 'Acme', since: '2022' });
     addLink(p, a.id, b.id, 'through', 'provides');
-    const text = await encode(await createVault('a long passphrase', 1000), p);
+    const text = await encode(await createVault('a long passphrase', 100_000), p);
     expect(text).not.toContain('Dr. Lee');
     const r = readText(text);
     expect(r.kind).toBe('locked');

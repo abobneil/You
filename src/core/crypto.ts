@@ -71,8 +71,21 @@ export function isEnvelope(x: unknown): x is Envelope {
   return !!e && e.app === 'you' && e.version === 2 && e.kdf?.name === 'PBKDF2' && e.cipher?.name === 'AES-GCM' && typeof e.data === 'string';
 }
 
+/** Limit hostile envelopes before key derivation or base64 allocation (192 MiB ciphertext). */
+export const MAX_ENVELOPE_DATA_LENGTH = 256 * 1024 * 1024;
+export function validateEnvelope(env: Envelope): void {
+  const bad = () => { throw new Error('Invalid encrypted record: malformed envelope. Existing data is unchanged.'); };
+  if (!isEnvelope(env) || env.kdf.hash !== 'SHA-256'
+    || !Number.isInteger(env.kdf.iterations) || env.kdf.iterations < 100_000 || env.kdf.iterations > 10_000_000) bad();
+  const base64 = (x: unknown, max: number): x is string => typeof x === 'string' && x.length > 0 && x.length <= max
+    && x.length % 4 === 0 && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(x);
+  if (!base64(env.kdf.salt, 24) || !base64(env.cipher.iv, 16) || !base64(env.data, MAX_ENVELOPE_DATA_LENGTH)) bad();
+  if (fromB64(env.kdf.salt).length !== 16 || fromB64(env.cipher.iv).length !== 12 || env.data.length < 24) bad();
+}
+
 /** Decrypts with an already-unlocked key (same salt). Throws WrongPassphrase if it doesn't fit. */
 export async function openWith(vault: Vault, env: Envelope): Promise<string> {
+  validateEnvelope(env);
   try {
     const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(env.cipher.iv) as BufferSource }, vault.key, fromB64(env.data) as BufferSource);
     return dec.decode(plain);
@@ -83,6 +96,7 @@ export async function openWith(vault: Vault, env: Envelope): Promise<string> {
 
 /** Unlocks an envelope with a passphrase. Returns the text and the key, so later saves reuse it. */
 export async function unlock(passphrase: string, env: Envelope): Promise<{ plaintext: string; vault: Vault }> {
+  validateEnvelope(env);
   const vault = await deriveVault(passphrase, fromB64(env.kdf.salt), env.kdf.iterations);
   return { plaintext: await openWith(vault, env), vault };
 }

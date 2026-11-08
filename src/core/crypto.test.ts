@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { WrongPassphrase, createVault, isEnvelope, seal, unlock } from './crypto';
+import { validateEnvelope, MAX_ENVELOPE_DATA_LENGTH, WrongPassphrase, createVault, isEnvelope, seal, unlock } from './crypto';
 
 // Few rounds keeps the tests fast; the app uses DEFAULT_ITERATIONS.
-const FAST = 1000;
+const FAST = 100_000;
 
 describe('passphrase encryption', () => {
   it('round-trips with the right passphrase', async () => {
@@ -45,4 +45,24 @@ describe('passphrase encryption', () => {
     const env = JSON.parse(await seal(v, 'ok'));
     expect((await unlock('café au lait', env)).plaintext).toBe('ok'); // e + combining accent
   });
+});
+
+describe('hostile envelope bounds', () => {
+ const valid = () => ({ app: 'you', version: 2, kdf: {name:'PBKDF2',hash:'SHA-256',iterations:100000,salt:btoa('s'.repeat(16))},cipher:{name:'AES-GCM',iv:btoa('i'.repeat(12))},data:btoa('d'.repeat(16)) }) as any;
+ it.each([99999,10000001,1.5,NaN,Infinity])('rejects iterations %s before deriving', async iterations => {
+ const e = valid(); e.kdf.iterations = iterations;
+ await expect(unlock('pass', e)).rejects.toThrow('Invalid encrypted record');
+ });
+ it.each(['salt','iv','data','oversize','hash'])('rejects malformed %s', async field => {
+ const e = valid();
+ if(field==='salt') e.kdf.salt=btoa('short');
+ if(field==='iv') e.cipher.iv=btoa('short');
+ if(field==='data') e.data='!!!!';
+ if(field==='oversize') e.data='A'.repeat(MAX_ENVELOPE_DATA_LENGTH+4);
+ if(field==='hash') e.kdf.hash='SHA-1';
+ await expect(unlock('pass',e)).rejects.toThrow('Invalid encrypted record');
+ });
+ it('accepts boundary iteration counts', () => {
+ for(const n of [100000,10000000]) { const e=valid();e.kdf.iterations=n; expect(()=>validateEnvelope(e)).not.toThrow(); }
+ });
 });

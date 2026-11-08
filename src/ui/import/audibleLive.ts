@@ -56,6 +56,10 @@ export async function connectAudible(show: Show, kept: string) {
   try { url = (await call<{ url: string }>('sign-in', {}, 15_000)).url; }
   catch (e) { return show('Audible', { rows: [], notes: [message(e)] }); }
 
+  const signIn = new URL(url);
+  if (signIn.protocol !== 'https:' || signIn.hostname !== 'www.amazon.com') {
+    return show('Audible', { rows: [], notes: ['The helper returned an invalid Amazon sign-in address.'] });
+  }
   openSheet(`${sheetTop('Connect Audible')}
     <h3 class="sh-title">Sign in to Amazon</h3>
     <ol class="steps">

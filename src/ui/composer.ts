@@ -88,9 +88,9 @@ function render(focus = false) {
 
   const modeRow = actives.length ? `<div class="fx"><span class="lab">Current ${esc(draft.kind.toLowerCase())}</span>
     <div class="seg">${actives.map(c =>
-      `<button type="button" data-act="mode" data-mode="r:${c.id}" class="${draft.mode === 'r:' + c.id ? 'on' : ''}">Replaces ${(t => (t ? esc(t.label) + ' ' : ''))(tagOf(c))}${esc(shownValue(c))}</button>`).join('')}
+      `<button type="button" data-act="mode" data-mode="r:${esc(c.id)}" class="${draft.mode === 'r:' + c.id ? 'on' : ''}">Replaces ${(t => (t ? esc(t.label) + ' ' : ''))(tagOf(c))}${esc(shownValue(c))}</button>`).join('')}
       ${actives.filter(c => !c.replaces && !kind.many).map(c =>
-        `<button type="button" data-act="mode" data-mode="b:${c.id}" class="${draft.mode === 'b:' + c.id ? 'on' : ''}">Came before ${(t => (t ? esc(t.label) + ' ' : ''))(tagOf(c))}${esc(shownValue(c))}</button>`).join('')}
+        `<button type="button" data-act="mode" data-mode="b:${esc(c.id)}" class="${draft.mode === 'b:' + c.id ? 'on' : ''}">Came before ${(t => (t ? esc(t.label) + ' ' : ''))(tagOf(c))}${esc(shownValue(c))}</button>`).join('')}
       <button type="button" data-act="mode" data-mode="add" class="${draft.mode === 'add' ? 'on' : ''}">Add alongside</button></div>
       ${before ? `<div class="hint">This goes into your history, ending when ${esc(shownValue(actives.find(c => 'b:' + c.id === draft.mode)!))} started.</div>` : ''}</div>` : '';
   const linkChips = draft.links.map((l, i) =>

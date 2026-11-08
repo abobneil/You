@@ -27,7 +27,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
   const links = linksOf(profile, c.id);
   const near = atTheTime(profile, c);
   const prev = byId(profile, c.replaces), next = byId(profile, c.replacedBy);
-  const cardChip = (id: string, text: string) => `<button class="chip" type="button" data-act="open" data-id="${id}">${text}</button>`;
+  const cardChip = (id: string, text: string) => `<button class="chip" type="button" data-act="open" data-id="${esc(id)}">${text}</button>`;
   const story = [
     prev ? `Replaced ${cardChip(prev.id, esc(shownValue(prev)))}` : '',
     next ? `Replaced by ${cardChip(next.id, esc(shownValue(next)))}` : '',
@@ -49,7 +49,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
         return `<li style="white-space:pre-wrap">${r.field === 'note' ? 'Note: ' : ''}${fd ? `${esc(fd.label)}: ` : ''}“${esc(hide ? maskValue(r.value) : r.value)}” · changed ${esc(fmtISO(r.at))}</li>`; })
       .join('')}</ul></div>` : ''}
     <div class="block"><h5>Linked</h5><div class="chips">${links.map(x =>
-      `<button class="chip" type="button" data-act="open" data-id="${x.other.id}">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}<span class="x" data-act="unlink" data-link="${x.link.id}" title="Remove link">×</span></button>`).join('')}
+      `<button class="chip" type="button" data-act="open" data-id="${esc(x.other.id)}">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}<span class="x" data-act="unlink" data-link="${esc(x.link.id)}" title="Remove link">×</span></button>`).join('')}
       <button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
     ${near.length ? `<div class="block"><h5>At the time</h5><div class="chips">${near.map(o =>
       cardChip(o.id, linkText('', kindLabel(o), shownValue(o)))).join('')}</div></div>` : ''}

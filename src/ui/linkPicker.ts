@@ -31,7 +31,7 @@ export function openLinkPicker(o: Options) {
       if (!cs.length) return '';
       const late = pointlessLink(o.self.area, a.id);
       return `<li class="grp">${esc(a.title)}${late ? '<span class="grp-note"> · already connected through you, so linking these isn’t needed</span>' : ''}</li>`
-        + cs.map(c => `<li${late ? ' class="late"' : ''}><button type="button" data-act="pick" data-id="${c.id}">
+        + cs.map(c => `<li${late ? ' class="late"' : ''}><button type="button" data-act="pick" data-id="${esc(c.id)}">
           <span><i class="lk">${esc(kindLabel(c))}</i> ${esc(shownValue(c))}</span><span class="meta">${esc(c.status === 'active' ? 'now' : rangeText(c))}</span></button></li>`).join('');
     }).join('');
   };

@@ -39,6 +39,17 @@ $('#import-open').addEventListener('click', () => openImport());
 // Click your name on the home screen to edit it.
 const heading = $('#you-name');
 heading.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); heading.blur(); } });
+heading.addEventListener('paste', e => {
+  e.preventDefault();
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  if (!heading.contains(range.commonAncestorContainer)) return;
+  range.deleteContents();
+  const node = document.createTextNode(e.clipboardData?.getData('text/plain') ?? '');
+  range.insertNode(node); range.setStartAfter(node); range.collapse(true);
+  selection.removeAllRanges(); selection.addRange(range);
+});
 heading.addEventListener('blur', () => {
   const v = heading.textContent?.trim() ?? '';
   if (!v) { heading.textContent = profile.name; return; }

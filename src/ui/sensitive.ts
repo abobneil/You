@@ -22,7 +22,7 @@ export const revealButton = (target: string) =>
 /** A card's value as HTML: plain, or masked with a hold-to-reveal eye. */
 export function valueHtml(c: Card): string {
   if (!isSensitive(c)) return esc(c.value);
-  return `<span class="secret-wrap"><span class="secret">${esc(maskValue(c.value))}</span>${revealButton(`data-card="${c.id}"`)}</span>`;
+  return `<span class="secret-wrap"><span class="secret">${esc(maskValue(c.value))}</span>${revealButton(`data-card="${esc(c.id)}"`)}</span>`;
 }
 
 const showing = new Set<HTMLElement>();
