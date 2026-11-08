@@ -82,6 +82,7 @@ function showComparison(a: OpenedCopy, b: Side) {
     ${d.onlyA.length ? `<h4 class="pair-h">Only in ${esc(first)}</h4>${list(d.onlyA)}` : ''}
     ${d.onlyB.length ? `<h4 class="pair-h">Only in ${esc(second)}</h4>${list(d.onlyB)}` : ''}
     ${d.changed.length ? `<h4 class="pair-h">Changed in both</h4><ul class="pair-list">${d.changed.slice(0, 20).map(([x, y]) => `<li>${esc(first)}: ${esc(x.value)}<br>${esc(second)}: ${esc(y.value)}</li>`).join('')}${d.changed.length > 20 ? `<li>…and ${d.changed.length - 20} more</li>` : ''}</ul>` : ''}
+    ${d.other.length ? `<h4 class="pair-h">Other differences</h4><ul class="pair-list">${d.other.map(x => `<li>${esc(x.replace('the first copy', first).replace('the second copy', second))}</li>`).join('')}</ul>${a.profile.name !== b.profile.name ? `<p class="hint">Combining keeps the name of the You that’s open here (${esc(profile.name)}); the other name is kept in this You, labeled “kept from another copy”.</p>` : ''}` : ''}
     <p class="hint">Keep both saves each copy as its own file, exactly as it is. Combine into one keeps every card from both, with earlier wording kept in each card’s history${isBrowser(b) ? '' : ', and adds this browser’s cards too'}.</p>
     ${canCombine ? '' : '<p class="hint">To combine, open this You first (load one of the files), then compare again. Keep both works now.</p>'}
     <div class="menu"><button type="button" data-act="both">Keep both as separate files</button>${canCombine ? '<button type="button" data-act="combine">Combine into one…</button>' : ''}</div>

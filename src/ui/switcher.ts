@@ -12,6 +12,15 @@ import { emit } from './events';
 import { byRecent, currentId, placeLabel, setCurrent, startNew } from '../storage/profiles';
 import { $, esc } from './dom';
 import { closeSheet, openSheet, sheetTop } from './sheet';
+import { isKeptFromOtherCopy } from '../core/compare';
+
+/** What the preservation bucket holds, in words: copies kept from a combine vs things that couldn't be read. */
+export function unreadableText(items: unknown[] | undefined): string {
+  const list = items ?? [];
+  const kept = list.filter(isKeptFromOtherCopy).length, bad = list.length - kept;
+  return [kept ? `${kept} item(s) kept from another copy when two were combined, saved in this You.` : '',
+    bad ? `${bad} item(s) couldn't be read and are kept as-is.` : ''].filter(Boolean).join(' ');
+}
 
 // Drops any history entry an open sheet added, so the fresh page starts on home rather than a stale sheet marker.
 export const reloadClean = () => { try { history.replaceState(null, ''); } catch { /* not allowed */ } location.replace(location.pathname); };
@@ -37,7 +46,7 @@ export function openSwitcher() {
         <span class="yn"><b>${esc(placeLabel(e))}</b><small>${isCur ? (unlocked ? 'Open now' : 'Selected') : 'Switch'}</small></span>
       </button></li>`;
     }).join('')}</ul>
-    ${unlocked ? `<p class="hint">${profile.unreadable?.length ? `${profile.unreadable.length} item(s) couldn't be read and are kept as-is.` : ''}</p><label>Lock after no interaction <select id="lock-time">${[5,15,60,0].map(n => `<option value="${n}" ${n === timeoutMinutes() ? 'selected' : ''}>${n ? n + ' minutes' : 'Never'}</option>`).join('')}</select></label>` : ''}
+    ${unlocked ? `<p class="hint">${unreadableText(profile.unreadable)}</p><label>Lock after no interaction <select id="lock-time">${[5,15,60,0].map(n => `<option value="${n}" ${n === timeoutMinutes() ? 'selected' : ''}>${n ? n + ' minutes' : 'Never'}</option>`).join('')}</select></label>` : ''}
     <div class="menu"><button type="button" data-act="help">Help</button><button type="button" data-act="safe">Keep it safe</button>
       <button type="button" data-act="new">+ Add a new You</button>
       ${unlocked ? `<button type="button" data-act="open">Open a file…</button>

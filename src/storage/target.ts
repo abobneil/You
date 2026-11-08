@@ -126,7 +126,7 @@ function showFileConflict() {
         const other = read.kind === 'plain' ? read.profile : cleanLinks(normalize(JSON.parse(await openWith(vault, read.env))));
         if (other.id !== profile.id) throw new Error();
         const diff = compare(profile, other);
-        openSheet(`${sheetTop('Compare versions')}<p>${diff.onlyA.length} cards only in this browser · ${diff.onlyB.length} only in the file · ${diff.changed.length} changed in both</p>${diff.changed.map(([a,b]) => `<div><p>This browser: ${esc(a.value)}</p><p>Other file: ${esc(b.value)}</p></div>`).join('')}<div class="menu"><button data-act="both">Keep both as separate files</button><button data-act="combine">Combine</button></div>`, {
+        openSheet(`${sheetTop('Compare versions')}<p>${diff.onlyA.length} cards only in this browser · ${diff.onlyB.length} only in the file · ${diff.changed.length} changed in both${diff.other.length ? ` · ${diff.other.length} other differences` : ''}</p>${diff.changed.map(([a,b]) => `<div><p>This browser: ${esc(a.value)}</p><p>Other file: ${esc(b.value)}</p></div>`).join('')}${diff.other.map(x => `<p>${esc(x.replace('the first copy', 'this browser').replace('the second copy', 'the file'))}</p>`).join('')}<div class="menu"><button data-act="both">Keep both as separate files</button><button data-act="combine">Combine</button></div>`, {
           both: () => downloadCopy(true),
           combine: async () => {
             try {
