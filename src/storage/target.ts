@@ -165,8 +165,8 @@ export function renderPill() {
   const n = esc(target.name);
   let html: string, state = 'warn';
   const browser = browserSaveState();
-  if (browser.status === 'failed') html = `<span class="dot"></span><span>Couldn't save in this browser (${browser.reason}) � <b>Download a copy / Retry</b></span>`;
-  else if (browser.status === 'saving') { state = ''; html = '<span class="spin"></span><span>Saving in this browser�</span>'; }
+  if (browser.status === 'failed') html = `<span class="dot"></span><span>Couldn't save in this browser (${browser.reason}) · <b>Download a copy / Retry</b></span>`;
+  else if (browser.status === 'saving') { state = ''; html = '<span class="spin"></span><span>Saving in this browser…</span>'; }
   else if (target.kind === 'browser') html = `<span class="dot"></span><span>Only in this browser · <b>Choose where to keep it</b></span>`;
   else if (needsPermission) html = `<span class="dot"></span><span>Reconnect <b>${n}</b></span>`;
   else if (failed) html = `<span class="dot"></span><span>Couldn't save · <b>Try again</b></span>`;
