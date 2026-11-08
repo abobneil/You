@@ -3,7 +3,7 @@
 // person confirms are they moved under the opening You's id. Problems are reported, never silently dropped.
 import { keepsakeIds } from '../core/cards';
 import type { Vault } from '../core/crypto';
-import { openBytes, sha256Hex, type Keepsake } from '../core/keepsakes';
+import { openBytes, sealBytes, sha256Hex, type Keepsake } from '../core/keepsakes';
 import type { Profile } from '../core/types';
 import { checkRawKeepsake, DamagedFile, type RawKeepsake } from './fileFormat';
 import { rowKey, type KeepsakeStore } from './keepsakeStore';
@@ -30,6 +30,11 @@ const metaById = (p: Profile) => {
 export interface StagingOptions {
   signal?: AbortSignal;
   onProgress?: (checked: number, total: number) => void;
+  /**
+   * The key the staged bytes must open with. When combining a copy saved with a different passphrase,
+   * each checked keepsake is encrypted again with this key, so it stays readable in the open You.
+   */
+  rekeyTo?: Vault;
 }
 
 export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Profile, entries: AsyncIterable<RawKeepsake>, options: StagingOptions = {}): Promise<Staged> {
@@ -54,7 +59,8 @@ export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Prof
         continue;
       }
       options.signal?.throwIfAborted();
-      await store.put(rowKey(staged.prefix, id), sealed);
+      const rekey = options.rekeyTo && options.rekeyTo.key !== vault.key;
+      await store.put(rowKey(staged.prefix, id), rekey ? await sealBytes(options.rekeyTo!, id, bytes) : sealed);
       staged.ids.push(id);
     }
     options.signal?.throwIfAborted();

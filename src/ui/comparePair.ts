@@ -132,7 +132,8 @@ async function doCombine(a: OpenedCopy, b: Side) {
     try {
       for (const f of files) {
         if (f.read.kind !== 'locked' || !f.vault) continue;
-        const s = await stageKeepsakes(keepsakeStore, f.vault, f.profile, f.read.keepsakes());
+        // Each file opens with its own key; what's kept here must open with the open You's key.
+        const s = await stageKeepsakes(keepsakeStore, f.vault, f.profile, f.read.keepsakes(), { rekeyTo: vault! });
         staged.push(s);
         if (s.problems.length) throw new Error('Some attachments could not be read');
       }

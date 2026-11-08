@@ -249,3 +249,19 @@ it('stops file parsing when cancelled before reading', async () => {
   controller.abort();
   await expect(readFile(new Blob(['{}']), 0, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
 });
+
+describe('combining a copy saved with a different passphrase', () => {
+  it('re-encrypts staged keepsakes with the open You’s key so they stay readable', async () => {
+    const s = await setup();
+    const file = JSON.parse(await text(await encodeBlob(s.vault, s.p, s.getSealed))) as { keepsakes: RawKeepsake[] };
+    const openYou = await createVault('a different long passphrase', 100_000);
+    const store = memoryKeepsakeStore();
+    const staged = await stageKeepsakes(store, s.vault, s.p, (async function* () { yield* file.keepsakes; })(), { rekeyTo: openYou });
+    expect(staged.problems).toEqual([]);
+    await commitStaged(store, staged, 'you-open', s.p);
+    for (const [i, k] of s.ks.entries()) {
+      const bytes = await loadKeepsake(store, openYou, 'you-open', k);
+      expect(await sha256Hex(bytes)).toBe(await sha256Hex(s.originals[i]));
+    }
+  });
+});
