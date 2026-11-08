@@ -1,0 +1,11 @@
+<?xml version="1.0"?><ClinicalDocument xmlns="urn:hl7-org:v3"><component><structuredBody>
+<component><section><code code="48765-2"/><entry><act><entryRelationship><observation><participant><participantRole><playingEntity><code displayName="Peanut"/></playingEntity></participantRole></participant>
+<entryRelationship><observation><templateId root="2.16.840.1.113883.10.20.22.4.9"/><value displayName="Hives"/></observation></entryRelationship>
+<entryRelationship><observation><templateId root="2.16.840.1.113883.10.20.22.4.8"/><value displayName="severe"/></observation></entryRelationship></observation></entryRelationship><effectiveTime><low value="20150301"/></effectiveTime></act></entry>
+<entry><act><entryRelationship><observation negationInd="true"><participant><participantRole><playingEntity><code displayName="Latex"/></playingEntity></participantRole></participant></observation></entryRelationship></act></entry></section></component>
+<component><section><code code="10160-0"/><entry><substanceAdministration><statusCode code="active"/><effectiveTime><low value="201805"/></effectiveTime><doseQuantity value="10" unit="mg"/><consumable><manufacturedProduct><manufacturedMaterial><code displayName="Lisinopril"/></manufacturedMaterial></manufacturedProduct></consumable></substanceAdministration></entry>
+<entry><substanceAdministration negationInd="true"><consumable><manufacturedProduct><manufacturedMaterial><code displayName="Warfarin"/></manufacturedMaterial></manufacturedProduct></consumable></substanceAdministration></entry></section></component>
+<component><section><code code="11450-4"/><entry><act><statusCode code="completed"/><effectiveTime><low value="1990"/><high value="2005"/></effectiveTime><entryRelationship><observation><value displayName="Asthma"/></observation></entryRelationship></act></entry></section></component>
+<component><section><code code="11369-6"/><entry><substanceAdministration><effectiveTime value="20190910"/><consumable><manufacturedProduct><manufacturedMaterial><code displayName="Tdap"/></manufacturedMaterial></manufacturedProduct></consumable></substanceAdministration></entry></section></component>
+<component><section><code code="47519-4"/><entry><procedure><code displayName="Appendectomy"/></procedure></entry></section></component>
+</structuredBody></component></ClinicalDocument>

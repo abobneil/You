@@ -101,17 +101,17 @@ export function seriesFromSiblings(list: { what: 'show' | 'movie'; name: string;
   }
 }
 
-function netflix(text: string): Play[] | null {
+function netflix(text: string, notes: string[]): Play[] | null {
   const activity = csvObjects(text, ['Profile Name', 'Start Time', 'Title']);
   if (activity.length) {
     const plays = activity.flatMap(r => {
-      if (NOT_WATCHED.test(col(r, 'Supplemental Video Type'))) return [];
+      if (NOT_WATCHED.test(col(r, 'Supplemental Video Type'))) { notes.push('1 Netflix trailer or preview skipped.'); return []; }
       const t = netflixTitle(col(r, 'Title'));
       return t.name ? [{ service: 'Netflix', ...t, day: looseDate(col(r, 'Start Time')), ms: hms(col(r, 'Duration')), profile: col(r, 'Profile Name') } as Play] : [];
     });
     seriesFromSiblings(plays as any);
     // A couple of minutes is browsing, not watching. Movies need a real sitting.
-    return plays.filter(p => p.ms! >= (p.what === 'movie' ? 10 : 2) * 60_000);
+    return plays.filter(p => { const keep = p.ms! >= (p.what === 'movie' ? 10 : 2) * 60_000; if (!keep) notes.push('1 Netflix short play skipped.'); return keep; });
   }
   // The simpler download from a profile's Viewing activity page: Title, Date.
   const simple = csvObjects(text, ['Title', 'Date']);
@@ -127,7 +127,7 @@ function netflix(text: string): Play[] | null {
 }
 
 /** Spotify's JSON files, in any of the shapes it has used. */
-function spotify(data: unknown[]): Play[] | null {
+function spotify(data: unknown[], notes: string[]): Play[] | null {
   const first = data.find(obj);
   if (!first) return null;
   const plays: Play[] = [];
@@ -136,7 +136,7 @@ function spotify(data: unknown[]): Play[] | null {
   if ('ms_played' in first && 'ts' in first) {
     // Extended streaming history (and the older endsong_*.json).
     for (const r of data) {
-      if (!obj(r) || !counted(num(r.ms_played))) continue;
+      if (!obj(r) || !counted(num(r.ms_played))) { notes.push('1 Spotify short play skipped.'); continue; }
       const day = looseDate(str(r.ts)), ms = num(r.ms_played);
       const artist = str(r.master_metadata_album_artist_name), show = str(r.episode_show_name);
       if (artist) plays.push({ service: 'Spotify', what: 'artist', name: artist, item: str(r.master_metadata_track_name), day, ms });
@@ -148,7 +148,7 @@ function spotify(data: unknown[]): Play[] | null {
   if ('msPlayed' in first && 'endTime' in first) {
     // Account data: StreamingHistory_music_0.json, StreamingHistory_podcast_0.json, or the older StreamingHistory0.json.
     for (const r of data) {
-      if (!obj(r) || !counted(num(r.msPlayed))) continue;
+      if (!obj(r) || !counted(num(r.msPlayed))) { notes.push('1 Spotify short play skipped.'); continue; }
       const day = looseDate(str(r.endTime)), ms = num(r.msPlayed);
       if (str(r.podcastName)) plays.push({ service: 'Spotify', what: 'podcast', name: str(r.podcastName), item: str(r.episodeName), day, ms });
       else if (str(r.artistName)) plays.push({ service: 'Spotify', what: 'artist', name: str(r.artistName), item: str(r.trackName), day, ms });
@@ -176,11 +176,11 @@ function youtubeMusic(data: unknown[]): { plays: Play[]; videos: number } | null
 }
 
 /** Apple Music from privacy.apple.com: the daily tracks summary, or the play-by-play activity file. */
-function appleMusic(text: string): Play[] | null {
+function appleMusic(text: string, notes: string[]): Play[] | null {
   const daily = csvObjects(text, ['Track Description', 'Date Played']);
   if (daily.length) {
     return daily.flatMap(r => {
-      if (/video/i.test(col(r, 'Media type'))) return [];
+      if (/video/i.test(col(r, 'Media type'))) { notes.push('1 Apple video skipped.'); return []; }
       const [artist, ...song] = col(r, 'Track Description').split(' - ');
       if (!artist || !song.length) return [];
       return [{ service: 'Apple Music', what: 'artist', name: artist.trim(), item: song.join(' - ').trim(),
@@ -192,7 +192,7 @@ function appleMusic(text: string): Play[] | null {
     return activity.flatMap(r => {
       const artist = col(r, 'Artist Name', 'Container Artist Name');
       const ms = +col(r, 'Play Duration Milliseconds') || 0;
-      if (!artist || ms < 30_000) return [];
+      if (!artist || ms < 30_000) { notes.push('1 Apple short or unidentifiable play skipped.'); return []; }
       return [{ service: 'Apple Music', what: 'artist', name: artist, item: col(r, 'Song Name'),
         day: looseDate(col(r, 'Event Start Timestamp', 'Event Received Timestamp')), ms } as Play];
     });
@@ -269,11 +269,11 @@ export function streamingRows(files: Record<string, string>, me = ''): ImportRes
       let data: unknown;
       try { data = JSON.parse(text); } catch { data = null; }
       if (Array.isArray(data)) {
-        found = spotify(data);
+        found = spotify(data, notes);
         if (!found) { const yt = youtubeMusic(data); if (yt) { found = yt.plays; videos += yt.videos; } }
       }
     } else {
-      found = netflix(text) ?? appleMusic(text);
+      found = netflix(text, notes) ?? appleMusic(text, notes);
     }
     if (found) plays.push(...found); else unknown++;
   }
@@ -281,7 +281,7 @@ export function streamingRows(files: Record<string, string>, me = ''): ImportRes
   const services = [...new Set(plays.map(p => p.service))];
   const source = services.join(' & ');
   if (!plays.length) {
-    return { rows: [], source, notes: [unknown
+    return { rows: [], source, notes: [...notes, unknown
       ? 'Those files weren’t recognized. Use Netflix’s viewing activity CSV, Spotify’s data zip, Apple’s Media Services zip, or YouTube Music’s watch-history.json from Google Takeout.'
       : 'No plays were found in that file.'] };
   }
@@ -327,7 +327,9 @@ export function streamingRows(files: Record<string, string>, me = ''): ImportRes
     const p = proposal(t, at(t.service));
     return { id: rowId('stream'), group, label: t.name, sub: [count, when].filter(Boolean).join(' · '), on: ticked, build: () => [p] };
   });
-  return { rows, source, notes };
+  const reasons = new Map<string, number>();
+  for (const note of notes) reasons.set(note, (reasons.get(note) ?? 0) + 1);
+  return { rows, source, notes: [...reasons].map(([note, count]) => count > 1 && note.startsWith('1 ') ? `${count} ${note.slice(2)}` : note) };
 }
 
 /** Which files inside an export zip are worth reading. Everything else is skipped unread. */

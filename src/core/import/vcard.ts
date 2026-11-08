@@ -130,7 +130,7 @@ export const ME = 'me';
 function addressFields(a: Contact['addresses'][number]) {
   return { street: a.street, unit: a.unit, city: a.city, state: a.state.length <= 3 ? a.state.toUpperCase() : a.state, zip: fmtZip(a.zip), country: a.country };
 }
-const oneLine = (a: Contact['addresses'][number]) => [a.street, a.unit, a.city, a.state, a.zip].filter(Boolean).join(', ');
+const oneLine = (a: Contact['addresses'][number]) => [a.street, a.unit, a.city, a.state, a.zip, a.country].filter(Boolean).join(', ');
 
 /**
  * Which contact this is, across exports: its UID, or else its name with the first email and phone
@@ -151,6 +151,7 @@ export function contactAsPerson(c: Contact, kind: string, at = new Date().toISOS
   if (tel) fields.phone = fmtPhone(tel.value);
   if (email) fields.email = email.value;
   if (c.org) fields.organization = c.org;
+  if (c.title) fields.title = c.title;
   c.tels.forEach((t, i) => { fields[`phone${i + 1}`] = `${t.types.join(', ')}: ${t.value}`; });
   c.emails.forEach((e, i) => { fields[`email${i + 1}`] = `${e.types.join(', ')}: ${e.value}`; });
   if (c.birthday) fields.birthday = c.birthday;

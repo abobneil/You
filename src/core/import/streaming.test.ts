@@ -96,11 +96,11 @@ describe('streaming imports', () => {
     expect(p.cards.find(c => c.value === 'The Crown')!.fields).toMatchObject({ episodes: '3', lastWatched: '2023-01-02' });
   });
 
-  it('fills a card you already added by hand instead of duplicating it', () => {
+  it('keeps a yearless title separate pending explicit match review', () => {
     const p = { ...emptyProfile(), name: 'Sam' };
     addCard(p, { area: 'interests', kind: 'Movie or show', value: 'The Crown', since: '' }, undefined, NOW);
     const crown = build(streamingRows({ 'ViewingActivity.csv': activity }, 'Sam')).find(x => x.value === 'The Crown')!;
-    expect(planFor(p, crown)).toBe('fill');
+    expect(planFor(p, crown)).toBe('new');
   });
 
   it('opens export zips, including Apple’s zip inside a zip, and reads only history files', () => {

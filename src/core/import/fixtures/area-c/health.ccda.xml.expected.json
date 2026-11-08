@@ -1,0 +1,9 @@
+{
+  "input": "health.ccda.xml",
+  "synthetic": true,
+  "contract": [
+    "Review before applying; unselected rows do not change the record.",
+    "Export/reopen preserves every applied field and source identity."
+  ],
+  "outcome": "Never current for not-taken, refuted, negated or entered-in-error; disclose exclusions. Unknown status remains Unknown."
+}

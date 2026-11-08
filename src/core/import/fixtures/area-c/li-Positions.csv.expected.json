@@ -1,0 +1,10 @@
+{
+  "input": "li-Positions.csv",
+  "synthetic": true,
+  "contract": [
+    "Review before applying; unselected rows do not change the record.",
+    "Export/reopen preserves every applied field and source identity."
+  ],
+  "outcome": "Keep both Helper at Fable Co stints; four positions when Positions is present; missing Positions is disclosed.",
+  "expectedRows": 4
+}

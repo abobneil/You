@@ -17,3 +17,44 @@ Run `npm test` and `npm run build` from the repository root. Fixtures contain in
 | Audible | Version 1 US local export and helper library response | `audible-export*`, `audible-sync*`, `audible-malformed*`; `audible.test.ts` | Both routes share the versioned library parser. Stable IDs, title refresh, ownership, completion and position kept separately; manual corrections/clears retained. Live sign-in/provider and ordinary desktop installation are outside these fixtures. |
 
 Review groups New, Updates and Already there; Already there and source notes start collapsed. Field overwrites show old and new values; an application simulation computes selection totals. Source-specific date provenance is explicit for Goodreads; fuller provenance and accurate skipped-row counts remain necessary across every source. The table deliberately separates passing automated fixtures from remaining Appendix B acceptance work.
+
+## Area C regression archive (rubric 1.0)
+
+`fixtures/area-c/` preserves the synthetic inputs from the b88d333 area-C ledger,
+including archives, loose CSVs, older/newer exports, BOM/folded vCards,
+Unicode, international phones, duplicate titles and negative health statements.
+Every input has an adjacent `.expected.json` describing its review/application
+contract. `area-c.test.ts` exercises the reported Dune/director corruption,
+repeated job stints, blank titles, negative medication and service collisions.
+The shared snapshot engine is tested for repeat, explicit older/newer timestamp,
+manual edits and deliberate clears for each source namespace.
+
+Snapshot timestamps: import builders accept an explicit `at` for callers with a
+known export timestamp. Otherwise they use review/import time. Exports without
+creation metadata cannot yet distinguish an older export imported later; this
+remains a limitation, and should not be graded as passing the older-export UI
+contract. Contacts' self-identity routing remains owned by the concurrent fix.
+
+### Audible helper delivery
+
+Windows builds produce `dist/downloads/you-audible-helper-win.exe` using the
+current Node executable, a SEA preparation blob and postject. Node is not needed
+on the recipient's Windows computer. The executable is unsigned; release signing
+is a separate distribution concern. The zip remains the Node-based fallback.
+
+The helper asks the person to paste the app address shown in the import hub.
+Only that exact origin and the legacy local preview origin are allowed; HTTPS
+and loopback HTTP are supported. Host validation, custom-header checks and
+origin checking remain enforced. `YOU_APP_URL` configures the build default;
+at runtime the environment variable bypasses the address prompt. No arbitrary
+web origin can pair itself through an HTTP request. After launch, reopen Import
+to refresh the helper status, then use Connect for Amazon authorization.
+
+For macOS/Linux, bundle helper.cjs using `npm run build:helper`, create a SEA
+config naming helper.cjs and an output blob, run
+`node --experimental-sea-config sea.json`, copy that platform's Node binary,
+and inject with `npx postject <binary> NODE_SEA_BLOB sea.blob --sentinel-fuse
+NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2`. On macOS remove the signature
+before injection, add `--macho-segment-name NODE_SEA`, then ad-hoc sign the result.
+Build on the target OS/architecture; the automated release builder currently
+packages the Windows executable only.

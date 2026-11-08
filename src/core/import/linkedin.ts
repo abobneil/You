@@ -30,7 +30,7 @@ const keep = (o: Record<string, string>) => Object.fromEntries(Object.entries(o)
 
 const LEVELS: [RegExp, string][] = [[/native|bilingual/i, 'Native'], [/full professional|professional working/i, 'Fluent'], [/limited/i, 'Conversational'], [/elementary/i, 'Learning']];
 
-export function linkedinRows(files: Files): ImportResult {
+export function linkedinRows(files: Files, at = new Date().toISOString()): ImportResult {
   const rows: ImportRow[] = [];
   const notes: string[] = [];
 
@@ -110,5 +110,9 @@ export function linkedinRows(files: Files): ImportResult {
 
   if (!file(files, 'Positions.csv')) notes.push('This download has no work history (Positions.csv). On LinkedIn’s “Get a copy of your data” page, choose the larger data archive, not just Profile, then bring in that zip.');
   if (!rows.length) notes.push('Nothing usable was found. Choose the zip LinkedIn emailed you, or the CSV files inside it.');
+  for (const r of rows) {
+    const build = r.build;
+    r.build = choice => build(choice).map(p => ({ ...p, sync: { source: 'linkedin', id: [p.kind, p.value, p.since ?? ''].join(':'), at } }));
+  }
   return { rows, notes };
 }

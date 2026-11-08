@@ -1,0 +1,11 @@
+{"resourceType":"AllergyIntolerance","code":{"text":"Peanut"},"clinicalStatus":{"coding":[{"code":"active"}]},"reaction":[{"manifestation":[{"text":"Hives"}],"severity":"severe"}],"recordedDate":"2015-03"}
+{"resourceType":"AllergyIntolerance","code":{"text":"Shellfish"}}
+{"resourceType":"AllergyIntolerance","code":{"text":"Latex"},"verificationStatus":{"coding":[{"code":"refuted"}]}}
+{"resourceType":"MedicationStatement","status":"active","medicationCodeableConcept":{"text":"Lisinopril"},"effectivePeriod":{"start":"2018-05"},"dosage":[{"doseAndRate":[{"doseQuantity":{"value":10,"unit":"mg"}}],"text":"once daily"}]}
+{"resourceType":"MedicationStatement","status":"not-taken","medicationCodeableConcept":{"text":"Warfarin"},"effectiveDateTime":"2020-01-02"}
+{"resourceType":"MedicationStatement","status":"completed","medicationCodeableConcept":{"text":"Amoxicillin"},"effectivePeriod":{"start":"2021-02-01","end":"2021-02-10"},"dosage":[{"doseAndRate":[{"doseQuantity":{"value":500,"unit":"mg"}}]}]}
+{"resourceType":"Condition","code":{"text":"Hypertension"},"clinicalStatus":{"coding":[{"code":"active"}]},"onsetDateTime":"2018-04"}
+{"resourceType":"Condition","code":{"text":"Asthma"},"clinicalStatus":{"coding":[{"code":"resolved"}]},"onsetDateTime":"1990","abatementDateTime":"2005"}
+{"resourceType":"Immunization","status":"completed","vaccineCode":{"text":"Tdap"},"occurrenceDateTime":"2019-09-10","protocolApplied":[{"doseNumberPositiveInt":2}]}
+{"resourceType":"Immunization","status":"not-done","vaccineCode":{"text":"Influenza"},"occurrenceDateTime":"2022-10-01"}
+{"resourceType":"Procedure","code":{"text":"Appendectomy"},"performedDateTime":"2001-07-04"}

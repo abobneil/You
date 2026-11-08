@@ -114,8 +114,15 @@ async function importMedia(files: File[]) {
     if (/\.zip$/i.test(f.name)) {
       // Letterboxd sends a zip; its diary has the dates you watched things.
       const entries = readZip(new Uint8Array(await f.arrayBuffer()), name => /(^|\/)(diary|watched|ratings)\.csv$/i.test(name));
-      const pickName = ['diary.csv', 'watched.csv', 'ratings.csv'].map(n => Object.keys(entries).find(k => k.toLowerCase().endsWith(n))).find(Boolean);
-      text = pickName ? new TextDecoder().decode(entries[pickName]) : '';
+      const combined = Object.values(entries).map(bytes => mediaRows(new TextDecoder().decode(bytes)));
+      const films = new Map<string, ReturnType<typeof mediaRows>['rows'][number]>();
+      for (const r of combined.flatMap(r => r.rows)) {
+        const p = r.build()[0], key = p.sync?.id || r.label;
+        const previous = films.get(key)?.build()[0];
+        films.set(key, { ...r, build: () => [{ ...previous, ...p, since: previous?.since || p.since, fields: { ...previous?.fields, ...p.fields } }] });
+      }
+      show('Letterboxd', { rows: [...films.values()], notes: combined.flatMap(r => r.notes ?? []) });
+      continue;
     } else text = await f.text();
     const r = mediaRows(text);
     show(r.source || 'Books & movies', r);
