@@ -18,7 +18,7 @@ import { attachValueField, valueFieldHtml } from './valueField';
 import { shownValue } from './sensitive';
 import { tagRowHtml } from './tags';
 import { maskValue } from '../core/formats';
-import { draftUndoPending, act, closeSheet, onSheetClose, openSheet, sheetBody, sheetTop } from './sheet';
+import { draftUndoPending, act, closeSheet, onSheetClose, openDraft, openSheet, sheetBody, sheetTop } from './sheet';
 import { attachHtml, busy, draftThumbs, keepFiles, pickFiles, showPictures } from './keepsakes';
 import { dropRows } from '../storage/keepsakeAccess';
 import { attachDetails, detailDates, detailsHtml, readDetails } from './details';
@@ -65,6 +65,8 @@ interface Draft {
   /** Whose rows the drafted files are in, so they can be cleared if the card is never added. */
   youId: string;
   saved: boolean;
+  /** The kept draft (in the encrypted record) this was resumed from; it stays there until added or discarded. */
+  keptId?: string;
 }
 let draft: Draft | undefined;
 /** What was typed, as it was when the composer opened, to tell whether backing out loses anything. */
@@ -81,14 +83,27 @@ const draftHook = {
     const d = draft!;
     d.saved = true; // its stored files now belong to the kept draft
     clearTimeout(dropTimer);
-    return { kind: 'card', data: JSON.parse(JSON.stringify({ ...d, open: [...d.open], saved: false })) };
+    return { kind: 'card', keptId: d.keptId, data: JSON.parse(JSON.stringify({ ...d, open: [...d.open], saved: false, keptId: undefined })) };
   },
 };
 
-/** Reopens a card draft that was kept when the screen locked. */
-export function resumeDraft(data: unknown) {
+/** Takes a resumed draft out of the record once it was added or discarded. Returns true if it was there. */
+function forgetKept(id: string | undefined): boolean {
+  if (!id || !Array.isArray(profile.drafts)) return false;
+  const rest = (profile.drafts as { id: string }[]).filter(x => x.id !== id);
+  if (rest.length === profile.drafts.length) return false;
+  if (rest.length) profile.drafts = rest; else delete profile.drafts;
+  return true;
+}
+
+/**
+ * Reopens a card draft that was kept when the screen locked. `keptId` is its entry in the record,
+ * which stays there (encrypted) until the card is added or the draft is discarded, so closing the
+ * tab in between loses nothing.
+ */
+export function resumeDraft(data: unknown, keptId?: string) {
   const d = data as Draft & { open: Section[] };
-  draft = { ...d, open: new Set(d.open || []), youId: profile.id ?? '', saved: false, keepsakes: d.keepsakes || [], links: d.links || [],
+  draft = { ...d, keptId, open: new Set(d.open || []), youId: profile.id ?? '', saved: false, keepsakes: d.keepsakes || [], links: d.links || [],
     fields: d.fields || {}, fieldsByKind: d.fieldsByKind || {}, customFields: d.customFields || [] };
   typedAtStart = ''; // it came back with typing in it
   render(true);
@@ -97,7 +112,16 @@ export function resumeDraft(data: unknown) {
 // Closing without adding the card: its drafted files go too, once the Undo window has passed.
 let dropTimer: ReturnType<typeof setTimeout> | undefined;
 onSheetClose(() => {
-  if (!draft || draft.saved || !draft.keepsakes.length) return;
+  if (!draft || draft.saved) return;
+  // A resumed draft that was closed without adding it: discarded, once the Undo window has passed.
+  const keptId = draft.keptId;
+  if (keptId) {
+    const forget = () => { if (draftUndoPending()) { setTimeout(forget, 1000); return; } // Undo brought it back (or it was kept again on locking): it isn't discarded.
+      if (draft?.keptId === keptId && (draft.saved || openDraft() === draftHook)) return;
+      if (forgetKept(keptId)) save(); };
+    setTimeout(forget, 16_000);
+  }
+  if (!draft.keepsakes.length) return;
   const youId = draft.youId, ids = draft.keepsakes.map(k => k.id);
   clearTimeout(dropTimer);
   const clean = () => { if (draftUndoPending()) { dropTimer = setTimeout(clean, 1000); return; } void dropRows(youId, ids); };
@@ -426,6 +450,7 @@ function saveDraft() {
   for (const l of d.links) addLink(profile, c.id, l.id, l.fwd, l.back);
   for (const k of d.keepsakes) addKeepsake(profile, c.id, k);
   d.saved = true;
+  forgetKept(d.keptId);
   save();
   closeSheet();
   emit('card-added');

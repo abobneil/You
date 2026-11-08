@@ -20,7 +20,7 @@ export interface DraftHook {
    * A plain-JSON copy of what was typed, for keeping it (encrypted, in the record) when the
    * screen locks by itself. Marks the draft as kept, so anything it already stored isn't cleared.
    */
-  stash?(): { kind: string; data: unknown };
+  stash?(): { kind: string; data: unknown; keptId?: string };
 }
 
 interface Opener { el: HTMLElement | null; key: FocusKey | null }
