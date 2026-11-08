@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { fileStore, outline, seal, unseal } from './vault.ts';
+import { escapeControlsInStrings, fileStore, outline, seal, unseal } from './vault.ts';
 
 const secret = JSON.stringify({ adp_token: '{enc:abc}', device_private_key: '-----BEGIN RSA PRIVATE KEY-----\nxyz\n-----END RSA PRIVATE KEY-----' });
 
@@ -53,5 +53,16 @@ describe('outline', () => {
     const o = outline('{"adp_token":"secret-ish"');
     expect(o).toBe('25 chars, 0 newlines, starts with \'{\', ends with \'"\'');
     expect(o).not.toContain('secret');
+  });
+});
+
+describe('escapeControlsInStrings', () => {
+  it('repairs a saved connection whose key lost its line-break escapes, leaving the rest alone', () => {
+    const value = { adp_token: '{enc:a"b}', device_private_key: '-----BEGIN RSA PRIVATE KEY-----\nxyz\n-----END RSA PRIVATE KEY-----', n: 1 };
+    const broken = JSON.stringify(value).replace(/\\n/g, '\n');
+    expect(() => JSON.parse(broken)).toThrow();
+    expect(JSON.parse(escapeControlsInStrings(broken))).toEqual(value);
+    const pretty = JSON.stringify(value, null, 2);
+    expect(escapeControlsInStrings(pretty)).toBe(pretty);
   });
 });

@@ -82,6 +82,9 @@ function windowsStore(): Store {
 // ---------- Linux desktop: Secret Service keyring ----------
 
 const attrs = (name: Name) => ['service', 'you-audible', 'key', name];
+/** Keyring values are base64 so no backslash or line break can be altered on the way in or out.
+ *  Values saved before this have no prefix and are read as they are. */
+const B64 = 'b64:';
 
 /** True when secret-tool exists and a keyring service answers (a lookup that finds nothing, quietly). */
 export async function keyringAvailable(): Promise<boolean> {
@@ -96,12 +99,12 @@ function keyringStore(): Store {
     kind: 'keyring', describe: 'in your system keyring',
     async read(name) {
       const r = await run('secret-tool', ['lookup', ...attrs(name)]);
-      if (r.code === 0 && r.stdout) return r.stdout;
+      if (r.code === 0 && r.stdout) return r.stdout.startsWith(B64) ? Buffer.from(r.stdout.slice(B64.length).trim(), 'base64').toString('utf8') : r.stdout;
       if (r.code === 1 && !r.stderr.trim()) return null;
       throw new Error('The system keyring couldn’t be read. Unlock it (log in to the desktop) and try again.');
     },
     async write(name, text) {
-      const r = await run('secret-tool', ['store', `--label=You: Audible connection (${name})`, ...attrs(name)], text);
+      const r = await run('secret-tool', ['store', `--label=You: Audible connection (${name})`, ...attrs(name)], B64 + Buffer.from(text, 'utf8').toString('base64'));
       if (r.code !== 0) throw new Error('The system keyring couldn’t save the Audible connection.');
     },
     async remove(name) { await run('secret-tool', ['clear', ...attrs(name)]); },
@@ -174,12 +177,33 @@ export function outline(text: string): string {
   return `${text.length} chars, ${text.split('\n').length - 1} newlines, starts with ${kind(t[0])}, ends with ${kind(t.at(-1))}`;
 }
 
+/** Escapes raw control characters inside JSON strings (a PEM key whose "\n" escapes became real line
+ *  breaks somewhere on the way through a keyring). Whitespace between tokens is left alone. */
+export function escapeControlsInStrings(text: string): string {
+  let out = '', inString = false, escaped = false;
+  for (const c of text) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (c === '"') inString = false;
+      else if (c < ' ') { out += c === '\n' ? '\\n' : c === '\r' ? '\\r' : c === '\t' ? '\\t' : `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`; continue; }
+    } else if (c === '"') inString = true;
+    out += c;
+  }
+  return out;
+}
+
 export async function load<T>(name: Name): Promise<T | null> {
   const s = await store();
   const text = await s.read(name);
   if (text === null) return null;
-  try { return JSON.parse(text) as T; }
-  catch {
+  try { return JSON.parse(text) as T; } catch { /* try the repair below */ }
+  try {
+    const value = JSON.parse(escapeControlsInStrings(text)) as T;
+    await s.write(name, JSON.stringify(value));
+    console.warn(`[you/audible] repaired the saved "${name}" in the ${s.kind} store (line breaks inside its text had been unescaped).`);
+    return value;
+  } catch {
     console.warn(`[you/audible] the saved "${name}" in the ${s.kind} store isn't readable: ${outline(text)}`);
     throw new Error(name === 'us'
       ? 'The saved Audible connection on this computer is damaged. Disconnect, then connect again.'
