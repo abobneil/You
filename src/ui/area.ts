@@ -87,12 +87,20 @@ function draw() {
 
 // ---------- pieces ----------
 
+/**
+ * A real button covering the whole tile or row (CSS stretches it), so the card opens by click, tap,
+ * Enter or Space, while the eye on a sensitive value stays its own button above it.
+ */
+const openButton = (c: Card) =>
+  `<button type="button" class="open-card" data-act="card" data-id="${esc(c.id)}"
+    aria-label="${esc([`${kindLabel(c)}: ${shownValue(c)}`, rangeText(c), c.status === 'active' ? '' : 'history'].filter(Boolean).join(', '))}"></button>`;
+
 function tileHtml(c: Card) {
   const chips = linksOf(profile, c.id).slice(0, 3)
     .map(x => `<span class="chip">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}</span>`).join('');
   const sum = summaryText(c, kindOf(c.area, c.kind, profile));
   const t = tagOf(c);
-  return `<div class="tile${c.status === 'active' ? '' : ' past'}" role="button" tabindex="0" data-act="card" data-id="${esc(c.id)}">
+  return `<div class="tile${c.status === 'active' ? '' : ' past'}">${openButton(c)}
     <span class="k"><i></i>${esc(kindLabel(c))}</span>
     <span class="v">${t ? tagIcon(t) : ''}${valueHtml(c)}</span>
     ${sum ? `<span class="sum">${esc(sum)}</span>` : ''}
@@ -105,7 +113,7 @@ function tileHtml(c: Card) {
 function rowHtml(c: Card, showKind: boolean) {
   const sum = summaryText(c, kindOf(c.area, c.kind, profile));
   const t = tagOf(c);
-  return `<li class="crow${c.status === 'active' ? '' : ' past'}" role="button" tabindex="0" data-act="card" data-id="${esc(c.id)}">
+  return `<li class="crow${c.status === 'active' ? '' : ' past'}">${openButton(c)}
     <span class="cv">${t ? tagIcon(t) : ''}${valueHtml(c)}</span>
     <span class="cs">${esc([showKind ? kindLabel(c) : '', sum].filter(Boolean).join(' · '))}</span>
     <span class="cd">${esc(rangeText(c))}</span>
@@ -294,15 +302,6 @@ detail.addEventListener('toggle', e => {
   folds.set(d.dataset.key, d.open);
   if (d.open && d.children.length < 2) draw();
 }, true);
-
-// Tiles and rows are role="button": open them with Enter or Space too.
-detail.addEventListener('keydown', e => {
-  const t = e.target as HTMLElement;
-  if ((t.classList?.contains('tile') || t.classList?.contains('crow')) && t.dataset.id && (e.key === 'Enter' || e.key === ' ')) {
-    e.preventDefault();
-    openCard(t.dataset.id);
-  }
-});
 
 detail.addEventListener('click', e => {
   const b = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');

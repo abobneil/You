@@ -4,7 +4,7 @@ import { areaById, kindLabel, kindOf } from '../core/areas';
 import { setNote, atTheTime, byId, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink, setField } from '../core/cards';
 import { startKey, endKey, fmtDate, fmtISO, thisMonth } from '../core/dates';
 import { profile, save } from '../state';
-import { dateInputs, readDate } from './dateInput';
+import { dateError, dateInputs, readDate } from './dateInput';
 import { esc, linkText } from './dom';
 import { openComposer } from './composer';
 import { openLinkPicker } from './linkPicker';
@@ -53,7 +53,7 @@ export function openCard(id: string, opts: { ending?: boolean; keepsakes?: CardK
       .join('')}</ul></div>` : ''}
     ${removedKeepsakesHtml(c)}
     <div class="block"><h5>Linked</h5><div class="chips">${links.map(x =>
-      `<button class="chip" type="button" data-act="open" data-id="${esc(x.other.id)}">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}<span class="x" data-act="unlink" data-link="${esc(x.link.id)}" title="Remove link">×</span></button>`).join('')}
+      `<span class="chip link-chip"><button class="chip-open" type="button" data-act="open" data-id="${esc(x.other.id)}">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}</button><button class="x" type="button" data-act="unlink" data-link="${esc(x.link.id)}" aria-label="Remove link to ${esc(`${kindLabel(x.other)} ${shownValue(x.other)}`)}">×</button></span>`).join('')}
       <button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
     ${near.length ? `<div class="block"><h5>At the time</h5><div class="chips">${near.map(o =>
       cardChip(o.id, linkText('', kindLabel(o), shownValue(o)))).join('')}</div></div>` : ''}
@@ -80,7 +80,7 @@ export function openCard(id: string, opts: { ending?: boolean; keepsakes?: CardK
     replace: () => openComposer(c.area, { kind: c.kind, replaceId: c.id }),
     end: () => openCard(id, { ending: true }),
     'end-cancel': () => openCard(id),
-    'end-confirm': () => { const end = readDate(sheetBody, 'end'); if (c.since && end && endKey(end) < startKey(c.since)) { alert('The end must be after the start.'); return; } endCard(profile, id, end); save(); openCard(id); },
+    'end-confirm': () => { const end = readDate(sheetBody, 'end'); if (c.since && end && endKey(end) < startKey(c.since)) return dateError(sheetBody, 'end', `End date is before the start date (${fmtDate(c.since)}). Change one of them.`); endCard(profile, id, end); save(); openCard(id); },
     reopen: () => { reopenCard(profile, id); save(); openCard(id); },
     remove: () => {
       if (!confirm('Remove this card?\n\nOnly do this for a card added by mistake. To record a real change, use Replace or This ended so it stays in your history.')) return;
@@ -129,7 +129,9 @@ export function openCard(id: string, opts: { ending?: boolean; keepsakes?: CardK
       const key = el.dataset.date as 'since' | 'until';
       const d = readDate(sheetBody, key);
       const since = key === 'since' ? d : c.since, until = key === 'until' ? d : c.until;
-      if (since && until && endKey(until) < startKey(since)) { alert('The end must be after the start.'); openCard(id); return; }
+      if (since && until && endKey(until) < startKey(since)) return dateError(sheetBody, key, key === 'until'
+        ? `Until is before the start date (${fmtDate(since)}). Change one of them.`
+        : `Since is after the end date (${fmtDate(until)}). Change one of them.`);
       c[key] = d;
       save();
     }));

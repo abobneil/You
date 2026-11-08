@@ -102,10 +102,12 @@ export function hideGate() {
   current = previous = null;
 }
 
-function setMessage(text: string, isHint = false) {
+function setMessage(text: string, isHint = false, field: HTMLInputElement = pass) {
   msg.textContent = text;
   msg.classList.toggle('hint', isHint);
-  pass.setAttribute('aria-invalid', String(!!text && !isHint));
+  // The message sits under both fields and is read with them; only the field at fault is marked.
+  pass.setAttribute('aria-invalid', String(!!text && !isHint && field === pass));
+  again.setAttribute('aria-invalid', String(!!text && !isHint && field === again));
 }
 
 function setPeek(show: boolean) {
@@ -122,8 +124,8 @@ form.addEventListener('submit', async e => {
   const p = pass.value;
   if (s.create) {
     if (p.length < MIN_LENGTH) { setMessage(`Use at least ${MIN_LENGTH} characters. A short sentence works well.`); return pass.focus(); }
-    if (p !== again.value) { setMessage('Those two don’t match. Try typing it again.'); again.value = ''; return again.focus(); }
-  } else if (!p) return pass.focus();
+    if (p !== again.value) { setMessage('The second passphrase doesn’t match the first. Type it again.', false, again); again.value = ''; return again.focus(); }
+  } else if (!p) { setMessage('Type your passphrase first.'); return pass.focus(); }
   go.disabled = true;
   go.textContent = s.busy;
   setMessage('');

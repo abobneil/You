@@ -1,7 +1,7 @@
 import './styles/app.css';
 import { browserSaveState, onBrowserSave, onSave, profile, save } from './state';
 import { initTarget, scheduleWrite } from './storage/target';
-import { $ } from './ui/dom';
+import { $, announce } from './ui/dom';
 import { on } from './ui/events';
 import { hideGate } from './ui/gate';
 import './ui/landing';
@@ -16,14 +16,27 @@ import { openImport } from './ui/import/sources';
 
 // After every change: show "Saved" briefly, write to the chosen file (if any), and redraw.
 let savedTimer: ReturnType<typeof setTimeout> | undefined;
+// "Saved" is only said once the browser copy is really written (not when the edit is made),
+// and only for the person's own edits, not the save that happens on unlock.
+let editPending = false;
+let lastStatus = browserSaveState().status;
 onBrowserSave(() => {
   const mark = $('#d-saved');
-  if (browserSaveState().status !== 'saved') { mark.classList.remove('show'); return; }
+  const state = browserSaveState();
+  const was = lastStatus;
+  lastStatus = state.status;
+  if (state.status === 'failed' && was !== 'failed') {
+    announce(`Couldn't save in this browser${state.reason ? ` (${state.reason})` : ''}. Your changes are still on screen. Use the button at the top to download a copy or try again.`, true);
+  }
+  if (state.status !== 'saved') { mark.classList.remove('show'); return; }
+  if (editPending || was === 'failed') announce('Saved');
+  editPending = false;
   mark.classList.add('show');
   clearTimeout(savedTimer);
   savedTimer = setTimeout(() => mark.classList.remove('show'), 1400);
 });
 onSave(() => {
+  editPending = true;
   scheduleWrite();
   refresh();
 });

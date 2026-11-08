@@ -44,7 +44,7 @@ export function openReview(source: string, result: ImportResult, onDone?: (area:
       add: () => {
         const ps = states.filter(s => s.on).flatMap(proposals);
         const c = applyProposals(profile, ps, source); save();
-        openSheet(`${sheetTop(`Import · ${esc(source)}`)}<h3 class="sh-title">Done</h3><p class="hint">Added ${c.added}, filled ${c.filled}, updated ${c.updated} cards.</p><button class="btn primary" type="button" data-act="ok">Done</button>`, { ok: () => { closeSheet(); if (ps[0]) onDone?.(ps[0].area); } });
+        openSheet(`${sheetTop(`Import · ${esc(source)}`)}<h3 class="sh-title">Done</h3><p class="hint" data-announce>Added ${c.added}, filled ${c.filled}, updated ${c.updated} cards.</p><button class="btn primary" type="button" data-act="ok">Done</button>`, { ok: () => { closeSheet(); if (ps[0]) onDone?.(ps[0].area); } });
       },
     });
   }
