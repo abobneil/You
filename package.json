@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json",
     "audible": "node --disable-warning=ExperimentalWarning server/audible/cli.ts",
-    "check:dist": "node scripts/check-dist.mjs"
+    "check:dist": "node scripts/check-dist.mjs",
+    "build:helper": "node scripts/build-helper.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

@@ -1,13 +1,12 @@
-// Connecting to Audible straight from You. This works while You runs on this computer (npm run dev or
-// npm run preview): the page talks to the local connection in server/audible, which signs requests
-// with a device key kept in that computer's credential store (Windows, the Linux keyring, or a private file). A published copy of You has no such
-// connection; audibleStatus() then returns null and only the file import is offered.
 import { audibleRows } from '../../core/import/audible';
 import type { ImportResult } from '../../core/import/types';
 import { esc } from '../dom';
 import { openSheet, sheetTop } from '../sheet';
 
-const BASE = '/__you/audible/';
+const BASE = 'http://127.0.0.1:49631/__you/audible/';
+export const helperInfo = 'Needs the You Audible helper on this computer';
+export const helperDownload = '/downloads/you-audible-helper.zip';
+export const audibleTraffic = 'With your permission, Amazon sign-in opens www.amazon.com; registration contacts api.amazon.com. Sync reads your US library, ownership, completion and saved listening positions from api.audible.com (or its DNS-published d*.cloudfront.net host if needed). It never changes your library. Credentials stay on this computer in the OS protected storage: Windows DPAPI, macOS Keychain or Linux keyring. If unavailable, a disclosed private file is used instead; it is not encrypted unless a developer configures a passphrase.';
 /** `kept` says how the connection is protected: "locked to your Windows account", "in your system keyring"… */
 export interface AudibleStatus { supported: boolean; connected: boolean; pending: boolean; kept: string }
 
@@ -16,7 +15,7 @@ async function call<T>(action: string, body: unknown, timeoutMs: number): Promis
     method: body === undefined ? 'GET' : 'POST',
     headers: { 'X-You-Local': '1', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
     body: body === undefined ? undefined : JSON.stringify(body),
-    credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(timeoutMs),
+    credentials: 'omit', cache: 'no-store', signal: AbortSignal.timeout(timeoutMs),
   });
   const json = await res.json().catch(() => null);
   if (!res.ok || !json) throw new Error(json?.error || 'The Audible connection didn’t answer. Is You still running on this computer?');
@@ -25,6 +24,7 @@ async function call<T>(action: string, body: unknown, timeoutMs: number): Promis
 
 /** Whether Audible can be connected from here, or null when You isn't running locally. */
 export async function audibleStatus(): Promise<AudibleStatus | null> {
+  // Status is local only; no provider traffic or credentials are read.
   try {
     const s = await call<AudibleStatus>('status', undefined, 1500);
     return typeof s.connected === 'boolean' ? s : null;
@@ -39,6 +39,7 @@ const message = (e: unknown) => (e instanceof DOMException && e.name === 'Timeou
 export async function syncAudible(show: Show) {
   openSheet(`${sheetTop('Import · Audible')}
     <h3 class="sh-title">Reading your Audible library…</h3>
+    <p class="hint">${esc(audibleTraffic)}</p>
     <p class="hint">This usually takes a few seconds. Nothing is added until you’ve reviewed it.</p>`);
   let cancelled = false;
   document.getElementById('sheet')!.addEventListener('close', () => { cancelled = true; }, { once: true });
@@ -52,6 +53,7 @@ export async function syncAudible(show: Show) {
 
 /** Sign in to Amazon, paste the address it ends on, and this computer becomes an Audible device. */
 export async function connectAudible(show: Show, kept: string) {
+  if (!window.confirm(audibleTraffic + '\n\nAllow this connection?')) return;
   let url: string;
   try { url = (await call<{ url: string }>('sign-in', {}, 15_000)).url; }
   catch (e) { return show('Audible', { rows: [], notes: [message(e)] }); }
@@ -100,4 +102,12 @@ export async function connectAudible(show: Show, kept: string) {
 /** Forgets the connection on this computer. */
 export async function disconnectAudible(): Promise<string> {
   try { await call('disconnect', {}, 10_000); return ''; } catch (e) { return message(e); }
+}
+
+/** Shared markup for the source-card owner; file selection remains in the import hub. */
+export function helperConnectionHtml(live: AudibleStatus | null): string {
+  return `<p>${helperInfo}. <a href="${helperDownload}">Get the helper</a> (Node 22.18 or newer required).</p>
+    <p role="status">${live?.connected ? 'Connected' : 'Not running / not connected'}</p>
+    <p>Or import an export file. This works when the helper is unavailable or Audible has a problem.</p>
+    <p>${esc(audibleTraffic)}</p>`;
 }

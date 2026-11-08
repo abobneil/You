@@ -189,5 +189,7 @@ export async function snapshot(client: Client, { marketplace = 'us', includeRevo
   for (const x of revoked) byAsin.set(x.asin, x);
   for (const x of active) byAsin.set(x.asin, x);
   const positions = await lastPositions(client, [...byAsin.keys()], sleep);
-  return buildSnapshot([...byAsin.values()].map(x => normalize(x, positions[x.asin], marketplace)), marketplace, includeRevoked, now);
+  const result = buildSnapshot([...byAsin.values()].map(x => normalize(x, positions[x.asin], marketplace)), marketplace, includeRevoked, now);
+  // Provider evidence can carry arbitrary nested fields. Credentials are never library data.
+  return JSON.parse(JSON.stringify(result, (key, value) => /token|cookie|private.?key|authorization|password|verifier/i.test(key) ? undefined : value)) as typeof result;
 }
