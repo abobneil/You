@@ -112,7 +112,7 @@ export function linkedinRows(files: Files, at = ''): ImportResult {
   if (!rows.length) notes.push('Nothing usable was found. Choose the zip LinkedIn emailed you, or the CSV files inside it.');
   for (const r of rows) {
     const build = r.build;
-    r.build = choice => build(choice).map(p => ({ ...p, sync: { source: 'linkedin', id: [p.kind, p.kind === 'Job' ? (p.fields?.employer ?? p.value).toLowerCase() : p.value, p.since ?? ''].join(':'), at: at || p.until || p.since || '' } }));
+    r.build = choice => build(choice).map(p => ({ ...p, sync: { source: 'linkedin', id: [p.kind, p.kind === 'Job' ? (p.fields?.employer ?? p.value).toLowerCase() : p.value, p.since ?? ''].join(':'), at } }));
   }
   return { rows, notes };
 }
