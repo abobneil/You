@@ -1,8 +1,15 @@
+import { compare, combine } from '../core/compare';
+import { openWith } from '../core/crypto';
+import { normalize } from '../core/profile';
+import { readFile } from './fileFormat';
+import { save, onLeaveFailure } from '../state';
+import { fileWriter, FileChanged } from './fileWriter';
+import { openSheet, sheetTop } from '../ui/sheet';
 // Where the person's data is kept, and the status pill in the top bar.
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { browserSaveState, onBrowserSave, persist, profile, vault } from '../state';
+import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, keepThisTab } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encodeBlob, encodeFile, fileNameFor } from './fileFormat';
 import { sealedFor } from './keepsakeAccess';
@@ -37,6 +44,10 @@ export const target = {
   name: local.get(tk('targetName')) || '',
 };
 let handle: FileHandle | null = null;
+const writer = fileWriter();
+let generation = 0;
+let inFlight: Promise<boolean> | undefined;
+let conflict = false;
 let dirty = false, saving = false, needsPermission = false, failed = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
 const changeListeners: (() => void)[] = [];
@@ -66,13 +77,14 @@ export async function initTarget() {
     if (!handle) setTarget('browser');
     else needsPermission = (await handle.queryPermission({ mode: 'readwrite' })) !== 'granted';
   }
+  if (handle) await writer.load(handle, local.get('you.fileFingerprint.' + currentId()) || undefined);
   renderPill();
 }
 
 /** Call after every change. */
 export function scheduleWrite() {
   if (target.kind === 'browser') return;
-  dirty = true;
+  generation++; dirty = true;
   if (target.kind === 'file' && handle && !needsPermission) {
     clearTimeout(timer);
     timer = setTimeout(writeFile, 600);
@@ -81,29 +93,51 @@ export function scheduleWrite() {
 }
 
 /** Writes the open You into the chosen file. Returns false if it couldn't. */
-export async function writeFile(): Promise<boolean> {
-  if (!handle || !vault) return false;
+export function writeFile(): Promise<boolean> {
+  clearTimeout(timer);
+  if (inFlight) return inFlight.then(ok => ok && dirty ? writeFile() : ok);
+  if (!handle || !vault || conflict) return Promise.resolve(false);
+  const h = handle, v = vault, p = structuredClone(profile), gen = generation;
   saving = true; failed = false; renderPill();
-  try {
-    // Written in pieces (one keepsake at a time), never as one giant string.
-    // Nothing replaces the file on disk until close() succeeds.
-    const p = structuredClone(profile);
-    const out = await handle.createWritable();
+  inFlight = (async () => {
     try {
-      for await (const part of encodeFile(vault, p, sealedFor(p.id!))) await out.write(part);
+      await writer.write(h, encodeFile(v, p, sealedFor(p.id!)));
+      local.set('you.fileFingerprint.' + p.id, writer.fingerprint()!);
+      if (gen === generation) dirty = false;
     } catch (e) {
-      try { await out.abort?.(); } catch { /* already closed */ }
-      throw e;
+      failed = true;
+      if (e instanceof FileChanged) { conflict = true; showFileConflict(); }
+      if ((e as Error)?.name === 'NotAllowedError') needsPermission = true;
     }
-    await out.close();
-    dirty = false;
-  } catch (e) {
-    failed = true;
-    if ((e as Error)?.name === 'NotAllowedError') needsPermission = true;
-  }
-  saving = false;
-  renderPill();
-  return !failed;
+    saving = false; renderPill(); return !failed;
+  })().finally(() => { inFlight = undefined; });
+  return inFlight;
+}
+registerFlush(async () => { while (target.kind === 'file' && dirty) { if (!await writeFile()) return false; } return true; });
+function showFileConflict() {
+  openSheet(`${sheetTop('Your file changed somewhere else')}<p>Your work is still here. Keep a separate copy before opening the other version.</p><div class="menu"><button data-act="both">Keep both</button><button data-act="other">Open the other version</button><button data-act="compare">Compare</button></div>`, {
+    compare: async () => {
+      if (!handle || !vault) return;
+      try {
+        const read = await readFile(await handle.getFile());
+        const other = read.kind === 'plain' ? read.profile : normalize(JSON.parse(await openWith(vault, read.env)));
+        if (other.id !== profile.id) throw new Error();
+        const diff = compare(profile, other);
+        openSheet(`${sheetTop('Compare versions')}<p>${diff.onlyA.length} cards only in this browser � ${diff.onlyB.length} only in the file � ${diff.changed.length} changed in both</p>${diff.changed.map(([a,b]) => `<div><p>This browser: ${esc(a.value)}</p><p>Other file: ${esc(b.value)}</p></div>`).join('')}<div class="menu"><button data-act="both">Keep both as separate files</button><button data-act="combine">Combine</button></div>`, {
+          both: () => downloadCopy(true),
+          combine: async () => { const merged = combine(profile, other); const { stageKeepsakes, commitStaged } = await import('./keepsakeImport');
+            if (read.kind === 'locked') {
+              const staged = await stageKeepsakes((await import('./keepsakeAccess')).keepsakeStore, vault!, other, read.keepsakes());
+              if (staged.problems.length) throw new Error('Keep both copies: some attachments could not be read');
+              await commitStaged((await import('./keepsakeAccess')).keepsakeStore, staged, merged.id!, merged);
+            }
+            Object.assign(profile, merged); setTarget('browser'); save(); },
+        });
+      } catch { alert('This version could not be compared. Download your copy first, then open the other file.'); }
+    },
+    both: () => downloadCopy(true),
+    other: async () => { await downloadCopy(true); const { importText } = await import('../ui/session'); if (handle) await importText(await handle.getFile()); },
+  });
 }
 
 /**
@@ -111,18 +145,18 @@ export async function writeFile(): Promise<boolean> {
  * which leaves an empty file behind. Clean that up and keep the data as downloads instead.
  */
 async function fallBackToDownload(h: FileHandle) {
-  try { await (h as FileHandle & { remove?: () => Promise<void> }).remove?.(); } catch { /* leave it */ }
+  // Never delete a chosen file, including when write or close failed.
   alert('This browser won’t let You save into files on your device, so you’ll get a downloaded copy instead.\n\n'
     + 'After you make changes, download a fresh copy from the bar at the top. In Chrome or Edge, You can save straight into the file.');
   setTarget('download', h.name);
   await downloadCopy();
 }
 
-export async function downloadCopy() {
+export async function downloadCopy(separate = false) {
   if (!vault) return;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(await encodeBlob(vault, profile, sealedFor(profile.id!)));
-  a.download = target.kind === 'download' && target.name ? target.name : fileNameFor(profile.name);
+  a.download = separate ? fileNameFor(profile.name).replace('.you.json', ` (this browser ${new Date().toISOString().slice(0, 10)}).you.json`) : target.kind === 'download' && target.name ? target.name : fileNameFor(profile.name);
   document.body.append(a);
   a.click();
   a.remove();
@@ -137,7 +171,7 @@ export async function chooseSaveFile(): Promise<boolean> {
     const h = await w.showSaveFilePicker!({ suggestedName: fileNameFor(profile.name), types: FILE_TYPES });
     await idb.set(handleKey(), h);
     setTarget('file', h.name);
-    handle = h;
+    handle = h; conflict = false; await writer.load(h);
     dirty = true;
     if (!(await writeFile())) await fallBackToDownload(h);
     return true;
@@ -154,10 +188,13 @@ export async function chooseSaveFile(): Promise<boolean> {
 export async function chooseOpenFile(importFile: (file: Blob) => Promise<boolean>): Promise<boolean> {
   try {
     const [h] = await w.showOpenFilePicker!({ types: FILE_TYPES });
-    if (!(await importFile(await h.getFile()))) return false;
+    const original = await h.getFile();
+    const legacy = (await readFile(original)).kind === 'plain';
+    if (!(await importFile(original))) return false;
+    if (legacy) { setTarget('browser'); return true; }
     await idb.set(handleKey(), h);
     setTarget('file', h.name);
-    handle = h;
+    handle = h; conflict = false; await writer.load(h); local.set('you.fileFingerprint.' + profile.id, writer.fingerprint()!);
     needsPermission = (await h.requestPermission({ mode: 'readwrite' })) !== 'granted';
     renderPill();
     return true;
@@ -181,7 +218,7 @@ export function renderPill() {
   else if (failed) html = `<span class="dot"></span><span>Couldn't save · <b>Try again</b></span>`;
   else if (target.kind === 'download' && dirty) html = `<span class="dot"></span><span>Unsaved changes · <b>Download ${n}</b></span>`;
   else if (saving || dirty) { state = ''; html = `<span class="spin"></span><span>Saving to ${n}…</span>`; }
-  else { state = 'ok'; html = `${ICON.check}<span>${target.kind === 'download' ? 'Downloaded' : 'Saved to'} <b>${n}</b></span>`; }
+  else { state = 'ok'; html = `${ICON.check}<span>${target.kind === 'download' ? 'Downloaded (check your Downloads)' : 'Saved to'} <b>${n}</b></span>`; }
   pill.className = 'saved ' + state;
   pill.innerHTML = html;
 }
@@ -192,8 +229,7 @@ export function renderPill() {
  */
 export async function pillClick(): Promise<'menu' | 'picker' | 'done'> {
   if (browserSaveState().status === 'failed') {
-    await downloadCopy();
-    await persist();
+    openSheet(`${sheetTop("This browser didn't save your latest change")}<p>This browser didn't save your latest change (storage is full / blocked). Your work is still here. Download a copy to keep it safe.</p><div class="menu"><button data-act="download">Download a copy</button><button data-act="retry">Retry</button></div>`, { download: () => downloadCopy(), retry: () => persist() });
     return 'done';
   }
   if (target.kind === 'browser') return 'picker';
@@ -206,9 +242,22 @@ export async function pillClick(): Promise<'menu' | 'picker' | 'done'> {
     if (!ok) await fallBackToDownload(h);
     return 'done';
   }
-  if (failed) { await writeFile(); return 'done'; }
+  if (failed) {
+    if (conflict) { showFileConflict(); return 'done'; }
+    openSheet(`${sheetTop("Your file couldn't be saved")}<p>Your work is still here. Keep a copy somewhere safe.</p><div class="menu"><button data-act="retry">Retry</button><button data-act="elsewhere">Save elsewhere</button><button data-act="download">Download a copy</button></div>`, { retry: () => writeFile(), elsewhere: () => chooseSaveFile(), download: () => downloadCopy(true) });
+    return 'done';
+  }
   if (target.kind === 'download' && dirty) { downloadCopy(); return 'done'; }
   return 'menu';
 }
 
 onBrowserSave(renderPill);
+
+onTabConflict(() => openSheet(`${sheetTop('This You was changed in another tab')}<p>Keep a copy of this tab before choosing the newer version.</p><div class="menu"><button data-act="newer">Use the newer version</button><button data-act="ours">Keep this tab�s version</button></div>`, {
+  newer: async () => { await downloadCopy(true); await useNewer(); },
+  ours: async () => { await keepThisTab(); },
+}));
+
+onLeaveFailure(() => new Promise(resolve => openSheet(`${sheetTop("Your latest changes couldn't be saved")}<p>Your work is still here. Download a copy before locking or switching.</p><div class="menu"><button data-act="download">Download before leaving</button><button data-act="stay">Stay here</button></div>`, {
+  download: async () => { await downloadCopy(true); resolve(true); }, stay: () => resolve(false), close: () => resolve(false),
+})));

@@ -119,3 +119,18 @@ for k in f.get('keepsakes', []):
     meta = next(m for c in record['cards'] for m in c.get('keepsakes', []) if m['id'] == k['id'])
     open(meta['name'], 'wb').write(raw)
 ```
+
+## Preservation and concurrent writers
+
+Unknown record fields are retained. Cards that cannot be interpreted are retained verbatim in the
+encrypted `unreadable` array and counted in the who menu. Legacy plaintext files are opened into the
+browser; automatic writing back into their original file is never enabled. Choose a new save place
+explicitly to create an encrypted file.
+
+The encrypted record may contain a technical `rev` counter. Browser writers compare the loaded
+encrypted envelope under a per-You Web Lock before replacing it, and announce changes on the `you`
+BroadcastChannel. File writers serialize snapshots and check modification time, size and SHA-256
+before opening an atomic swap-file writer. A download is reported as started, not verified durable.
+
+Combined records retain conflicting wording as revisions and complete input snapshots in the
+preservation bucket, including unknown properties. Attachments must be checked before combining.

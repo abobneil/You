@@ -1,3 +1,5 @@
+import { openSheet, sheetTop } from './sheet';
+import { esc } from './dom';
 // Getting into your data: first visit, returning visit, upgrading old data, and loading a file.
 import { newId } from '../core/cards';
 import { WrongPassphrase, type Vault } from '../core/crypto';
@@ -6,8 +8,8 @@ import { canLeave, eraseBrowserCopy, legacyProfile, profile, setSession, storedE
 import { decode, readFile, readText, UnsupportedVersion, DamagedFile } from '../storage/fileFormat';
 import { keepsakeStore } from '../storage/keepsakeAccess';
 import { commitStaged, describeProblems, discardStaged, stageKeepsakes, type Staged } from '../storage/keepsakeImport';
-import { byRecent, currentId, hasVault, listProfiles } from '../storage/profiles';
-import { setTarget } from '../storage/target';
+import { byRecent, currentId, hasVault, listProfiles, placeLabel } from '../storage/profiles';
+import { downloadCopy, setTarget } from '../storage/target';
 import { askNewPassphrase, askPassphrase, hideGate, type WhoRow } from './gate';
 import { openStoragePicker } from './storagePicker';
 import { addNewYou, switchTo } from './switcher';
@@ -23,7 +25,7 @@ export async function lockNewData() {
 function whoRow(): WhoRow {
   const cur = currentId();
   return {
-    items: byRecent().map(e => ({ id: e.id, label: e.label, current: e.id === cur })),
+    items: byRecent().map(e => ({ id: e.id, label: placeLabel(e), current: e.id === cur })),
     pick: id => { if (id !== cur) switchTo(id); },
     add: addNewYou,
   };
@@ -114,8 +116,15 @@ export async function importText(source: Blob | string): Promise<boolean> {
 
   // The same You may already be on this browser, possibly with newer changes.
   if (await hasVault(loaded.id)) {
-    const label = listProfiles().find(e => e.id === loaded.id)?.label || loaded.name;
-    if (!confirm(`${label} is already on this browser.\n\nReplace the copy here with this file? Choose Cancel to keep the copy here.`)) return give();
+    if (loaded.id === profile.id) {
+      const older = (loaded.updatedAt || '') < (profile.updatedAt || '') || (loaded.rev || 0) < (profile.rev || 0);
+      const proceed = await new Promise<boolean>(resolve => openSheet(`${sheetTop(older ? "This file is older than what's in this browser" : 'Open this version?')}<p>File saved ${esc(loaded.updatedAt || 'unknown')}, browser ${esc(profile.updatedAt || 'unknown')}.</p><div class="menu"><button data-act="keep">Keep the browser version</button><button data-act="first">Download the browser version first, then open the file</button><button data-act="anyway">Open the file anyway (the browser version is kept as a download)</button></div>`, {
+        keep: () => resolve(false), close: () => resolve(false),
+        first: async () => { await downloadCopy(true); resolve(true); },
+        anyway: async () => { await downloadCopy(true); resolve(true); },
+      }));
+      if (!proceed) return give();
+    } else { alert('Open this You from the switcher first, then open the file so its browser version can be kept safely.'); return give(); }
   }
 
   // The keepsake bytes go in first, so the record never mentions a file that isn't here.

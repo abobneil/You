@@ -1,6 +1,7 @@
 // The open You's data in memory, the unlocked key, and "something changed" notifications.
 // Nothing is written anywhere until there is a key: the browser copy is encrypted too.
 import { newId } from './core/cards';
+import { openWith } from './core/crypto';
 import type { Vault } from './core/crypto';
 import { emptyProfile, normalize } from './core/profile';
 import type { Profile } from './core/types';
@@ -20,9 +21,41 @@ export const onSave = (fn: () => void) => { listeners.push(fn); };
 
 const saveListeners: (() => void)[] = [];
 export const onBrowserSave = (fn: () => void) => { saveListeners.push(fn); };
+let baseline: string | null | undefined;
+let stale = false;
+const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('you') : null;
+const conflictListeners: (() => void)[] = [];
+export const onTabConflict = (fn: () => void) => { conflictListeners.push(fn); };
+export async function useNewer() {
+  const text = await vaultStore.get(profile.id!);
+  if (!text || !vault) return;
+  profile = normalize(JSON.parse(await openWith(vault, JSON.parse(text))));
+  baseline = text; stale = false;
+  location.reload();
+}
+export async function keepThisTab() {
+  baseline = await vaultStore.get(profile.id!); stale = false;
+  await persist();
+}
+channel?.addEventListener('message', async e => {
+  if (e.data?.id !== profile.id || !vault) return;
+  if (browserSaveState().status === 'saved') await useNewer();
+  else { stale = true; conflictListeners.forEach(fn => fn()); }
+});
 const queue = saveQueue(async ({ p, v }: { p: Profile; v: Vault }) => {
   const envelope = await encode(v, p);
-  await vaultStore.set(p.id!, envelope);
+  const commit = async () => {
+    const current = await vaultStore.get(p.id!);
+    if (stale || (baseline !== undefined && current !== baseline)) {
+      stale = true; conflictListeners.forEach(fn => fn());
+      throw new Error('This You was changed in another tab');
+    }
+    await vaultStore.set(p.id!, envelope);
+    baseline = envelope;
+  };
+  if (typeof navigator !== 'undefined' && navigator.locks) await navigator.locks.request('you-' + p.id, commit);
+  else await commit();
+  channel?.postMessage({ id: p.id, rev: p.rev });
   if (await vaultStore.get(p.id!) !== envelope) throw new Error('Could not verify browser copy');
   const old = local.get(`you.vault.${p.id}`);
   local.remove(`you.vault.${p.id}`);
@@ -32,10 +65,15 @@ const queue = saveQueue(async ({ p, v }: { p: Profile; v: Vault }) => {
   local.remove(KEYS.profile);
 }, () => saveListeners.forEach(fn => fn()));
 export const browserSaveState = (): SaveState => queue.state();
-export const flushPending = () => queue.flush();
+const flushers: (() => Promise<boolean>)[] = [];
+export const registerFlush = (fn: () => Promise<boolean>) => { flushers.push(fn); };
+export const flushPending = async () => { await queue.flush(); return (await Promise.all(flushers.map(fn => fn()))).every(Boolean); };
+let recoverBeforeLeave: (() => Promise<boolean>) | undefined;
+export const onLeaveFailure = (fn: () => Promise<boolean>) => { recoverBeforeLeave = fn; };
 export async function canLeave() {
-  await flushPending();
-  return browserSaveState().status !== 'failed' || confirm("Your latest changes couldn't be saved in this browser. Download a copy before leaving to keep them. Leave anyway?");
+  const filesOK = await flushPending();
+  if (filesOK && browserSaveState().status !== 'failed') return true;
+  return recoverBeforeLeave ? recoverBeforeLeave() : false;
 }
 if (typeof window !== 'undefined') window.addEventListener('beforeunload', e => {
   if (browserSaveState().status !== 'saved') { e.preventDefault(); e.returnValue = ''; }
@@ -46,6 +84,7 @@ export function persist(): Promise<void> {
 }
 
 export function save() {
+  profile.rev = (profile.rev || 0) + 1;
   profile.updatedAt = new Date().toISOString();
   persist();
   listeners.forEach(fn => fn());
@@ -54,6 +93,8 @@ export function save() {
 /** Starts a session: the data and the key that protects it. */
 export async function setSession(p: Profile, v: Vault | null) {
   await flushPending();
+  baseline = await vaultStore.get(p.id || currentId());
+  stale = false;
   profile = p;
   profile.id = profile.id || currentId() || newId();
   profile.updatedAt = profile.updatedAt || new Date().toISOString();

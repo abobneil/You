@@ -58,6 +58,9 @@ export interface Link {
 }
 
 export interface Profile {
+  unreadable?: unknown[];
+  rev?: number;
+  [key: string]: unknown;
   /** Stable id for this You, so a file loaded later matches the same You in the browser. */
   id?: string;
   name: string;

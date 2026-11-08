@@ -44,7 +44,7 @@ export function setCurrent(id: string) { local.set(CURRENT, id); session.set(fal
 export function upsertProfile(id: string, label: string) {
   const list = listProfiles();
   const e = list.find(x => x.id === id);
-  if (e) { e.label = label; delete e.lastOpened; } else list.push({ id, label });
+  if (e) { e.label = label; e.lastOpened = new Date().toISOString(); } else list.push({ id, label, lastOpened: new Date().toISOString() });
   saveIndex(list);
 }
 
@@ -84,3 +84,8 @@ export const byRecent = (list = listProfiles()) =>
 
 // With no You chosen yet (e.g. the last one was removed), open the most recent.
 if (!local.get(CURRENT) && listProfiles().length) local.set(CURRENT, byRecent()[0].id);
+
+export function placeLabel(e: ProfileEntry) {
+  const name = local.get(keyFor(e.id, 'targetName'));
+  return `${e.label} · ${name ? 'saves to ' + name : 'only in this browser'}${e.lastOpened ? ' · last opened ' + new Date(e.lastOpened).toLocaleDateString() : ''}`;
+}
