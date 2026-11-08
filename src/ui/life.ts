@@ -9,6 +9,7 @@ import { dateInputs, readDate } from './dateInput';
 import { openCard } from './cardView';
 import { openComposer } from './composer';
 import { shownValue } from './sensitive';
+import { canFocus, findByKey, keyOf } from './focusMemory';
 const root = $('#life');
 let selected = new Set<string>();
 const kinds = new Set<string>();
@@ -27,6 +28,9 @@ export function renderLife() {
   const sameRoute = lastRoute === location.hash;
   const openGroups = sameRoute ? [...root.querySelectorAll('details')].map((d, i) => d.open ? i : -1) : [];
   const scroll = window.scrollY;
+  // A redraw (a filter chip, Clear, Read this period) replaces every control; keep the keyboard's place.
+  const active = document.activeElement instanceof HTMLElement && root.contains(document.activeElement) ? document.activeElement : null;
+  const had = sameRoute && active ? keyOf(active) : null;
   lastRoute = location.hash;
   const parts = location.hash.replace(/^#\/?life\/?/, '').split('/');
   const from = parts[0] || '', to = parts[1] || from;
@@ -68,6 +72,12 @@ export function renderLife() {
   bind('#life-copy', () => openReadableCopy(from, to));
   root.querySelectorAll('details').forEach((d, i) => { if (openGroups.includes(i)) d.open = true; });
   if (sameRoute) window.scrollTo(0, scroll);
+  if (active && sameRoute) {
+    const el = had && findByKey(root, had);
+    const to = el && canFocus(el) ? el : root.querySelector<HTMLElement>('.dhead h2');
+    if (to && !to.matches('a, button, input, select, textarea, summary, [tabindex]')) to.tabIndex = -1;
+    to?.focus({ preventScroll: true });
+  }
   bind('#life-add', () => openComposer('home', { kind: 'Address', since: unknown ? '' : from }));
 }
 /** The kind chips, folded behind one quiet line that still names the chosen kinds. */

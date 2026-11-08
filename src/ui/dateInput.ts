@@ -1,6 +1,7 @@
 import { MONTHS, dateProblem, fuzzyFromParts } from '../core/dates';
 import type { FuzzyDate } from '../core/types';
 import { $, esc } from './dom';
+import { gridStep } from './keyboard';
 
 // Year, then Month, then Day. Only the year is needed; people rarely remember exact dates,
 // so the day box only appears once a month is picked.
@@ -131,11 +132,26 @@ document.addEventListener('click', e => {
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && document.querySelector('.date .mgrid:not([hidden])')) {
+  const open = document.querySelector<HTMLElement>('.date .mgrid:not([hidden])');
+  if (!open) return;
+  if (e.key === 'Escape') {
     e.preventDefault(); // close the month grid, not the whole dialog
     e.stopPropagation();
+    const inGrid = open.contains(document.activeElement);
     closeAll();
+    // Focus was on a month that is now hidden; put it back on the Month button, not the page.
+    if (inGrid) open.parentElement?.querySelector<HTMLElement>('.mbtn')?.focus();
+    return;
   }
+  // Arrow keys move between months as well as Tab: left/right by one, up/down by a row.
+  const t = e.target as HTMLElement;
+  if (!open.contains(t)) return;
+  const opts = [...open.querySelectorAll<HTMLElement>('[data-m]')];
+  const cols = opts.filter(b => b.offsetTop === opts[0].offsetTop).length; // buttons in the first row
+  const to = gridStep(e.key, opts.indexOf(t), opts.length, cols);
+  if (to === null) return;
+  e.preventDefault();
+  opts[to].focus();
 }, true);
 
 // A message under a date goes away as soon as the date is touched again.

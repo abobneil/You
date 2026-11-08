@@ -6,6 +6,7 @@ import { passphraseStrength } from '../core/passphrase';
 import { createVault, type Vault } from '../core/crypto';
 import { $ } from './dom';
 import { DamagedFile, UnsupportedVersion } from '../storage/fileFormat';
+import { backToField } from './keyboard';
 
 let weakConfirmed = '';
 
@@ -131,7 +132,7 @@ function setPeek(show: boolean) {
   peek.setAttribute('aria-pressed', String(show));
   peek.setAttribute('aria-label', show ? 'Hide passphrase' : 'Show passphrase');
 }
-peek.addEventListener('click', () => { setPeek(pass.type === 'password'); pass.focus(); });
+peek.addEventListener('click', e => { setPeek(pass.type === 'password'); if (backToField(e)) pass.focus(); });
 
 form.addEventListener('submit', async e => {
   e.preventDefault();

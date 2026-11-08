@@ -67,4 +67,31 @@ function renderOverview() {
   }).join('');
 }
 
-window.addEventListener('hashchange', route);
+/**
+ * After moving between home, an area and Your life, focus would be left on a control that is now
+ * hidden (the page itself, for the keyboard). Put it on the new view's heading, or back on the area
+ * tile you came from when returning home, so Tab carries on from where you are.
+ */
+function placeFocus(from: string) {
+  if (!isHome() || $<HTMLDialogElement>('#sheet').open) return;
+  const a = document.activeElement;
+  if (a instanceof HTMLElement && a !== document.body && a.offsetParent !== null && !a.closest('[hidden]')) return;
+  const { area } = parseHash();
+  const life = /^#\/?life(?:\/|$)/.test(location.hash);
+  let el: HTMLElement | null = null;
+  if (area) el = $<HTMLElement>('#d-title');
+  else if (life) el = document.querySelector<HTMLElement>('#life h2, #life h1');
+  else {
+    const prev = from.replace(/^\//, '').split('/')[0];
+    el = document.querySelector<HTMLElement>(`#areas a[href="#${CSS.escape(prev)}"]`) ?? (/life/.test(prev) ? document.querySelector<HTMLElement>('a.life-entry') : null);
+  }
+  if (!el) return;
+  const heading = !el.matches('a, button, input, select, textarea, [tabindex]');
+  if (heading) el.tabIndex = -1;
+  el.focus({ preventScroll: heading }); // a heading is at the top already; a tile may need scrolling to
+}
+
+window.addEventListener('hashchange', e => {
+  route();
+  placeFocus(new URL(e.oldURL).hash.slice(1));
+});
