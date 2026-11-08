@@ -29,7 +29,7 @@ duplicateHint.className = 'hint'; nameInput.parentElement!.after(duplicateHint);
 nameInput.addEventListener('input', () => {
  nameInput.classList.toggle('filled', nameInput.value.trim().length > 0);
  const name = nameInput.value.trim();
- duplicateHint.textContent = listProfiles().some(e => e.label.toLocaleLowerCase() === name.toLocaleLowerCase()) ? `There's already an ${name} here. Open it, or continue to start a second one.` : '';
+ duplicateHint.textContent = listProfiles().some(e => e.label.toLocaleLowerCase() === name.toLocaleLowerCase()) ? `There's already a You named ${name} here. Open it, or continue to start a second one.` : '';
 });
 
 enterBtn.addEventListener('mousedown', e => e.preventDefault()); // keep the cursor in the field

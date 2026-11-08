@@ -1009,3 +1009,8 @@ html { scroll-padding-top: 76px; scroll-padding-bottom: 24px; }
 .pair-list { margin: 0; padding-left: 18px; overflow-wrap: anywhere; }
 .pair-list li { margin: 4px 0; }
 .safety-form input[type=radio] { width: auto; margin: 0; }
+
+@media (max-width: 560px) {
+.saved { min-width: 0; max-width: 100%; }
+.saved > span:last-child { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

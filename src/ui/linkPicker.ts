@@ -43,6 +43,7 @@ export function openLinkPicker(o: Options) {
     <div class="btns"><button class="btn quiet" type="button" data-act="back">Back</button></div>`,
   {
     back: () => o.onBack(),
+    escape: () => o.onBack(),
     pick: b => labelStep(b.dataset.id!),
   });
   const q = $<HTMLInputElement>('#p-q', sheetBody);
@@ -63,6 +64,7 @@ export function openLinkPicker(o: Options) {
         <button class="btn primary" type="button" data-act="own">Link</button></div>`,
     {
       back: () => openLinkPicker(o),
+      escape: () => o.onBack(),
       label: b => { const [fwd, back] = labels[+b.dataset.i!]; o.onPick(otherId, fwd, back); },
       none: () => o.onPick(otherId, '', ''),
       own: () => { const t = $<HTMLInputElement>('#p-own', sheetBody).value.trim(); o.onPick(otherId, t, t); },

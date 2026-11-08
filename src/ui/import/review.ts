@@ -35,7 +35,7 @@ export function openReview(source: string, result: ImportResult, onDone?: (area:
       <div class="rv-tools"><button class="link-btn" type="button" data-act="all">Select all</button><button class="link-btn" type="button" data-act="none">Select none</button></div>
       <div class="rv">${['New', 'Updates', 'Already there'].map(g => `<details ${g === 'Already there' ? '' : 'open'}><summary>${g} (${states.filter(s => category(s) === g).length})</summary><ul>${states.map((s, i) => category(s) === g ? rowHtml(s, i) : '').join('')}</ul></details>`).join('')}</div>
       <details><summary>Skipped and source notes (${result.notes?.length || 0})</summary>${result.notes?.map(n => `<p class="hint">${esc(n)}</p>`).join('') || '<p class="hint">No omissions reported.</p>'}</details>
-      <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="add" ${count ? '' : 'disabled'}>Apply to ${count} cards</button></div>`, {
+      <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="add" ${count ? '' : 'disabled'}>Apply to ${count} card${count === 1 ? '' : 's'}</button></div>`, {
       toggle: b => { states[+b.dataset.i!].on = !states[+b.dataset.i!].on; render(); },
       pick: b => { states[+b.dataset.i!].choice = b.dataset.choice; render(); },
       match: b => { states[+b.dataset.i!].matchId = b.dataset.id || ''; render(); },
@@ -44,7 +44,7 @@ export function openReview(source: string, result: ImportResult, onDone?: (area:
       add: () => {
         const ps = states.filter(s => s.on).flatMap(proposals);
         const c = applyProposals(profile, ps, source); save();
-        openSheet(`${sheetTop(`Import · ${esc(source)}`)}<h3 class="sh-title">Done</h3><p class="hint" data-announce>Added ${c.added}, filled ${c.filled}, updated ${c.updated}, already kept ${ps.length - c.added - c.filled - c.updated} cards.</p><button class="btn primary" type="button" data-act="ok">Done</button>`, { ok: () => { closeSheet(); if (ps[0]) onDone?.(ps[0].area); } });
+        openSheet(`${sheetTop(`Import · ${esc(source)}`)}<h3 class="sh-title">Done</h3><p class="hint" data-announce>Added ${c.added}, filled ${c.filled}, updated ${c.updated}, already kept ${ps.length - c.added - c.filled - c.updated} card${ps.length - c.added - c.filled - c.updated === 1 ? '' : 's'}.</p><button class="btn primary" type="button" data-act="ok">Done</button>`, { ok: () => { closeSheet(); if (ps[0]) onDone?.(ps[0].area); } });
       },
     });
     if (typeof document !== 'undefined') document.querySelectorAll<HTMLSelectElement>('[data-choice-row]').forEach(el => el.addEventListener('change', () => { states[Number(el.dataset.choiceRow)].choice = el.value; render(); }));

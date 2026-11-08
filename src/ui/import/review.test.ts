@@ -15,7 +15,7 @@ it('shows overwrites, defaults ambiguous names separate, allows selection and le
  expect(h.html).toContain('Original → Changed');expect(h.html).toContain('Skipped 2');expect(h.html).toContain('Already there (0)');
  expect(JSON.stringify(profile)).toBe(before);expect(save).not.toHaveBeenCalled();
  h.handlers.none();expect(h.html).toContain('Apply to 0 cards');expect(JSON.stringify(profile)).toBe(before);
- h.handlers.all();expect(h.html).toContain('Apply to 1 cards');
+ h.handlers.all();expect(h.html).toContain('Apply to 1 card');
  h.handlers.add();expect(profile.cards[0].fields?.author).toBe('Changed');expect(save).toHaveBeenCalledOnce();
 });
 

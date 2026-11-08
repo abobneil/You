@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeOf, addCard, addCardBefore, addLink, setField, atTheTime, byId, correctValue, defaultMode, endCard, linksOf, rangeText, removeCard, reopenCard,
+  activeOf, addCard, addCardBefore, addLink, setField, atTheTime, byId, correctValue, correctMeta, defaultMode, endCard, linksOf, rangeText, removeCard, reopenCard,
 } from './cards';
 import { kindLabel, kindOf, tagOf } from './areas';
 import { emptyProfile } from './profile';
@@ -216,4 +216,13 @@ describe('details', () => {
     expect(kindOf('home', 'Mortgage').titleFrom!({ lender: 'Wells Fargo', term: '30' })).toBe('Wells Fargo 30-yr');
     expect(kindOf('money', 'Credit card').titleFrom!({ issuer: 'Chase', last4: '1234' })).toBe('Chase ••1234');
   });
+});
+
+it('ending with no date preserves unknown and year-only corrections', () => {
+ const p = seed();
+ const c = addCard(p, {area:'work',kind:'Job',value:'Gardener',since:'2004'});
+ endCard(p,c.id,'',NOW);
+ expect(c.until).toBe(''); expect(rangeText(c)).toBe('2004 – ?');
+ correctMeta(p,c.id,'until','2010'); expect(c.until).toBe('2010');
+ c.since=''; c.until=''; expect(rangeText(c)).toBe('Ended (date unknown)');
 });
