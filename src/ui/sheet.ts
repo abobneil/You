@@ -5,11 +5,13 @@ type Handler = (el: HTMLElement, e: MouseEvent) => void;
 
 const sheet = $<HTMLDialogElement>('#sheet');
 export const sheetBody = $('#sheet-body');
+let returnFocus: HTMLElement | null = null;
 let handlers: Record<string, Handler> = {};
 const closeListeners: (() => void)[] = [];
 
 /** Shows `html` in the dialog. Clicks on elements with data-act="name" call handlers[name]. */
 export function openSheet(html: string, h: Record<string, Handler> = {}) {
+  if (!sheet.open) returnFocus = document.activeElement as HTMLElement;
   sheetBody.innerHTML = html;
   handlers = h;
   if (!sheet.open) sheet.showModal();
@@ -27,7 +29,7 @@ sheet.addEventListener('click', e => {
   if (b.dataset.act === 'close') return closeSheet();
   handlers[b.dataset.act!]?.(b, e);
 });
-sheet.addEventListener('close', () => closeListeners.forEach(fn => fn()));
+sheet.addEventListener('close', () => { sheetBody.innerHTML = ''; handlers = {}; closeListeners.forEach(fn => fn()); returnFocus?.focus(); });
 
 /** Small heading row with a close button. `kicker` may contain trusted markup. */
 export const sheetTop = (kicker: string) => `<div class="sh-top"><span class="sh-kicker">${kicker}</span>

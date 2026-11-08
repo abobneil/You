@@ -1,3 +1,4 @@
+import { openSafety } from './safety';
 // "Where should we keep your data?" — modeled on draw.io's "Save to…" picker.
 import { canWriteFiles, chooseOpenFile, chooseSaveFile, downloadCopy, pillClick, setTarget, target, writeFile } from '../storage/target';
 import { $, esc } from './dom';
@@ -33,8 +34,9 @@ export function openStoragePicker(mode: 'save' | 'open') {
         <svg viewBox="0 0 24 24" aria-hidden="true">${s.icon}</svg>
         <span><b>${esc(s.title)}</b><small>${esc(s.desc)}</small></span>
       </button>`).join('')}</div>
-    <div class="btns"><button class="btn quiet" type="button" data-act="close">${open ? 'Cancel' : 'Decide later'}</button></div>`,
+    <div class="menu"><button type="button" data-act="safe">Keep it safe</button></div><div class="btns"><button class="btn quiet" type="button" data-act="close">${open ? 'Cancel' : 'Decide later'}</button></div>`,
   {
+    safe: openSafety,
     soon: () => {},
     browser: () => { setTarget('browser'); closeSheet(); },
     device: async () => {
@@ -61,6 +63,7 @@ function openStorageMenu() {
   {
     now: () => { writeFile(); closeSheet(); },
     dl: async () => { await downloadCopy(); closeSheet(); },
+    safe: openSafety,
     change: () => openStoragePicker('save'),
     forget: () => {
       if (!confirm(`Stop saving to ${target.name}?\n\nThe file stays where it is. Your data stays in this browser.`)) return;
