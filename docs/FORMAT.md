@@ -119,3 +119,22 @@ for k in f.get('keepsakes', []):
     meta = next(m for c in record['cards'] for m in c.get('keepsakes', []) if m['id'] == k['id'])
     open(meta['name'], 'wb').write(raw)
 ```
+
+## Readable export
+
+A deliberately chosen plaintext copy is a ZIP named `<name> <period> (readable).zip`.
+It contains a printable, script-free `index.html`, original keepsake bytes under
+`files/<card-value-slug>-<ordinal>/<original-name>` (unsafe path characters are replaced),
+and UTF-8 `record.json`. Files with duplicate names receive an ordinal prefix.
+
+The JSON shape is `{format:"you-readable", version:1, name, period:{label,from,to},
+sensitiveIncluded, filesIncluded, cards, links}`. Null period bounds mean Everything;
+`unknown` means cards without a start date. Cards retain the inner card format,
+including exact date strings, notes, revisions and provenance, and add `overlap`
+(`definite` or `possible`), `readableLinks` (other card ID, kind, value and label read
+from this card's side), and a nullable relative `path` on each keepsake. Only links
+whose two endpoints are in the period appear in the top-level links array.
+Removed keepsakes remain included as history. Excluded files have null paths.
+Sensitive values, details, revisions and source snapshots are masked unless expressly
+included; this copy is not a lossless backup. The normal encrypted record remains
+the backup format. No passphrase or encryption keys are included.

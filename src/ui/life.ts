@@ -1,3 +1,4 @@
+import { openReadableCopy } from './readableCopy';
 import { AREAS } from '../core/areas';
 import { rangeText } from '../core/cards';
 import { foldCards, lifeIn, yearIndex, type LifeCard } from '../core/life';
@@ -16,7 +17,7 @@ let reading = false;
 const chip = (label: string, attr: string, on: boolean) => `<button type="button" class="fchip ${on ? 'on' : ''}" aria-pressed="${on}" ${attr}>${esc(label)}</button>`;
 function cardHtml({ card: c, overlap }: LifeCard): string {
   const dates = c.since ? rangeText(c) : `Date unknown${c.until ? ' · Until ' + c.until : ''}`;
-  return `<li><button type="button" class="life-card" data-card="${esc(c.id)}"><b>${esc(shownValue(c))}</b><span>${esc(c.kind)} · ${esc(dates)} · ${c.status === 'active' ? 'Current' : 'History'}${overlap === 'possible' ? ' · possibly' : ''}${c.source ? ' · ' + esc(c.source.from) : ''}</span>${(c as typeof c & { note?: string }).note ? `<span>${esc((c as typeof c & { note?: string }).note!)}</span>` : ''}</button></li>`;
+  return `<li><button type="button" class="life-card" data-card="${esc(c.id)}"><b>${esc(shownValue(c))}</b><span>${esc(c.kind)} · ${esc(dates)} · ${c.status === 'active' ? 'Current' : 'History'}${overlap === 'possible' ? ' · possibly' : ''}${c.source ? ' · ' + esc(c.source.from) : ''}</span>${(c as typeof c & { note?: string }).note ? `<span>${esc((c as typeof c & { note?: string }).note!)}</span>` : ''}${reading && c.keepsakes?.length ? `<span>${c.keepsakes.map(k => esc(k.name)).join(' · ')}</span>` : ''}</button></li>`;
 }
 let lastRoute = '';
 export function renderLife() {
@@ -35,7 +36,7 @@ export function renderLife() {
   root.innerHTML = `<a class="back" href="${period ? '#/life' : '#'}">${period ? 'Your life' : 'Home'}</a><h2>${period ? esc(label) : 'Your life'}</h2>
     <div class="life-tools"><form id="life-jump"><label>Jump to year <input name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required aria-label="Jump to year"></label><button class="btn">Go</button></form>
     <details><summary>Choose a period</summary><form id="life-period"><p>From ${dateInputs(from === 'unknown' ? '' : from, 'life-from')}</p><p>To ${dateInputs(to === 'unknown' ? '' : to, 'life-to')}</p><button class="btn">Show period</button><p id="life-error" role="alert"></p></form></details></div>
-    ${period ? `<div class="life-tools">${AREAS.map(a => chip(a.title, `data-area="${a.id}"`, selected.has(a.id))).join('')}<label>Source <select id="life-source"><option value="">Everything</option><option value="__own">My own</option>${sources.map(s => `<option value="${esc(s)}" ${source === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label><p>Showing ${reading ? 'all areas' : esc(scope)} in ${esc(label)}${!reading && source ? ' · ' + esc(source === '__own' ? 'My own' : source) : ''}</p><button class="btn" id="life-clear">Clear</button><button class="btn" id="life-read">${reading ? 'Back to browsing' : 'Read this period'}</button>${reading ? '<p>This readable copy contains private information. Only print or save it somewhere you choose.</p><button class="btn" id="life-print">Print</button>' : ''}</div><div class="life-reading">${accepted.some(g => g.cards.length) ? '' : `<p>Nothing recorded for ${esc(label)}</p><button class="link-btn" id="life-add">Add something from ${esc(label)}</button>`}${accepted.map(g => {
+    ${!period ? '<button type="button" class="btn" id="life-copy">Make a readable copy</button>' : ''}${period ? `<div class="life-tools">${AREAS.map(a => chip(a.title, `data-area="${a.id}"`, selected.has(a.id))).join('')}<label>Source <select id="life-source"><option value="">Everything</option><option value="__own">My own</option>${sources.map(s => `<option value="${esc(s)}" ${source === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label><p>Showing ${reading ? 'all areas' : esc(scope)} in ${esc(label)}${!reading && source ? ' · ' + esc(source === '__own' ? 'My own' : source) : ''}</p><button class="btn" id="life-clear">Clear</button><button class="btn" id="life-read">${reading ? 'Back to browsing' : 'Read this period'}</button><button type="button" class="btn" id="life-copy">Make a readable copy</button>${reading ? '<p>This readable copy contains private information. Only print or save it somewhere you choose.</p><button class="btn" id="life-print">Print</button>' : ''}</div><div class="life-reading">${accepted.some(g => g.cards.length) ? '' : `<p>Nothing recorded for ${esc(label)}</p><button class="link-btn" id="life-add">Add something from ${esc(label)}</button>`}${accepted.map(g => {
       const a = AREAS.find(a => a.id === g.area)!;
       const folded = foldCards(g.cards);
       return `<section><h3>${esc(a.title)}</h3>${g.cards.length ? reading ? `<ul>${g.cards.map(cardHtml).join('')}</ul>` : `<ul>${folded.personal.map(cardHtml).join('')}</ul>${[...folded.sources].map(([s, cards]) => `<details><summary>${esc(s)} · ${cards.length} ${s === 'Spotify' ? 'artists and podcasts' : 'cards'}</summary><ul>${cards.map(cardHtml).join('')}</ul></details>`).join('')}` : '<p class="hint">Nothing recorded</p>'}</section>`;
@@ -51,6 +52,7 @@ export function renderLife() {
   bind('#life-clear', () => { selected.clear(); source = ''; renderLife(); });
   bind('#life-read', () => { reading = !reading; renderLife(); });
   bind('#life-print', () => window.print());
+  bind('#life-copy', () => openReadableCopy(from, to));
   root.querySelectorAll('details').forEach((d, i) => { if (openGroups.includes(i)) d.open = true; });
   if (sameRoute) window.scrollTo(0, scroll);
   bind('#life-add', () => openComposer('home', { kind: 'Address', since: unknown ? '' : from }));
@@ -68,3 +70,5 @@ function indexHtml(): string {
     return `<a class="life-year" href="#/life/${r.year}"><b>${r.year}</b><span>${esc(text || 'Nothing recorded')}</span></a>`;
   }).join('') : '<p>No known life dates yet.</p>'}`;
 }
+
+
