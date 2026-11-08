@@ -14,9 +14,10 @@ import { tagRowHtml } from './tags';
 import { attachDetails, detailsHtml } from './details';
 import { maskValue } from '../core/formats';
 import { closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
+import { altRevisionLabel, cardKeepsakeHandlers, cardKeepsakesHtml, removedKeepsakesHtml, showPictures, type CardKsState } from './keepsakes';
 
 /** Opens a card, switching to its area first if needed. */
-export function openCard(id: string, opts: { ending?: boolean } = {}) {
+export function openCard(id: string, opts: { ending?: boolean; keepsakes?: CardKsState; focus?: string } = {}) {
   const c = byId(profile, id);
   if (!c) return;
   if (!/^#\/?life(?:\/|$)/.test(location.hash) && location.hash.slice(1).split('/')[0] !== c.area) location.hash = '#' + c.area;
@@ -38,6 +39,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
       ? `<div class="fx"><span class="lab">${esc(c.kind)}</span>${dateInputs(c.since, 'vdate')}</div>`
       : `<div class="fx"><label for="v-value">${kind.titleFrom ? 'Name' : 'Value'}</label>${valueFieldHtml('v-value', c.value, kind)}</div>`}
     <div class="block">${c.note ? `<p class="note-text">${esc(c.note)}</p>` : ''}<button class="chip" type="button" data-act="note">${c.note ? 'Edit note' : 'Add a note'}</button><div id="note-editor" hidden>${noteInput('v-note', c.note ?? '')}</div></div>
+    ${cardKeepsakesHtml(c, opts.keepsakes)}
     ${tagRowHtml(kind, c.tag)}
     ${detailsHtml(kind, c.fields, 'vf', true)}
     ${!isDate && (kind.dated || c.since) ? `<div class="fx"><span class="lab">${kind.dated ? 'Since' : 'Changed'}</span>${dateInputs(c.since, 'since')}</div>` : ''}
@@ -45,9 +47,11 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     <div class="fx"><span class="lab">Recorded</span><span class="hint">${esc(fmtISO(c.recordedAt))}${c.source ? ` · from ${esc(c.source.from)}` : ''}${story ? ' · ' : ''}${story}</span></div>
     ${c.revisions.length ? `<div class="block"><h5>Earlier wording</h5><ul class="revs">${[...c.revisions].reverse()
       .map(r => { const fd = r.field ? kind.fields?.find(x => x.id === r.field) : undefined;
-        const hide = r.field === 'note' ? false : fd ? fd.sensitive : isSensitive(c);
-        return `<li class="note-text">${r.field === 'note' ? 'Note: ' : ''}${fd ? `${esc(fd.label)}: ` : ''}“${esc(hide ? maskValue(r.value) : r.value)}” · changed ${esc(fmtISO(r.at))}</li>`; })
+        const ks = r.field?.startsWith('keepsake:');
+        const hide = r.field === 'note' || ks ? false : fd ? fd.sensitive : isSensitive(c);
+        return `<li class="note-text">${r.field === 'note' ? 'Note: ' : ''}${ks ? altRevisionLabel(c, r.field!) : ''}${fd ? `${esc(fd.label)}: ` : ''}“${esc(hide ? maskValue(r.value) : r.value)}” · changed ${esc(fmtISO(r.at))}</li>`; })
       .join('')}</ul></div>` : ''}
+    ${removedKeepsakesHtml(c)}
     <div class="block"><h5>Linked</h5><div class="chips">${links.map(x =>
       `<button class="chip" type="button" data-act="open" data-id="${esc(x.other.id)}">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}<span class="x" data-act="unlink" data-link="${esc(x.link.id)}" title="Remove link">×</span></button>`).join('')}
       <button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
@@ -62,6 +66,7 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
                : (!c.replacedBy ? `<button class="btn" type="button" data-act="reopen">It's still true</button>` : '')}
         </div>`}`,
   {
+    ...cardKeepsakeHandlers(c, st => openCard(id, { keepsakes: st, focus: st?.focus })),
     note: b => { b.hidden = true; sheetBody.querySelector<HTMLElement>('#note-editor')!.hidden = false; autosizeNote(sheetBody); sheetBody.querySelector<HTMLElement>('#v-note')?.focus(); },
     open: b => openCard(b.dataset.id!),
     tag: b => { c.tag = b.dataset.tag!; save(); openCard(id); },
@@ -83,6 +88,8 @@ export function openCard(id: string, opts: { ending?: boolean } = {}) {
     },
   });
 
+  showPictures(sheetBody, c.keepsakes ?? []);
+  if (opts.focus) sheetBody.querySelector<HTMLElement>(opts.focus)?.focus();
   sheetBody.querySelector<HTMLTextAreaElement>('#v-note')?.addEventListener('change', e => {
     if (setNote(profile, id, (e.target as HTMLTextAreaElement).value)) { save(); openCard(id); }
   });

@@ -54,5 +54,5 @@ $<HTMLInputElement>('#file').addEventListener('change', async e => {
   const input = e.target as HTMLInputElement;
   const f = input.files?.[0];
   input.value = '';
-  if (f && (await importText(await f.text()))) { setTarget('browser'); emit('data-loaded'); }
+  if (f && (await importText(f))) { setTarget('browser'); emit('data-loaded'); }
 });

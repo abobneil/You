@@ -1,0 +1,79 @@
+// Opening a version 3 file: every keepsake is decrypted and checked against the record's own SHA-256
+// before anything in this browser changes. Checked bytes wait under a temporary prefix; only after the
+// person confirms are they moved under the opening You's id. Problems are reported, never silently dropped.
+import { keepsakeIds } from '../core/cards';
+import type { Vault } from '../core/crypto';
+import { openBytes, sha256Hex, type Keepsake } from '../core/keepsakes';
+import type { Profile } from '../core/types';
+import { checkRawKeepsake, DamagedFile, type RawKeepsake } from './fileFormat';
+import { rowKey, type KeepsakeStore } from './keepsakeStore';
+
+export interface KeepsakeProblem { id: string; name: string; problem: 'damaged' | 'changed' | 'missing' }
+
+export interface Staged {
+  prefix: string;
+  ids: string[];
+  problems: KeepsakeProblem[];
+}
+
+const metaById = (p: Profile) => {
+  const m = new Map<string, Keepsake>();
+  for (const c of p.cards) for (const k of c.keepsakes ?? []) m.set(k.id, k);
+  return m;
+};
+
+/**
+ * Checks each keepsake entry and writes the good ones under a temporary prefix.
+ * Throws DamagedFile (after cleaning up) if the file's structure is wrong: a malformed entry, a bad IV,
+ * an id no card mentions, or the same id twice. Content problems are returned for the person to review.
+ */
+export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Profile, entries: AsyncIterable<RawKeepsake>): Promise<Staged> {
+  const staged: Staged = { prefix: `import-${crypto.randomUUID()}`, ids: [], problems: [] };
+  const meta = metaById(p);
+  const seen = new Set<string>();
+  try {
+    for await (const raw of entries) {
+      const { id, sealed } = checkRawKeepsake(raw);
+      const k = meta.get(id);
+      if (!k) throw new DamagedFile('it holds a keepsake no card mentions');
+      if (seen.has(id)) throw new DamagedFile('it holds the same keepsake twice');
+      seen.add(id);
+      let bytes: Uint8Array;
+      try { bytes = await openBytes(vault, id, sealed); }
+      catch { staged.problems.push({ id, name: k.name, problem: 'damaged' }); continue; }
+      if (bytes.length !== k.size || (await sha256Hex(bytes)) !== k.sha256) {
+        staged.problems.push({ id, name: k.name, problem: 'changed' });
+        continue;
+      }
+      await store.put(rowKey(staged.prefix, id), sealed);
+      staged.ids.push(id);
+    }
+  } catch (e) {
+    await discardStaged(store, staged);
+    throw e;
+  }
+  for (const [id, k] of meta) if (!seen.has(id)) staged.problems.push({ id, name: k.name, problem: 'missing' });
+  return staged;
+}
+
+/** Moves checked keepsakes under the You's id, and clears that You's rows the record no longer mentions. */
+export async function commitStaged(store: KeepsakeStore, staged: Staged, youId: string, p: Profile) {
+  for (const id of staged.ids) {
+    const s = await store.get(rowKey(staged.prefix, id));
+    if (!s) throw new Error('Staged keepsake disappeared');
+    await store.put(rowKey(youId, id), s);
+  }
+  await discardStaged(store, staged);
+  const keep = keepsakeIds(p);
+  for (const key of await store.keys(youId + '/')) if (!keep.has(key.slice(youId.length + 1))) await store.del(key);
+}
+
+export async function discardStaged(store: KeepsakeStore, staged: Pick<Staged, 'prefix'>) {
+  for (const key of await store.keys(staged.prefix + '/')) await store.del(key);
+}
+
+/** A plain list of what couldn't be read, for the person to decide. */
+export function describeProblems(problems: KeepsakeProblem[]): string {
+  const why = { damaged: 'damaged', changed: 'altered since it was attached', missing: 'missing from the file' };
+  return problems.map(x => `• ${x.name} (${why[x.problem]})`).join('\n');
+}

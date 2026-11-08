@@ -1,6 +1,7 @@
 // All the rules for cards live here, free of any screen code, so they can be tested.
 import { isMany, kindOf } from './areas';
 import { endKey, fmtDate, fmtISO, localDay, startKey, thisMonth } from './dates';
+import type { Keepsake } from './keepsakes';
 import type { AreaId, Card, FuzzyDate, Link, Profile } from './types';
 
 export const newId = () => crypto.randomUUID();
@@ -195,3 +196,65 @@ export function setNote(p: Profile, id: string, note: string, now = new Date().t
   if (note) c.note = note; else delete c.note;
   return true;
 }
+
+// ---------- Keepsakes (photos and documents on a card) ----------
+// Keepsakes are never deleted: removing or replacing one only marks it, so it can be restored.
+
+export const keepsakeOf = (c: Card | undefined, id: string) => c?.keepsakes?.find(k => k.id === id);
+/** Keepsakes currently shown on a card, oldest first. */
+export const shownKeepsakes = (c: Card) => (c.keepsakes ?? []).filter(k => !k.removedAt);
+/** Removed or replaced keepsakes, newest removal first. */
+export const removedKeepsakes = (c: Card) =>
+  (c.keepsakes ?? []).filter(k => k.removedAt).sort((a, b) => b.removedAt!.localeCompare(a.removedAt!));
+
+/** The revision field that keeps a keepsake's earlier description. */
+export const altField = (keepsakeId: string) => `keepsake:${keepsakeId}:alt`;
+
+export function addKeepsake(p: Profile, cardId: string, k: Keepsake): boolean {
+  const c = byId(p, cardId);
+  if (!c || keepsakeOf(c, k.id)) return false;
+  c.keepsakes = [...(c.keepsakes ?? []), k];
+  return true;
+}
+
+/** Changes a keepsake's description, keeping the earlier one in the card's history. */
+export function setKeepsakeAlt(p: Profile, cardId: string, keepsakeId: string, alt: string, now = new Date().toISOString()): boolean {
+  const c = byId(p, cardId);
+  const k = keepsakeOf(c, keepsakeId);
+  const v = alt.trim();
+  if (!c || !k || v === (k.alt ?? '')) return false;
+  if (k.alt) c.revisions.push({ field: altField(k.id), value: k.alt, at: now });
+  if (v) k.alt = v; else delete k.alt;
+  return true;
+}
+
+/** Takes a keepsake off the card. It stays in the record and can be restored. */
+export function removeKeepsake(p: Profile, cardId: string, keepsakeId: string, now = new Date().toISOString()): boolean {
+  const k = keepsakeOf(byId(p, cardId), keepsakeId);
+  if (!k || k.removedAt) return false;
+  k.removedAt = now;
+  return true;
+}
+
+/** Puts a removed or replaced keepsake back on the card. */
+export function restoreKeepsake(p: Profile, cardId: string, keepsakeId: string): boolean {
+  const k = keepsakeOf(byId(p, cardId), keepsakeId);
+  if (!k || !k.removedAt) return false;
+  delete k.removedAt;
+  delete k.replacedBy;
+  return true;
+}
+
+/** Swaps in a new file. The old one moves to history, pointing at the one that replaced it. */
+export function replaceKeepsake(p: Profile, cardId: string, oldId: string, next: Keepsake, now = new Date().toISOString()): boolean {
+  const c = byId(p, cardId);
+  const old = keepsakeOf(c, oldId);
+  if (!c || !old || old.removedAt || keepsakeOf(c, next.id)) return false;
+  old.removedAt = now;
+  old.replacedBy = next.id;
+  c.keepsakes = [...c.keepsakes!, next];
+  return true;
+}
+
+/** Every keepsake id referenced by any card, removed ones included. */
+export const keepsakeIds = (p: Profile) => new Set(p.cards.flatMap(c => (c.keepsakes ?? []).map(k => k.id)));
