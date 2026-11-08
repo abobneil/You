@@ -78,12 +78,12 @@ export function absorbable(profile: Profile, p: Proposal): Card[] {
 
 export function needsTimeReview(m: Card, p: Proposal): boolean {
   const old = p.sync && m.imports?.[p.sync.source];
-  return !!old && (!p.sync!.at || p.sync!.at === old.at) && (p.value !== old.fields.$value || (p.until ?? '') !== (old.fields.$until ?? '') || (p.past ? 'past' : 'active') !== (old.fields.$status === 'current' ? 'active' : old.fields.$status) || Object.entries(p.fields ?? {}).some(([k,v]) => (old.fields[k] ?? '') !== v));
+  return !!old && (!p.sync!.at || !old.at || p.sync!.at === old.at) && ((p.since ?? '') !== (old.fields.$since ?? '') || p.value !== old.fields.$value || (p.until ?? '') !== (old.fields.$until ?? '') || (p.past ? 'past' : 'active') !== (old.fields.$status === 'current' ? 'active' : old.fields.$status) || Object.entries(p.fields ?? {}).some(([k,v]) => (old.fields[k] ?? '') !== v));
 }
 
 const blocked = (m: Card, p: Proposal) => {
   const old = p.sync && m.imports?.[p.sync.source];
-  return !!old && (!p.sync!.at ? !p.useIncoming : !!old.at && (p.sync!.at < old.at || (p.sync!.at === old.at && !p.useIncoming)));
+  return !!old && ((!p.sync!.at || !old.at) ? !p.useIncoming : p.sync!.at < old.at || (p.sync!.at === old.at && !p.useIncoming));
 };
 
 /**
@@ -127,7 +127,7 @@ function basePlan(profile: Profile, p: Proposal): Plan {
   if (blocked(m, p)) return needsTimeReview(m, p) ? 'update' : 'have';
   const changes = fieldChanges(m, p);
   // A newer snapshot that changes nothing is "already there": syncing again shouldn't flag every card.
-  if ((previous && ((previous.fields.$until ?? '') !== (p.until ?? '') || previous.fields.$status !== (p.past ? 'past' : 'active'))) || (previous?.fields.$value === m.value && p.value !== m.value) || changes.some(([k]) => m.fields?.[k])) return 'update';
+  if ((previous && (((previous.fields.$since ?? '') !== (p.since ?? '')) || (previous.fields.$until ?? '') !== (p.until ?? '') || previous.fields.$status !== (p.past ? 'past' : 'active'))) || (previous?.fields.$value === m.value && p.value !== m.value) || changes.some(([k]) => m.fields?.[k])) return 'update';
   const missing = changes.length > 0 || (!!p.sync && !previous)
     || (!!p.since && !m.since) || (!!p.tag && !m.tag);
   return missing ? 'fill' : 'have';
@@ -180,6 +180,6 @@ export function applyProposals(profile: Profile, proposals: Proposal[], from: st
 function rememberSync(c: Card, p: Proposal) {
   if (!p.sync) return;
   const old = c.imports?.[p.sync.source];
-  if (old && (!p.sync.at || (old.at && old.at >= p.sync.at))) return;
-  c.imports = { ...c.imports, [p.sync.source]: { id: p.sync.id, at: p.sync.at, fields: { ...p.fields, $value: p.value, $since: p.since ?? '', $until: p.until ?? '', $status: p.past ? 'past' : 'active' } } };
+  if (old && !p.useIncoming && (!p.sync.at || (old.at && old.at >= p.sync.at))) return;
+  c.imports = { ...c.imports, [p.sync.source]: { id: p.sync.id, at: old?.at && old.at > p.sync.at ? old.at : p.sync.at, fields: { ...p.fields, $value: p.value, $since: p.since ?? '', $until: p.until ?? '', $status: p.past ? 'past' : 'active' } } };
 }

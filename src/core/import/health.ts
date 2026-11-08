@@ -129,7 +129,7 @@ const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : 
 export function parseHealth(raw: string): HealthItem[] & { notes?: string[] } {
   const notes: string[] = [];
   const t = raw.trim();
-  const items = t.startsWith('<') ? fromCcda(t, notes) : fhirResources(t).map(r => { const i = fromFhir(r); if (i) i.at = r.meta?.lastUpdated || r.effectivePeriod?.end || r.effectiveDateTime || r.recordedDate || r.authoredOn || i.until || i.since; if (i && r.id) i.id = r.resourceType + ':' + r.id; if (!i) notes.push(`1 health resource skipped: ${r?.status || r?.verificationStatus?.coding?.[0]?.code || r?.resourceType || 'unsupported'}.`); return i; }).filter((x): x is HealthItem => !!x && !!x.name);
+  const items = t.startsWith('<') ? fromCcda(t, notes) : fhirResources(t).map(r => { const i = fromFhir(r); if (i) i.at = r.meta?.lastUpdated || ''; if (i && r.id) i.id = r.resourceType + ':' + r.id; if (!i) notes.push(`1 health resource skipped: ${r?.status || r?.verificationStatus?.coding?.[0]?.code || r?.resourceType || 'unsupported'}.`); return i; }).filter((x): x is HealthItem => !!x && !!x.name);
   // Portals often list the same medication many times (one per refill); keep the earliest.
   const seen = new Map<string, HealthItem>();
   for (const i of items) {
@@ -144,7 +144,7 @@ export function parseHealth(raw: string): HealthItem[] & { notes?: string[] } {
 export function healthRows(items: HealthItem[] & { notes?: string[] }, at = ''): ImportResult {
   const keep = (o: Record<string, string>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v));
   const rows: ImportRow[] = items.map(i => {
-    const p: Proposal = { area: 'health', kind: i.kind, value: i.name, since: i.since, sync: { source: 'health', id: i.id || [i.kind, i.name, i.since].join(':'), at: at || i.at || i.until || i.since }, fields: keep(i.fields),
+    const p: Proposal = { area: 'health', kind: i.kind, value: i.name, since: i.since, sync: { source: 'health', id: i.id || [i.kind, i.name, i.since].join(':'), at: at || i.at || '' }, fields: keep(i.fields),
       past: !i.active && i.kind !== 'Immunization', until: !i.active ? i.until ?? '' : undefined };
     return { id: rowId('hx'), group: GROUP[i.kind], label: i.name,
       sub: [i.since && fmtDate(i.since), !i.active && i.kind !== 'Immunization' ? 'ended' : ''].filter(Boolean).join(' · '),

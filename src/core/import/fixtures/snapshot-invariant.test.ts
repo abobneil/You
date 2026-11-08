@@ -34,7 +34,7 @@ it('replays the cap archive without losing an accepted end date and matches titl
   applyProposals(profile,load('linkedin-v1.zip'),'linkedin');
   expect(ended?.until).toBe('2024-06');
   const p = load('linkedin-v2.zip').find(p=>p.until==='2024-06')!;
-  applyProposals(profile,[{...p,value:'Renamed role',sync:{...p.sync!,at:'2027'}}],'linkedin');
+  applyProposals(profile,[{...p,value:'Renamed role',useIncoming:true,sync:{...p.sync!,at:'2027'}}],'linkedin');
   expect(ended?.value).toBe('Renamed role');
   expect(ended?.revisions.some(r=>r.value.includes('Helper'))).toBe(true);
 });
@@ -56,4 +56,24 @@ it('ends stopped FHIR medication with source time and preserves omission reasons
  applyProposals(profile,load('active','2020-01-01'),'health');
  expect(profile.cards[0].until).toBe('2024-06');
  expect(healthRows(parseHealth(resource('not-taken','2024-07-01'))).notes?.join()).toContain('skipped');
+});
+
+// Explicit acceptance advances the baseline independently of the source clock.
+it.each(sources)('%s: accepted undated/equal snapshots never stall subsequent updates', source => {
+ for (const at of ['', '2024']) {
+  const profile = emptyProfile();
+  const make = (n:number, time=at):Proposal => ({area:'work',kind:'Job',value:['Maker','Senior Maker','Lead Maker','Principal Maker'][n],since:['2018-05','2017-03','2016','2015'][n],fields:{location:'place'+n},sync:{source,id:'stable',at:time}});
+  applyProposals(profile,[make(0)],source);
+  for (const n of [1,2,3]) {
+   const p=make(n,n===3?'2027':at); const c=profile.cards[0];
+   if(n<3) { expect(needsTimeReview(c,p)).toBe(true); applyProposals(profile,[p],source); expect(c.value).toBe(make(n-1).value); }
+   applyProposals(profile,[{...p,useIncoming:needsTimeReview(c,p)}],source);
+   expect(c.value).toBe(p.value);expect(c.since).toBe(p.since);expect(c.fields?.location).toBe('place'+n);
+   expect(c.imports?.[source].fields.$value).toBe(p.value);
+   for(let i=0;i<n;i++) expect(c.revisions.map(r=>r.value)).toContain(make(i).value);
+  }
+  const c=profile.cards[0];setField(profile,c.id,'location','');
+  applyProposals(profile,[{...make(3,'2028'),fields:{location:'incoming'}}],source);
+  expect(c.fields?.location ?? '').toBe('');
+ }
 });
