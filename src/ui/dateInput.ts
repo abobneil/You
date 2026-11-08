@@ -1,8 +1,9 @@
-import { MONTHS, fuzzyFromParts, isValidDate } from '../core/dates';
+import { MONTHS, dateProblem, fuzzyFromParts } from '../core/dates';
 import type { FuzzyDate } from '../core/types';
 import { $, esc } from './dom';
 
-// Month / Day / Year. Only the year is needed; people rarely remember exact dates.
+// Year, then Month, then Day. Only the year is needed; people rarely remember exact dates,
+// so the day box only appears once a month is picked.
 // The month is our own button + grid rather than a native <select>: on Windows dark mode the
 // native list rendered white-on-white, so months couldn't be picked.
 
@@ -14,26 +15,67 @@ const monthOptions = (m: string) => MONTHS.map((n, i) => {
 export function dateInputs(value: FuzzyDate | undefined, key: string): string {
   const [y = '', m = '', d = ''] = (value || '').split('-');
   return `<span class="date" data-date="${key}">
-    <button type="button" class="mbtn${m ? '' : ' empty'}" data-d="m" data-value="${esc(m)}" aria-haspopup="true" aria-expanded="false" aria-label="Month">${m ? MONTHS[+m - 1] : 'Month'}</button>
-    <input data-d="d" inputmode="numeric" maxlength="2" placeholder="Day" value="${esc(d ? +d : '')}" aria-label="Day">
     <input data-d="y" inputmode="numeric" maxlength="4" placeholder="Year" value="${esc(y)}" aria-label="Year">
+    <button type="button" class="mbtn${m ? '' : ' empty'}" data-d="m" data-value="${esc(m)}" aria-haspopup="true" aria-expanded="false" aria-label="Month (optional)">${m ? MONTHS[+m - 1] : 'Month'}</button>
+    <input data-d="d" inputmode="numeric" maxlength="2" placeholder="Day" value="${esc(d ? +d : '')}" aria-label="Day (optional)"${m ? '' : ' hidden'}>
     <span class="mgrid" role="group" aria-label="Choose a month" hidden>${monthOptions(m)}<button type="button" data-m="" class="clear">No month</button></span>
   </span>`;
 }
 
-export function readDate(root: ParentNode, key: string): FuzzyDate {
+function parts(root: ParentNode, key: string) {
   const el = root.querySelector(`[data-date="${key}"]`);
-  if (!el) return '';
-  const year = $<HTMLInputElement>('[data-d="y"]', el).value.trim();
-  const month = $<HTMLElement>('[data-d="m"]', el).dataset.value || '';
-  const day = $<HTMLInputElement>('[data-d="d"]', el).value.trim();
-  const raw = year + (month ? '-' + month : '') + (day ? '-' + day.padStart(2, '0') : '');
-  if (raw && !isValidDate(raw)) { alert('Please enter a real date. A year alone is enough.'); throw new Error('Invalid calendar date'); }
-  return fuzzyFromParts(
-    $<HTMLInputElement>('[data-d="y"]', el).value,
-    $<HTMLElement>('[data-d="m"]', el).dataset.value ?? '',
-    $<HTMLInputElement>('[data-d="d"]', el).value,
-  );
+  if (!el) return null;
+  return {
+    el,
+    year: $<HTMLInputElement>('[data-d="y"]', el).value.trim(),
+    month: $<HTMLElement>('[data-d="m"]', el).dataset.value || '',
+    day: $<HTMLInputElement>('[data-d="d"]', el).value.trim(),
+  };
+}
+
+/**
+ * The date as typed. A date that isn't real (30 February, a two-digit year) comes back exactly as typed,
+ * so it fails `isValidDate` rather than being quietly changed. Use `dateIssue` to explain the problem.
+ */
+export function readDate(root: ParentNode, key: string): FuzzyDate {
+  const x = parts(root, key);
+  if (!x) return '';
+  if (dateProblem(x.year, x.month, x.day)) return x.year + (x.month ? '-' + x.month : '') + (x.day ? '-' + x.day.padStart(2, '0') : '');
+  return fuzzyFromParts(x.year, x.month, x.day);
+}
+
+/** What's wrong with the date in this field, in plain words, or ''. */
+export function dateIssue(root: ParentNode, key: string): string {
+  const x = parts(root, key);
+  return x ? dateProblem(x.year, x.month, x.day) : '';
+}
+
+/** Shows (or clears, with '') a message right under a date field, naming the field and the fix. */
+export function showDateIssue(root: ParentNode, key: string, msg: string) {
+  const el = root.querySelector<HTMLElement>(`[data-date="${key}"]`);
+  if (!el) return;
+  let p = el.nextElementSibling?.classList.contains('date-err') ? el.nextElementSibling as HTMLElement : null;
+  el.querySelectorAll('input, .mbtn').forEach(i => (msg ? i.setAttribute('aria-invalid', 'true') : i.removeAttribute('aria-invalid')));
+  if (!msg) { p?.remove(); return; }
+  if (!p) { p = Object.assign(document.createElement('p'), { className: 'date-err' }); p.setAttribute('role', 'alert'); el.after(p); }
+  p.id = `${key}-err`;
+  el.querySelector('[data-d="y"]')?.setAttribute('aria-describedby', p.id);
+  p.textContent = msg;
+}
+
+/**
+ * Checks each named date field and shows a message under every one that isn't a real date.
+ * Returns true when they're all fine; otherwise focuses the first problem.
+ */
+export function checkDates(root: ParentNode, fields: { key: string; label: string }[]): boolean {
+  let first: HTMLElement | null = null;
+  for (const f of fields) {
+    const issue = dateIssue(root, f.key);
+    showDateIssue(root, f.key, issue ? `${f.label}: ${issue}` : '');
+    if (issue && !first) first = root.querySelector<HTMLElement>(`[data-date="${f.key}"] [data-d="y"]`);
+  }
+  first?.focus();
+  return !first;
 }
 
 function closeAll(except?: Element) {
@@ -68,9 +110,12 @@ document.addEventListener('click', e => {
     closeAll();
     mbtn.focus();
     // Let existing "change" listeners (which save) react, as they did for the old <select>.
+    const day = $<HTMLInputElement>('[data-d="d"]', date);
+    day.hidden = !v;
+    if (!v) day.value = ''; // a day means nothing without its month
     mbtn.dispatchEvent(new Event('change', { bubbles: true }));
-    // Typing order: month, then day.
-    if (v) $<HTMLInputElement>('[data-d="d"]', date).focus();
+    // Typing order: year, month, then day.
+    if (v) day.focus();
     return;
   }
   if (!t.closest('.date')) closeAll();
@@ -83,3 +128,9 @@ document.addEventListener('keydown', e => {
     closeAll();
   }
 }, true);
+
+// A message under a date goes away as soon as the date is touched again.
+document.addEventListener('input', e => {
+  const date = (e.target as HTMLElement).closest?.<HTMLElement>('.date[data-date]');
+  if (date && date.nextElementSibling?.classList.contains('date-err')) showDateIssue(date.parentElement!, date.dataset.date!, '');
+});

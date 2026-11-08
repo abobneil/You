@@ -808,3 +808,64 @@
     background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow-wrap: anywhere;
   }
   .ks-tile small { color: var(--soft); }
+
+  /* Light composer: one line, a date, Add. Extras sit behind quiet toggles. */
+  .kinds button.more-kinds { border-style: dashed; color: var(--soft); }
+  .c-toggles { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 12px 0 4px; }
+  .c-tog {
+    font: inherit; font-size: 13px; color: var(--soft); background: none; border: 0; padding: 8px 0; min-height: 36px; cursor: pointer;
+    text-decoration: underline; text-underline-offset: 3px; text-decoration-color: transparent;
+  }
+  .c-tog:hover, .c-tog:focus-visible { color: var(--ink); text-decoration-color: currentColor; }
+  .c-tog.has { color: var(--ink); }
+  .c-sec + .c-sec { border-top: 1px solid var(--line); }
+  .c-mode { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .c-mode p { margin: 0; line-height: 1.45; }
+  .c-mode .link-btn { font-size: 13px; color: var(--accent); }
+  .c-opts { display: grid; gap: 6px; margin-top: 10px; }
+  .c-opt {
+    display: grid; gap: 2px; text-align: left; font: inherit; font-size: 14px; color: var(--ink); cursor: pointer;
+    background: none; border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px;
+  }
+  .c-opt small { font-size: 12px; color: var(--soft); }
+  .c-opt.on { border-color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+  .date-err { margin: 6px 0 0; font-size: 13px; color: var(--accent); }
+  .date-err[hidden] { display: none; }
+  .date [aria-invalid="true"] { border-bottom-color: var(--accent); }
+  .chip .x { font: inherit; background: none; border: 0; padding: 0 2px; cursor: pointer; }
+  .chip.gone { text-decoration: line-through; color: var(--soft); }
+
+  /* A card, read first. */
+  .cv-value { overflow-wrap: anywhere; margin-bottom: 4px; }
+  .cv-when { margin: 0 0 10px; font-size: 14px; color: var(--soft); }
+  .cv-msg { margin: 0 0 10px; font-size: 14px; }
+  .cv-details { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; font-size: 14px; }
+  .cv-details dt { color: var(--soft); }
+  .cv-details dd { margin: 0; overflow-wrap: anywhere; }
+  .cv-recorded { margin: 12px 0 0; }
+  .cv-actions { display: grid; gap: 12px; border-bottom: 0; }
+  .cv-act { display: grid; grid-template-columns: max-content 1fr; gap: 12px; align-items: center; }
+  .cv-act .btn { min-width: 170px; }
+  .cv-remove { display: grid; gap: 2px; margin-top: 6px; }
+  @media (max-width: 560px) {
+    .cv-act { grid-template-columns: 1fr; gap: 4px; }
+    .cv-act .btn { width: 100%; }
+  }
+  .undo-toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 50;
+    display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px);
+    padding: 10px 12px 10px 18px; border-radius: 999px; font-size: 14px;
+    background: var(--ink); color: var(--bg);
+  }
+  .undo-toast .btn { color: var(--bg); border-color: color-mix(in srgb, var(--bg) 40%, transparent); padding: 6px 14px; }
+
+  /* Area lists: what's attached, and search status. */
+  .marks { display: inline-flex; gap: 8px; margin-left: 8px; vertical-align: middle; }
+  .mk { display: inline-flex; align-items: center; gap: 2px; color: var(--soft); font-size: 11px; }
+  .mk-ic { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .crow .st { font-size: 11px; padding: 1px 7px; margin-right: 6px; border-radius: 999px; border: 1px solid var(--line); }
+  .crow .st.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+  .crow .found { grid-column: 1 / -1; font-size: 12px; color: var(--soft); }
+  .calm-empty { display: grid; gap: 10px; justify-items: start; padding: 8px 0 4px; }
+  .calm-empty .ghosts { margin-top: 0; }
+  .cv-remove { justify-items: start; }

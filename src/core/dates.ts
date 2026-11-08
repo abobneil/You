@@ -46,3 +46,30 @@ export function isValidDate(d: string): boolean {
   const days = [31, y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0) ? 29 : 28,31,30,31,30,31,31,30,31,30,31];
   return d.length === 7 || (day >= 1 && day <= days[m - 1]);
 }
+
+const FULL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/**
+ * What's wrong with a date as typed into its Year / Month / Day boxes, in plain words, or '' if it's fine.
+ * Nothing is ever silently dropped or moved: a half-typed year or a 30 February is reported instead.
+ */
+export function dateProblem(year: string, month: string, day: string): string {
+  const y = year.trim(), m = month.trim(), d = day.trim();
+  if (!y && !m && !d) return '';
+  if (!y) return 'add the year too. A year alone is enough.';
+  if (!/^\d{4}$/.test(y) || +y < 1) return 'the year needs four digits, like 2001.';
+  if (d && !m) return 'pick the month for that day, or clear the day.';
+  if (m && !/^(0[1-9]|1[0-2])$/.test(m)) return 'pick a month from the list.';
+  if (d) {
+    if (!/^\d{1,2}$/.test(d) || !isValidDate(`${y}-${m}-${d.padStart(2, '0')}`)) {
+      return `${FULL_MONTHS[+m - 1]} ${y} has no day ${d}. Fix the day, or leave it empty.`;
+    }
+  }
+  return '';
+}
+
+/** '' if `until` is on or after `since` (as fuzzy dates could mean), otherwise a plain message. */
+export function rangeProblem(since: FuzzyDate | undefined, until: FuzzyDate | undefined): string {
+  if (!since || !until || !isValidDate(since) || !isValidDate(until)) return '';
+  return endKey(until) < startKey(since) ? `it ends (${fmtDate(until)}) before it starts (${fmtDate(since)}). Change one of the dates.` : '';
+}

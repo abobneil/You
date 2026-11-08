@@ -8,17 +8,18 @@
 //
 // Typing in the search box searches the area (or the kind you're in) instead.
 import { kindLabel, kindOf, tagOf, type Area } from '../core/areas';
-import { noteSearchText, countText, groupByKind, groupByOrigin, groupByYear, originOf, playsOf, previewOf, sortCards, yearOf, type Sort } from '../core/browse';
-import { byId, linksOf, rangeText } from '../core/cards';
+import { countText, groupByKind, groupByOrigin, groupByYear, originOf, playsOf, previewOf, sortCards, yearOf, type Sort } from '../core/browse';
+import { byId, linksOf, rangeText, shownKeepsakes } from '../core/cards';
 import { fmtDate, fmtISO } from '../core/dates';
 import type { Card } from '../core/types';
 import { profile } from '../state';
 import { openCard } from './cardView';
 import { openComposer } from './composer';
 import { $, esc, linkText } from './dom';
-import { searchableDetails, summaryText } from './details';
+import { shownField, summaryText } from './details';
+import { maskValue } from '../core/formats';
 import { openImport, SOURCES_FOR_AREA } from './import/sources';
-import { shownValue, valueHtml } from './sensitive';
+import { isSensitive, shownValue, valueHtml } from './sensitive';
 import { tagIcon } from './tags';
 
 /** Kinds with this many cards or fewer show them right in the area; bigger kinds fold to a row. */
@@ -87,6 +88,19 @@ function draw() {
 
 // ---------- pieces ----------
 
+const CLIP = '<svg class="mk-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.5 3.5 0 0 1 5 5L10.5 17.5a2 2 0 0 1-3-3L15 7"/></svg>';
+const NOTE = '<svg class="mk-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M8.5 9h7M8.5 12.5h7M8.5 16h4"/></svg>';
+
+/** Small marks for what's attached: a paperclip with the number of files, and a note sign. */
+function marksHtml(c: Card) {
+  const files = shownKeepsakes(c).length;
+  const parts = [
+    files ? `<span class="mk" title="${files === 1 ? '1 photo or file' : `${files} photos or files`}">${CLIP}<span class="vh">${files === 1 ? '1 file' : `${files} files`}</span><span aria-hidden="true">${files}</span></span>` : '',
+    c.note ? `<span class="mk" title="Has a note">${NOTE}<span class="vh">Has a note</span></span>` : '',
+  ].join('');
+  return parts ? `<span class="marks">${parts}</span>` : '';
+}
+
 function tileHtml(c: Card) {
   const chips = linksOf(profile, c.id).slice(0, 3)
     .map(x => `<span class="chip">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}</span>`).join('');
@@ -96,27 +110,29 @@ function tileHtml(c: Card) {
     <span class="k"><i></i>${esc(kindLabel(c))}</span>
     <span class="v">${t ? tagIcon(t) : ''}${valueHtml(c)}</span>
     ${sum ? `<span class="sum">${esc(sum)}</span>` : ''}
-    <span class="d">${esc(rangeText(c))}</span>
+    <span class="d">${esc(rangeText(c))}${marksHtml(c)}</span>
     ${chips ? `<span class="chips">${chips}</span>` : ''}
   </div>`;
 }
 
 /** One line per card: name, details, dates. Used once a list gets long. */
-function rowHtml(c: Card, showKind: boolean) {
+function rowHtml(c: Card, showKind: boolean, found?: string[]) {
   const sum = summaryText(c, kindOf(c.area, c.kind));
   const t = tagOf(c);
+  const status = found ? `<span class="st${c.status === 'active' ? ' on' : ''}">${c.status === 'active' ? 'Current' : 'History'}</span> ` : '';
   return `<li class="crow${c.status === 'active' ? '' : ' past'}" role="button" tabindex="0" data-act="card" data-id="${esc(c.id)}">
     <span class="cv">${t ? tagIcon(t) : ''}${valueHtml(c)}</span>
-    <span class="cs">${esc([showKind ? kindLabel(c) : '', sum].filter(Boolean).join(' · '))}</span>
-    <span class="cd">${esc(rangeText(c))}</span>
+    <span class="cs">${status}${esc([showKind ? kindLabel(c) : '', sum].filter(Boolean).join(' · '))}</span>
+    <span class="cd">${esc(rangeText(c))}${marksHtml(c)}</span>
+    ${found?.length ? `<span class="found">${found.map(f => esc(f)).join(' · ')}</span>` : ''}
   </li>`;
 }
 
 /** A list drawn a page at a time; the rest arrives as you scroll to the end of it. */
-function listHtml(key: string, cards: Card[], showKind: boolean, page = PAGE) {
+function listHtml(key: string, cards: Card[], showKind: boolean, page = PAGE, found?: Map<string, string[]>) {
   const shown = drawn.get(key) ?? page;
   const left = cards.length - shown;
-  return `<ul class="clist">${cards.slice(0, shown).map(c => rowHtml(c, showKind)).join('')}</ul>`
+  return `<ul class="clist">${cards.slice(0, shown).map(c => rowHtml(c, showKind, found?.get(c.id))).join('')}</ul>`
     + (left > 0 ? `<button class="more" type="button" data-act="more" data-key="${esc(key)}" data-page="${page}">Show ${n(Math.min(page, left))} more of ${n(left)}</button>` : '');
 }
 
@@ -156,10 +172,18 @@ function indexHtml(area: Area, cards: Card[]) {
       <div class="tiles">${previewOf(g.cards, SMALL).cards.map(tileHtml).join('')}</div>
     </section>`;
   }).join('');
-  const empty = area.kinds.filter(k => !active.some(c => c.kind === k.name));
-  return `<div class="sec"><h4>Now</h4><span>${active.length ? `${n(active.length)} active` : ''}</span></div>
-    ${kinds || '<p class="empty">Nothing here yet. Add a card, or start with one of these.</p>'}
-    ${empty.length ? `<div class="ghosts">${empty.map(k => `<button class="ghost" type="button" data-act="new" data-kind="${esc(k.name)}">+ ${esc(k.name)}</button>`).join('')}</div>` : ''}`;
+  // A few gentle examples, never a wall of every kind still empty.
+  const examples = area.kinds.filter(k => !active.some(c => c.kind === k.name)).slice(0, 3)
+    .map(k => `<button class="ghost" type="button" data-act="new" data-kind="${esc(k.name)}">+ ${esc(k.name)}</button>`).join('');
+  if (!active.length) {
+    return `<div class="calm-empty">
+      <p class="empty">${cards.length ? 'Nothing current here right now. Your history is below.' : 'Nothing here yet.'}</p>
+      ${examples ? `<p class="hint">For example:</p><div class="ghosts">${examples}</div>` : ''}
+      <button class="btn primary" type="button" data-act="new">Add to ${esc(area.title)}</button></div>`;
+  }
+  return `<div class="sec"><h4>Now</h4><span>${n(active.length)} current</span></div>
+    ${kinds}
+    ${examples ? `<div class="ghosts">${examples}</div>` : ''}`;
 }
 
 // ---------- one kind ----------
@@ -197,14 +221,40 @@ function kindHtml(all: Card[]) {
 
 // ---------- search ----------
 
+/** Every piece of a card that search looks at, with where it is. Hidden values stay masked. */
+function searchParts(c: Card): [string, string][] {
+  const kind = kindOf(c.area, c.kind);
+  const fieldOf = (id: string) => kind.fields?.find(f => f.id === id);
+  const parts: [string, string][] = [['', `${shownValue(c)} ${kindLabel(c)} ${originOf(c)} ${yearOf(c)}`]];
+  for (const [id, v] of Object.entries(c.fields ?? {})) {
+    const f = fieldOf(id);
+    parts.push(['details', f ? shownField(f, v) : v]);
+  }
+  if (c.note) parts.push(['note', c.note]);
+  for (const r of c.revisions) {
+    const f = r.field ? fieldOf(r.field) : undefined;
+    const hide = r.field ? !!f?.sensitive : isSensitive(c);
+    parts.push(['earlier wording', hide ? maskValue(r.value) : r.value]);
+  }
+  for (const k of c.keepsakes ?? []) parts.push([k.removedAt ? 'a removed file' : 'a file', `${k.name} ${k.alt ?? ''}`]);
+  return parts;
+}
+
 function searchHtml(pool: Card[], showKind: boolean) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const found = new Map<string, string[]>();
   const hits = sortCards(pool.filter(c => {
-    const text = `${shownValue(c)} ${kindLabel(c)} ${searchableDetails(c, kindOf(c.area, c.kind))} ${originOf(c)} ${yearOf(c)} ${noteSearchText(c)}`.toLowerCase();
-    return words.every(w => text.includes(w));
+    const parts = searchParts(c).map(([where, text]) => [where, text.toLowerCase()] as const);
+    if (!words.every(w => parts.some(([, t]) => t.includes(w)))) return false;
+    // Say where it matched when the card's own name doesn't explain it.
+    const own = parts[0][1];
+    const where = words.every(w => own.includes(w)) ? []
+      : [...new Set(parts.filter(([w, t]) => w && words.some(x => t.includes(x))).map(([w]) => `Found in ${w}`))];
+    found.set(c.id, where);
+    return true;
   }), 'recent');
   return `<div class="sec"><h4>${hits.length ? `${n(hits.length)} found` : 'Nothing found'}</h4><span>for “${esc(query.trim())}”</span></div>
-    ${hits.length ? listHtml('search', hits, showKind) : '<p class="empty">Try fewer or different words.</p>'}`;
+    ${hits.length ? listHtml('search', hits, showKind, PAGE, found) : '<p class="empty">Try fewer or different words.</p>'}`;
 }
 
 // ---------- over time ----------

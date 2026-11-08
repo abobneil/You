@@ -1,136 +1,341 @@
+// One card, opened. It reads first: what it says, when it was true, its details, note, files, links
+// and history. Changing it is a deliberate step, each explained before it happens:
+//   Fix a mistake     correct it in place; the earlier wording is kept (nothing saves until Save)
+//   Something changed add the new one; this one moves to history
+//   This ended        asks when; moves to history; Reopen puts it back
+//   Remove            only for mistakes; "Undo" brings back the card, its links and its chain
 import { noteInput, autosizeNote } from './note';
-// One card, opened: correct it, link it, replace it, end it, or (rarely) remove it.
-import { areaById, kindLabel, kindOf } from '../core/areas';
-import { setNote, atTheTime, byId, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink, setField } from '../core/cards';
-import { startKey, endKey, fmtDate, fmtISO, thisMonth } from '../core/dates';
+import { areaById, kindLabel, kindOf, type KindInfo } from '../core/areas';
+import {
+  atTheTime, byId, correctMeta, correctValue, endCard, linksOf, removeCard, removeLink, reopenCard, addLink, setField, setNote,
+  undoRemove, type Removal,
+} from '../core/cards';
+import { fmtDate, fmtISO, nowISO, rangeProblem, thisMonth } from '../core/dates';
+import type { Card } from '../core/types';
 import { profile, save } from '../state';
-import { dateInputs, readDate } from './dateInput';
+import { checkDates, dateInputs, readDate, showDateIssue } from './dateInput';
 import { esc, linkText } from './dom';
 import { openComposer } from './composer';
 import { openLinkPicker } from './linkPicker';
 import { attachValueField, valueFieldHtml } from './valueField';
-import { isSensitive, shownValue } from './sensitive';
+import { isSensitive, shownValue, valueHtml } from './sensitive';
 import { tagRowHtml } from './tags';
-import { attachDetails, detailsHtml } from './details';
+import { attachDetails, detailDates, detailsHtml, readDetails, shownField } from './details';
 import { maskValue } from '../core/formats';
 import { closeSheet, openSheet, sheetBody, sheetTop } from './sheet';
 import { altRevisionLabel, cardKeepsakeHandlers, cardKeepsakesHtml, removedKeepsakesHtml, showPictures, type CardKsState } from './keepsakes';
 
+type Mode = 'read' | 'fix' | 'end';
+interface Opts { mode?: Mode; keepsakes?: CardKsState; focus?: string; msg?: string; reopen?: boolean }
+
+/** What "Fix a mistake" has typed so far. Nothing reaches the card until Save. */
+interface Edit {
+  id: string; kind: string; value: string; note: string; since: string; until: string; tag?: string;
+  fields: Record<string, string>; unlink: string[];
+  /** Show the kind's details even though none are filled in yet. */
+  allDetails?: boolean;
+}
+let edit: Edit | undefined;
+
 /** Opens a card, switching to its area first if needed. */
-export function openCard(id: string, opts: { ending?: boolean; keepsakes?: CardKsState; focus?: string } = {}) {
+export function openCard(id: string, opts: Opts = {}) {
   const c = byId(profile, id);
   if (!c) return;
   if (!/^#\/?life(?:\/|$)/.test(location.hash) && location.hash.slice(1).split('/')[0] !== c.area) location.hash = '#' + c.area;
+  const mode = opts.mode ?? 'read';
+  if (mode === 'fix') return openFix(c, opts);
+  edit = undefined;
   const a = areaById(c.area)!;
   const kind = kindOf(c.area, c.kind);
-  const isDate = kind.value === 'date';
   const on = c.status === 'active';
   const links = linksOf(profile, c.id);
   const near = atTheTime(profile, c);
   const prev = byId(profile, c.replaces), next = byId(profile, c.replacedBy);
-  const cardChip = (id: string, text: string) => `<button class="chip" type="button" data-act="open" data-id="${esc(id)}">${text}</button>`;
-  const story = [
-    prev ? `Replaced ${cardChip(prev.id, esc(shownValue(prev)))}` : '',
-    next ? `Replaced by ${cardChip(next.id, esc(shownValue(next)))}` : '',
-  ].filter(Boolean).join(' ');
+  const cardChip = (cid: string, text: string) => `<button class="chip" type="button" data-act="open" data-id="${esc(cid)}">${text}</button>`;
+  const details = (kind.fields ?? []).filter(f => c.fields?.[f.id]);
+  const extra = Object.keys(c.fields ?? {}).filter(k => !kind.fields?.some(f => f.id === k)); // kept from an earlier kind
+  const when = whenText(c, kind);
+  const statusLine = on ? (when ? '' : 'Current') : c.until ? `In your history since ${fmtDate(c.until)}` : 'In your history';
 
-  openSheet(`${sheetTop(`${esc(a.title)} · ${esc(kindLabel(c))} <span class="status ${on ? 'on' : ''}">${on ? 'Active' : 'History'}</span>`)}
-    ${isDate
-      ? `<div class="fx"><span class="lab">${esc(c.kind)}</span>${dateInputs(c.since, 'vdate')}</div>`
-      : `<div class="fx"><label for="v-value">${kind.titleFrom ? 'Name' : 'Value'}</label>${valueFieldHtml('v-value', c.value, kind)}</div>`}
-    <div class="block">${c.note ? `<p class="note-text">${esc(c.note)}</p>` : ''}<button class="chip" type="button" data-act="note">${c.note ? 'Edit note' : 'Add a note'}</button><div id="note-editor" hidden>${noteInput('v-note', c.note ?? '')}</div></div>
+  const action = (act: string, label: string, explain: string, primary = false) =>
+    `<div class="cv-act"><button class="btn${primary ? ' primary' : ''}" type="button" data-act="${act}" aria-describedby="cv-${act}-why">${label}</button>
+      <span class="hint" id="cv-${act}-why">${explain}</span></div>`;
+
+  const ending = mode === 'end'
+    ? `<div class="block cv-end"><h5 id="cv-end-lab">When did it end?</h5>
+        <div role="group" aria-labelledby="cv-end-lab">${dateInputs(thisMonth().slice(0, 4), 'end')}</div>
+        <p class="hint">A year is enough. It moves to your history, and you can reopen it.</p>
+        <div class="btns"><button class="btn quiet" type="button" data-act="end-cancel">Cancel</button><button class="btn primary" type="button" data-act="end-confirm">Move to history</button></div></div>`
+    : '';
+  const actions = mode === 'end' ? '' : `<div class="block cv-actions">
+      ${on ? action('change', 'Something changed', `Moved, a new job, a new number? Add the new one; this one moves to your history.`, true) : ''}
+      ${action('fix', 'Fix a mistake', 'Correct a typo or a wrong date. The earlier wording is kept.')}
+      ${on ? action('end', 'This ended', 'It’s no longer true. It moves to your history; you can reopen it.') : ''}
+      ${!on && !c.replacedBy ? action('reopen', 'It’s still true', 'Puts it back as current, as if it never ended.') : ''}
+      <div class="cv-remove"><button class="link-btn" type="button" data-act="remove" aria-describedby="cv-remove-why">Remove (added by mistake)</button>
+        <span class="hint" id="cv-remove-why">Takes the card out as if it was never added. You can undo it for a few seconds.</span></div>
+    </div>`;
+
+  openSheet(`${sheetTop(`${esc(a.title)} · ${esc(kindLabel(c))} <span class="status ${on ? 'on' : ''}">${on ? 'Current' : 'History'}</span>`)}
+    <h3 class="sh-title cv-value">${kind.value === 'date' ? esc(fmtDate(c.since) || c.value) : valueHtml(c)}</h3>
+    <p class="cv-when">${esc([when, statusLine].filter(Boolean).join(' · '))}</p>
+    ${opts.msg ? `<p class="cv-msg" role="status">${esc(opts.msg)}${opts.reopen ? ' <button class="link-btn" type="button" data-act="reopen">Reopen</button>' : ''}</p>` : ''}
+    ${details.length || extra.length ? `<div class="block"><h5>Details</h5><dl class="cv-details">${details.map(f =>
+      `<dt>${esc(f.label)}</dt><dd>${esc(shownField(f, c.fields![f.id]))}</dd>`).join('')}${extra.map(k =>
+      `<dt>${esc(fieldLabel(c, k))}</dt><dd>${esc(c.fields![k])}</dd>`).join('')}</dl></div>` : ''}
+    ${c.note ? `<div class="block"><h5>Note</h5><p class="note-text">${esc(c.note)}</p></div>` : ''}
     ${cardKeepsakesHtml(c, opts.keepsakes)}
-    ${tagRowHtml(kind, c.tag)}
-    ${detailsHtml(kind, c.fields, 'vf', true)}
-    ${!isDate && (kind.dated || c.since) ? `<div class="fx"><span class="lab">${kind.dated ? 'Since' : 'Changed'}</span>${dateInputs(c.since, 'since')}</div>` : ''}
-    ${on ? '' : `<div class="fx"><span class="lab">Until</span>${dateInputs(c.until, 'until')}</div>`}
-    <div class="fx"><span class="lab">Recorded</span><span class="hint">${esc(fmtISO(c.recordedAt))}${c.source ? ` · from ${esc(c.source.from)}` : ''}${story ? ' · ' : ''}${story}</span></div>
-    ${c.revisions.length ? `<div class="block"><h5>Earlier wording</h5><ul class="revs">${[...c.revisions].reverse()
-      .map(r => { const fd = r.field ? kind.fields?.find(x => x.id === r.field) : undefined;
-        const ks = r.field?.startsWith('keepsake:');
-        const hide = r.field === 'note' || ks ? false : fd ? fd.sensitive : isSensitive(c);
-        return `<li class="note-text">${r.field === 'note' ? 'Note: ' : ''}${ks ? altRevisionLabel(c, r.field!) : ''}${fd ? `${esc(fd.label)}: ` : ''}“${esc(hide ? maskValue(r.value) : r.value)}” · changed ${esc(fmtISO(r.at))}</li>`; })
-      .join('')}</ul></div>` : ''}
-    ${removedKeepsakesHtml(c)}
     <div class="block"><h5>Linked</h5><div class="chips">${links.map(x =>
-      `<button class="chip" type="button" data-act="open" data-id="${esc(x.other.id)}">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}<span class="x" data-act="unlink" data-link="${esc(x.link.id)}" title="Remove link">×</span></button>`).join('')}
+      cardChip(x.other.id, linkText(x.label, kindLabel(x.other), shownValue(x.other)))).join('')}
       <button class="chip" type="button" data-act="add-link">+ Link a card</button></div></div>
+    ${prev || next ? `<div class="block"><h5>Changes</h5><div class="chips">${[
+      prev ? `<span class="hint">Replaced</span> ${cardChip(prev.id, esc(shownValue(prev)))}` : '',
+      next ? `<span class="hint">Replaced by</span> ${cardChip(next.id, esc(shownValue(next)))}` : ''].join(' ')}</div></div>` : ''}
     ${near.length ? `<div class="block"><h5>At the time</h5><div class="chips">${near.map(o =>
       cardChip(o.id, linkText('', kindLabel(o), shownValue(o)))).join('')}</div></div>` : ''}
-    ${opts.ending
-      ? `<div class="block"><h5>When did it end?</h5>${dateInputs(thisMonth(), 'end')}
-          <div class="btns"><button class="btn quiet" type="button" data-act="end-cancel">Cancel</button><button class="btn primary" type="button" data-act="end-confirm">Mark as ended</button></div></div>`
-      : `<div class="btns">
-          <button class="link-btn" type="button" data-act="remove">Remove (added by mistake)</button><span class="spacer"></span>
-          ${on ? `<button class="btn" type="button" data-act="end">This ended</button><button class="btn primary" type="button" data-act="replace">Replace</button>`
-               : (!c.replacedBy ? `<button class="btn" type="button" data-act="reopen">It's still true</button>` : '')}
-        </div>`}`,
+    ${revisionsHtml(c, kind)}
+    ${removedKeepsakesHtml(c)}
+    <p class="hint cv-recorded">Recorded in You on ${esc(fmtISO(c.recordedAt))}${c.source ? ` · from ${esc(c.source.from)}${c.source.at ? `, ${esc(fmtISO(c.source.at))}` : ''}` : ''}. This is when it was written down, not a date in your life.</p>
+    ${ending}
+    ${actions}`,
   {
     ...cardKeepsakeHandlers(c, st => openCard(id, { keepsakes: st, focus: st?.focus })),
-    note: b => { b.hidden = true; sheetBody.querySelector<HTMLElement>('#note-editor')!.hidden = false; autosizeNote(sheetBody); sheetBody.querySelector<HTMLElement>('#v-note')?.focus(); },
     open: b => openCard(b.dataset.id!),
-    tag: b => { c.tag = b.dataset.tag!; save(); openCard(id); },
-    unlink: (b, e) => { e.stopPropagation(); removeLink(profile, b.dataset.link!); save(); openCard(id); },
     'add-link': () => openLinkPicker({
       self: { area: c.area, kind: c.kind, label: shownValue(c) },
       exclude: [c.id, ...links.map(x => x.other.id)],
-      onPick: (other, fwd, back) => { addLink(profile, c.id, other, fwd, back); save(); openCard(id); },
-      onBack: () => openCard(id),
+      onPick: (other, fwd, back) => { addLink(profile, c.id, other, fwd, back); save(); openCard(id, { focus: '[data-act="add-link"]' }); },
+      onBack: () => openCard(id, { focus: '[data-act="add-link"]' }),
     }),
-    replace: () => openComposer(c.area, { kind: c.kind, replaceId: c.id }),
-    end: () => openCard(id, { ending: true }),
-    'end-cancel': () => openCard(id),
-    'end-confirm': () => { const end = readDate(sheetBody, 'end'); if (c.since && end && endKey(end) < startKey(c.since)) { alert('The end must be after the start.'); return; } endCard(profile, id, end); save(); openCard(id); },
-    reopen: () => { reopenCard(profile, id); save(); openCard(id); },
+    fix: () => openCard(id, { mode: 'fix' }),
+    change: () => openComposer(c.area, { kind: c.kind, replaceId: c.id }),
+    end: () => openCard(id, { mode: 'end', focus: '[data-date="end"] [data-d="y"]' }),
+    'end-cancel': () => openCard(id, { focus: '[data-act="end"]' }),
+    'end-confirm': () => {
+      if (!checkDates(sheetBody, [{ key: 'end', label: 'When it ended' }])) return;
+      const end = readDate(sheetBody, 'end');
+      const bad = rangeProblem(c.since, end);
+      if (bad) { showDateIssue(sheetBody, 'end', `When it ended: ${bad}`); return sheetBody.querySelector<HTMLElement>('[data-date="end"] [data-d="y"]')?.focus(); }
+      endCard(profile, id, end);
+      save();
+      openCard(id, { msg: 'Moved to your history.', reopen: true, focus: '.cv-msg [data-act="reopen"]' });
+    },
+    reopen: () => { reopenCard(profile, id); save(); openCard(id, { msg: 'Back to current.', focus: '[data-act="fix"]' }); },
     remove: () => {
-      if (!confirm('Remove this card?\n\nOnly do this for a card added by mistake. To record a real change, use Replace or This ended so it stays in your history.')) return;
-      removeCard(profile, id); save(); closeSheet();
+      const r = removeCard(profile, id);
+      if (!r) return;
+      save();
+      closeSheet();
+      offerUndo(r);
     },
   });
 
   showPictures(sheetBody, c.keepsakes ?? []);
   if (opts.focus) sheetBody.querySelector<HTMLElement>(opts.focus)?.focus();
-  sheetBody.querySelector<HTMLTextAreaElement>('#v-note')?.addEventListener('change', e => {
-    if (setNote(profile, id, (e.target as HTMLTextAreaElement).value)) { save(); openCard(id); }
-  });
-  attachValueField(sheetBody, 'v-value', kind);
-  // Details save as each one is finished. If the name was built from the details, it follows them.
-  attachDetails(sheetBody, kind, 'vf', {
-    commit: (field, value) => {
-      const wasBuilt = !!kind.titleFrom && c.value === kind.titleFrom(c.fields ?? {});
-      if (!setField(profile, id, field, value)) return;
-      if (wasBuilt) {
-        const name = kind.titleFrom!(c.fields ?? {});
-        if (name && correctValue(profile, id, name)) {
-          const v = sheetBody.querySelector<HTMLInputElement>('#v-value');
-          if (v) v.value = name;
-        }
-      }
-      save();
-    },
-  });
-  // Corrections save in place; the old wording is kept quietly.
-  const val = sheetBody.querySelector<HTMLInputElement>('#v-value');
-  val?.addEventListener('change', () => {
-    if (correctValue(profile, id, val.value)) { save(); openCard(id); }
-    else val.value = c.value;
-  });
-  val?.addEventListener('keydown', e => { if (e.key === 'Enter') val.blur(); });
-  // Date-valued cards (Birthday): the date is both the value and where it sits on the timeline.
-  sheetBody.querySelector('[data-date="vdate"]')?.addEventListener('change', () => {
-    const d = readDate(sheetBody, 'vdate');
-    if (!d) return;
-    correctValue(profile, id, fmtDate(d));
-    c.since = d;
-    save();
-  });
-  sheetBody.querySelectorAll<HTMLElement>('[data-date="since"], [data-date="until"]').forEach(el =>
-    el.addEventListener('change', () => {
-      const key = el.dataset.date as 'since' | 'until';
-      const d = readDate(sheetBody, key);
-      const since = key === 'since' ? d : c.since, until = key === 'until' ? d : c.until;
-      if (since && until && endKey(until) < startKey(since)) { alert('The end must be after the start.'); openCard(id); return; }
-      c[key] = d;
-      save();
-    }));
+  if (mode === 'end') sheetBody.querySelectorAll<HTMLElement>('[data-date="end"] input').forEach(el =>
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sheetBody.querySelector<HTMLElement>('[data-act="end-confirm"]')?.click(); } }));
 }
+
+/** When it was true, with the precision it was entered with ("2000", "Mar 2021", "Mar 4, 2021"). */
+function whenText(c: Card, kind: KindInfo): string {
+  if (kind.value === 'date') return '';
+  if (c.status === 'active') return c.since ? `${kind.dated || !c.replaces ? 'Since' : 'Changed'} ${fmtDate(c.since)}` : 'Start date not known';
+  return `${c.since ? fmtDate(c.since) : 'Start not known'} – ${c.until ? fmtDate(c.until) : 'end not known'}`;
+}
+
+/** A detail's label, even if it belongs to the kind the card used to be. */
+function fieldLabel(c: Card, id: string): string {
+  const own = kindOf(c.area, c.kind).fields?.find(f => f.id === id);
+  if (own) return own.label;
+  for (const k of areaById(c.area)?.kinds ?? []) { const f = k.fields?.find(x => x.id === id); if (f) return f.label; }
+  return id;
+}
+
+const META: Record<string, string> = { since: 'Date', until: 'End date', tag: 'Type', kind: 'Kind' };
+
+/** "Earlier wording": every correction, newest first. Settings show what they changed from and to. */
+function revisionsHtml(c: Card, kind: KindInfo): string {
+  if (!c.revisions.length) return '';
+  const revs = c.revisions.map((r, i) => ({ r, i }));
+  const metaText = (field: string, v: string) => {
+    if (field === 'since' || field === 'until') return v ? fmtDate(v) : 'not known';
+    if (field === 'tag') return v ? (kindOf(c.area, c.kind).tags?.find(t => t.id === v)?.label
+      ?? areaById(c.area)?.kinds.flatMap(k => k.tags ?? []).find(t => t.id === v)?.label ?? v) : 'none';
+    return v || 'none';
+  };
+  const items = revs.reverse().map(({ r, i }) => {
+    const when = ` · changed ${esc(fmtISO(r.at))}`;
+    if (r.field && META[r.field]) {
+      // What it became: the next correction of the same setting, or what the card says now.
+      const later = c.revisions.slice(i + 1).find(x => x.field === r.field);
+      const now = later ? later.value : ((c as unknown as Record<string, string | undefined>)[r.field] ?? '');
+      return `<li>${META[r.field]}: ${esc(metaText(r.field, r.value))} → ${esc(metaText(r.field, now))}${when}</li>`;
+    }
+    const fd = r.field && r.field !== 'note' && !r.field.startsWith('keepsake:') ? r.field : undefined;
+    const ks = r.field?.startsWith('keepsake:');
+    const fdInfo = fd ? (kind.fields?.find(x => x.id === fd) ?? areaById(c.area)?.kinds.flatMap(k => k.fields ?? []).find(x => x.id === fd)) : undefined;
+    const hide = r.field === 'note' || ks ? false : fd ? !!fdInfo?.sensitive : isSensitive(c);
+    const label = r.field === 'note' ? 'Note: ' : ks ? altRevisionLabel(c, r.field!) : fd ? `${esc(fieldLabel(c, fd))}: ` : '';
+    const shown = fdInfo?.type === 'date' ? fmtDate(r.value) : r.value;
+    return `<li class="note-text">${label}“${esc(hide ? maskValue(shown) : shown)}”${when}</li>`;
+  }).join('');
+  return `<div class="block"><h5>Earlier wording</h5><ul class="revs">${items}</ul></div>`;
+}
+
+// ---------- Fix a mistake ----------
+
+function openFix(c: Card, opts: Opts) {
+  const id = c.id;
+  if (!edit || edit.id !== id) {
+    edit = { id, kind: c.kind, value: c.value, note: c.note ?? '', since: c.since, until: c.until ?? '', tag: c.tag,
+      fields: { ...c.fields }, unlink: [] };
+  }
+  const e = edit;
+  const a = areaById(c.area)!;
+  const kind = kindOf(c.area, e.kind);
+  const isDate = kind.value === 'date';
+  const on = c.status === 'active';
+  const links = linksOf(profile, c.id);
+  const kinds = [...new Set([...a.kinds.map(k => k.name), c.kind, e.kind])];
+  const dateRows: { key: string; label: string }[] = [];
+  const showSince = !isDate && (kind.dated || !!c.since || !!e.since);
+  if (isDate) dateRows.push({ key: 'vdate', label: kind.name });
+  if (showSince) dateRows.push({ key: 'since', label: kind.dated ? 'Started' : 'Changed' });
+  if (!on) dateRows.push({ key: 'until', label: 'Ended' });
+
+  openSheet(`${sheetTop(`${esc(a.title)} · ${esc(kindLabel(c))} · fixing a mistake`)}
+    <h3 class="sh-title">Fix a mistake</h3>
+    <p class="hint">Change what’s wrong, then Save. The earlier wording stays in this card’s history, so nothing is lost. Cancel changes nothing.</p>
+    <div class="fx"><label for="e-kind">Kind</label><select id="e-kind">${kinds.map(k =>
+      `<option value="${esc(k)}"${k === e.kind ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
+    ${isDate
+      ? `<div class="fx"><span class="lab" id="e-vdate-lab">${esc(kind.name)}</span><div role="group" aria-labelledby="e-vdate-lab">${dateInputs(e.since, 'vdate')}</div></div>`
+      : `<div class="fx"><label for="v-value">${esc(kind.name)}</label>${valueFieldHtml('v-value', e.value, kind)}</div>`}
+    ${dateRows.filter(r => r.key !== 'vdate').map(r =>
+      `<div class="fx"><span class="lab" id="e-${r.key}-lab">${r.label}</span><div role="group" aria-labelledby="e-${r.key}-lab">${dateInputs(r.key === 'since' ? e.since : e.until, r.key)}<div class="hint">A year is enough.</div></div></div>`).join('')}
+    ${tagRowHtml(kind, e.tag)}
+    ${kind.fields?.length && !e.allDetails && !kind.fields.some(f => e.fields[f.id])
+      ? '<div class="block"><button class="c-tog" type="button" data-act="all-details">+ Details</button></div>'
+      : detailsHtml(kind, e.fields, 'vf', true)}
+    <div class="block">${noteInput('v-note', e.note)}</div>
+    ${links.length ? `<div class="block"><h5>Linked</h5><div class="chips">${links.map(x => {
+      const gone = e.unlink.includes(x.link.id);
+      return `<span class="chip${gone ? ' gone' : ''}">${linkText(x.label, kindLabel(x.other), shownValue(x.other))}
+        <button type="button" class="x" data-act="unlink" data-link="${esc(x.link.id)}" aria-pressed="${gone}" aria-label="${gone ? 'Keep this link' : 'Remove this link'}">${gone ? '↺' : '×'}</button></span>`; }).join('')}</div>
+      ${e.unlink.length ? '<p class="hint">Crossed-out links are removed when you save.</p>' : ''}</div>` : ''}
+    <p class="date-err" id="e-err" role="alert" hidden></p>
+    <div class="btns"><button class="btn quiet" type="button" data-act="fix-cancel">Cancel</button><button class="btn primary" type="button" data-act="fix-save">Save changes</button></div>`,
+  {
+    'fix-cancel': () => { edit = undefined; openCard(id, { focus: '[data-act="fix"]' }); },
+    tag: b => { readEdit(c); e.tag = b.dataset.tag; openFix(c, opts); sheetBody.querySelector<HTMLElement>(`[data-tag="${b.dataset.tag}"]`)?.focus(); },
+    unlink: b => {
+      readEdit(c);
+      const l = b.dataset.link!;
+      e.unlink = e.unlink.includes(l) ? e.unlink.filter(x => x !== l) : [...e.unlink, l];
+      openFix(c, opts);
+      sheetBody.querySelector<HTMLElement>(`[data-link="${l}"]`)?.focus();
+    },
+    'fix-save': () => saveFix(c, dateRows),
+    'all-details': () => { readEdit(c); e.allDetails = true; openFix(c, { ...opts, focus: '.details input' }); },
+  });
+
+  autosizeNote(sheetBody);
+  attachValueField(sheetBody, 'v-value', kind);
+  attachDetails(sheetBody, kind, 'vf');
+  sheetBody.querySelector<HTMLSelectElement>('#e-kind')!.addEventListener('change', ev => {
+    readEdit(c);
+    e.kind = (ev.target as HTMLSelectElement).value;
+    openFix(c, opts);
+    sheetBody.querySelector<HTMLElement>('#e-kind')?.focus();
+  });
+  sheetBody.querySelector('#v-value')?.addEventListener('keydown', ev => {
+    if ((ev as KeyboardEvent).key === 'Enter') { ev.preventDefault(); saveFix(c, dateRows); }
+  });
+  if (opts.focus) sheetBody.querySelector<HTMLElement>(opts.focus)?.focus();
+  else sheetBody.querySelector<HTMLElement>('#v-value, [data-date="vdate"] [data-d="y"]')?.focus();
+}
+
+/** Copies the form into the edit. Details of the kind on screen are replaced; others are kept. */
+function readEdit(c: Card) {
+  const e = edit!;
+  const kind = kindOf(c.area, e.kind);
+  const v = sheetBody.querySelector<HTMLInputElement>('#v-value');
+  if (v) e.value = v.value;
+  const n = sheetBody.querySelector<HTMLTextAreaElement>('#v-note');
+  if (n) e.note = n.value;
+  if (sheetBody.querySelector('[data-date="vdate"]')) e.since = readDate(sheetBody, 'vdate');
+  if (sheetBody.querySelector('[data-date="since"]')) e.since = readDate(sheetBody, 'since');
+  if (sheetBody.querySelector('[data-date="until"]')) e.until = readDate(sheetBody, 'until');
+  if (sheetBody.querySelector('.details')) {
+    const kept = Object.fromEntries(Object.entries(e.fields).filter(([k]) => !kind.fields?.some(f => f.id === k)));
+    e.fields = { ...kept, ...readDetails(sheetBody, kind, 'vf') };
+  }
+}
+
+function saveFix(c: Card, dateRows: { key: string; label: string }[]) {
+  const id = c.id;
+  readEdit(c);
+  const e = edit!;
+  const kind = kindOf(c.area, e.kind);
+  const isDate = kind.value === 'date';
+  const err = sheetBody.querySelector<HTMLElement>('#e-err')!;
+  err.hidden = true;
+  if (!checkDates(sheetBody, [...dateRows, ...detailDates(kind, 'vf')])) return;
+  if (isDate && !e.since) {
+    showDateIssue(sheetBody, 'vdate', `${kind.name}: add at least the year.`);
+    return sheetBody.querySelector<HTMLElement>('[data-date="vdate"] [data-d="y"]')?.focus();
+  }
+  const bad = c.status === 'active' ? '' : rangeProblem(e.since, e.until);
+  if (bad) {
+    showDateIssue(sheetBody, 'until', `Ended: ${bad}`);
+    return sheetBody.querySelector<HTMLElement>('[data-date="until"] [data-d="y"]')?.focus();
+  }
+  const oldKind = kindOf(c.area, c.kind);
+  const wasBuilt = !!oldKind.titleFrom && c.value === oldKind.titleFrom(c.fields ?? {});
+  let value = isDate ? fmtDate(e.since) : e.value.trim();
+  if (!isDate && wasBuilt && value === c.value && kind.titleFrom) value = kind.titleFrom(e.fields) || value;
+  if (!value) {
+    err.textContent = `${kind.name}: it can’t be empty. To take the card out, use Remove instead.`;
+    err.hidden = false;
+    return sheetBody.querySelector<HTMLElement>('#v-value')?.focus();
+  }
+
+  // Everything is checked; now apply each correction, each one keeping what it replaced.
+  const now = nowISO();
+  let changed = 0;
+  if (correctMeta(profile, id, 'kind', e.kind, now)) changed++;
+  for (const k of new Set([...Object.keys(c.fields ?? {}), ...Object.keys(e.fields)])) {
+    if (setField(profile, id, k, e.fields[k] ?? '', now)) changed++;
+  }
+  if (correctValue(profile, id, value, now)) changed++;
+  if (setNote(profile, id, e.note.trim() ? e.note : '', now)) changed++;
+  if (correctMeta(profile, id, 'since', e.since, now)) changed++;
+  if (c.status !== 'active' && correctMeta(profile, id, 'until', e.until, now)) changed++;
+  if ((e.tag ?? '') !== (c.tag ?? '') && correctMeta(profile, id, 'tag', e.tag ?? '', now)) changed++;
+  for (const l of e.unlink) { removeLink(profile, l); changed++; }
+  edit = undefined;
+  if (changed) save();
+  openCard(id, { msg: changed ? 'Saved. What it said before is under Earlier wording.' : 'Nothing was changed.', focus: '[data-act="fix"]' });
+}
+
+// ---------- Undo for Remove ----------
+
+let undoTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** "Removed · Undo" for ten seconds. Undo brings back the card, its links and the cards around it. */
+function offerUndo(r: Removal) {
+  document.querySelector('.undo-toast')?.remove();
+  clearTimeout(undoTimer);
+  const t = document.createElement('div');
+  t.className = 'undo-toast';
+  t.setAttribute('role', 'status');
+  t.innerHTML = `<span>Removed “${esc(isSensitive(r.card) ? maskValue(r.card.value) : r.card.value)}”.</span> <button type="button" class="btn">Undo</button>`;
+  t.querySelector('button')!.addEventListener('click', () => {
+    clearTimeout(undoTimer);
+    t.remove();
+    if (undoRemove(profile, r)) { save(); openCard(r.card.id, { msg: 'Brought back, with its links.' }); }
+  });
+  document.body.append(t);
+  undoTimer = setTimeout(() => t.remove(), 10_000);
+}
+
