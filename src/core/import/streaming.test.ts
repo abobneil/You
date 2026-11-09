@@ -2,7 +2,7 @@ import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { addCard, endCard } from '../cards';
 import { emptyProfile } from '../profile';
-import { absorbable, applyProposals, planFor } from './match';
+import { absorbable, applyProposals, needsTimeReview, planFor } from './match';
 import { isStreamingFile, listened, netflixTitle, streamingRows, streamingZip } from './streaming';
 
 const NOW = '2026-11-07T12:00:00.000Z';
@@ -91,7 +91,8 @@ describe('streaming imports', () => {
     const v2 = streamingRows({ 'ViewingActivity.csv': activity + '\nSam,2023-01-02 20:00:00,0:50:00,,The Crown: Season 2: Misadventure,,TV,0:50:00,0:50:00,US' }, 'Sam');
     const crown = build(v2).find(x => x.value === 'The Crown')!;
     expect(planFor(p, crown)).toBe('update');
-    applyProposals(p, [crown], 'Netflix', NOW);
+    expect(needsTimeReview(p.cards.find(c => c.value === 'The Crown')!, crown)).toBe(true);
+    applyProposals(p, [{ ...crown, useIncoming: true }], 'Netflix', NOW);
     expect(p.cards.filter(c => c.value === 'The Crown')).toHaveLength(1);
     expect(p.cards.find(c => c.value === 'The Crown')!.fields).toMatchObject({ episodes: '3', lastWatched: '2023-01-02' });
   });

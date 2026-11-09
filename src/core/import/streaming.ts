@@ -286,10 +286,9 @@ export function streamingRows(files: Record<string, string>, me = ''): ImportRes
       : 'No plays were found in that file.'] };
   }
 
-  // A newer export of the same history refreshes counts; the same export again changes nothing.
-  const lastDay = new Map<Service, string>();
-  for (const p of plays) if (p.day > (lastDay.get(p.service) ?? '')) lastDay.set(p.service, p.day);
-  const at = (s: Service) => `${(lastDay.get(s)! + '-01-01').slice(0, 10)}T00:00:00.000Z`;
+  // These history formats carry play times, not a revision time for the export.
+  // Neither the latest play nor the ZIP/file modification time proves freshness.
+  // Leave recency unknown so changed accepted rollups require keep/use review.
 
   const profiles = [...new Set(plays.filter(p => p.profile).map(p => p.profile!))];
   const first = norm(me).split(' ')[0];
@@ -324,7 +323,7 @@ export function streamingRows(files: Record<string, string>, me = ''): ImportRes
       : t.what === 'artist' ? [plural(t.plays, 'play'), listened(t.ms)].filter(Boolean).join(', ') : '';
     const when = t.first === t.last ? t.first : `${t.first} to ${t.last}`;
     const ticked = (t.what !== 'artist' || topArtists.has(t)) && (!mine || !t.profile || t.profile === mine);
-    const p = proposal(t, t.last || at(t.service));
+    const p = proposal(t, '');
     return { id: rowId('stream'), group, label: t.name, sub: [count, when].filter(Boolean).join(' · '), on: ticked, build: () => [p] };
   });
   const reasons = new Map<string, number>();
