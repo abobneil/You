@@ -151,7 +151,8 @@ setInterval(() => { void checkLock(); }, 15000);
 const btn = $('#who-btn');
 export function renderWhoButton() {
   btn.textContent = `${profile.name.split(' ')[0] || 'You'} · Menu`;
-  btn.setAttribute('aria-label', `${profile.name || 'You'}: switch or lock`);
+  // The spoken name starts with the words on the button (WCAG 2.5.3), then says what the menu holds.
+  btn.setAttribute('aria-label', `${btn.textContent}: switch, lock or open a file`);
 }
 btn.addEventListener('click', openSwitcher);
 

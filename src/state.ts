@@ -188,7 +188,7 @@ export let lastReplaced: string | null = null;
  * or waits and then finds this record changed (and asks instead of overwriting).
  * Returns false, having changed nothing, when the stored copy moved on.
  */
-export async function openInPlace(p: Profile, v: Vault, expected: string | null, commit: () => Promise<void>, signal?: AbortSignal, reason = 'before opening a file in its place'): Promise<boolean> {
+export async function openInPlace(p: Profile, v: Vault, expected: string | null, commit: () => Promise<void>, signal?: AbortSignal, reason = 'before opening a file in its place', pointOfNoReturn?: () => void): Promise<boolean> {
   await flushPending();
   const id = p.id!;
   const written = await withLock('you-' + id, async () => {
@@ -199,6 +199,9 @@ export async function openInPlace(p: Profile, v: Vault, expected: string | null,
     // this tab knew and whether or not an outside copy was made.
     if (expected !== null) lastReplaced = await archiveVersion(id, expected, reason);
     const envelope = await encode(v, p);
+    // From here the record is written, so Cancel is no longer offered; until here it still counts.
+    signal?.throwIfAborted();
+    pointOfNoReturn?.();
     await vaultStore.set(id, envelope);
     if (await vaultStore.get(id) !== envelope) throw new Error('Could not verify browser copy');
     return envelope;

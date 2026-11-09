@@ -150,7 +150,7 @@ function showFileConflict() {
       }
     },
     both: () => downloadCopy(true),
-    other: async () => { await downloadCopy(true); const { importText } = await import('../ui/session'); if (handle) await importText(await handle.getFile()); },
+    other: async () => { if (!await keepVerifiedCopy()) return; const { importText } = await import('../ui/session'); if (handle) await importText(await handle.getFile()); },
   });
 }
 
@@ -407,5 +407,6 @@ onTabConflict(() => showTabConflict());
 
 onLeaveFailure(() => new Promise(resolve => openSheet(`${sheetTop("Your latest changes couldn't be saved")}<p>Your work is still here. Download a copy before locking or switching.</p><div class="menu"><button data-act="download">Download before leaving</button><button data-act="stay">Stay here</button></div>`, {
   // If the copy can't be made, say so and stay unlocked: never lock away the only copy.
-  download: async () => { resolve(await downloadCopy(true)); }, stay: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
+  // Leaving is allowed only once this tab's work is surely kept somewhere.
+  download: async () => { resolve(await keepVerifiedCopy()); }, stay: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
 })));

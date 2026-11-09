@@ -318,7 +318,12 @@ export async function importText(source: Blob | string): Promise<boolean> {
       if (!staged) return;
       if (source instanceof Blob) await commitFile(staged, loaded, controller.signal);
       else await commitStaged(keepsakeStore, staged, loaded.id!, loaded, controller.signal);
-    }, controller.signal, `before opening ${source instanceof File ? source.name : 'a file'}`);
+    }, controller.signal, `before opening ${source instanceof File ? source.name : 'a file'}`, () => {
+      // The record is about to be written: take Cancel away rather than offer one that can't work.
+      document.querySelector('#sheet-body [data-act=cancel]')?.remove();
+      const status = document.querySelector('#sheet-body [role=status]');
+      if (status) status.textContent = 'Opening your record… almost done.';
+    });
     closeSheet();
   } catch {
     closeSheet();
