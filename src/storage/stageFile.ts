@@ -7,7 +7,7 @@ import { idbKeepsakeStore } from './keepsakeStore';
 /** File decoding, verification and staging run off the UI thread. */
 export function stageFile(file: Blob, vault: Vault, profile: Profile, options: StagingOptions): Promise<Staged> {
   return new Promise((resolve, reject) => {
-    const prefix = `import-${crypto.randomUUID()}`;
+    const prefix = `import-${Date.now()}-${crypto.randomUUID()}`;
     const worker = new Worker(new URL('./keepsake.worker.ts', import.meta.url), { type: 'module' });
     let settled = false;
     const finish = () => { worker.terminate(); options.signal?.removeEventListener('abort', abort); };

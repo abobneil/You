@@ -89,7 +89,16 @@ function restoreFocus(had: FocusKey | null, title: HTMLElement | null) {
 /** Closes the sheet because its job is done (saved, chosen). Nothing to undo. */
 export const closeSheet = () => { if (sheet.open) { finishing = true; sheet.close(); afterClose(); } };
 /** Closes it because the person backed out (Cancel, ×, Escape, the backdrop). */
-function dismiss() { commitField(); if (sheet.open) { sheet.close(); afterClose(); } }
+/**
+ * Any way out of a panel (Cancel, ×, Escape, the backdrop, Back) closes it and then runs the panel's own
+ * `close` handler, so a panel waiting on an answer always hears "cancelled" and never hangs.
+ */
+function dismiss() {
+  const onClose = handlers.close; // afterClose() clears the handlers
+  commitField();
+  if (sheet.open) { sheet.close(); afterClose(); }
+  onClose?.(sheetBody, new MouseEvent('click'));
+}
 /** Lets a half-typed correction save the way leaving the field would ("change" fires on blur). */
 const commitField = () => { const a = document.activeElement; if (a instanceof HTMLElement && sheetBody.contains(a)) a.blur(); };
 

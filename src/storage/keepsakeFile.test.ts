@@ -282,3 +282,18 @@ it('cancels copy creation between keepsakes without changing the stored original
     expect(await loadKeepsake(s.store, s.vault, s.p.id!, k)).toEqual(s.originals[i]);
   }
 });
+
+describe('abandoned staging', () => {
+  it('clears staged copies older than the limit, keeps a recent one, and never touches a You’s own rows', async () => {
+    const { clearAbandonedStaging } = await import('./keepsakeImport');
+    const store = memoryKeepsakeStore();
+    const row = { iv: new Uint8Array(12), data: new Uint8Array(4) };
+    const now = Date.UTC(2026, 10, 8, 12);
+    await store.put(`import-${now - 7 * 3600_000}-old/k1`, row);
+    await store.put(`import-${now - 60_000}-recent/k1`, row);
+    await store.put('import-legacy-uuid/k1', row);
+    await store.put('you-1/k1', row);
+    await clearAbandonedStaging(store, now);
+    expect([...store.rows.keys()].sort()).toEqual([`import-${now - 60_000}-recent/k1`, 'you-1/k1'].sort());
+  });
+});

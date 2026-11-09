@@ -39,7 +39,7 @@ export interface StagingOptions {
 }
 
 export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Profile, entries: AsyncIterable<RawKeepsake>, options: StagingOptions = {}): Promise<Staged> {
-  const staged: Staged = { prefix: options.prefix ?? `import-${crypto.randomUUID()}`, ids: [], problems: [] };
+  const staged: Staged = { prefix: options.prefix ?? `import-${Date.now()}-${crypto.randomUUID()}`, ids: [], problems: [] };
   const meta = metaById(p);
   const seen = new Set<string>();
   let pending: Array<[string, SealedBytes]> = [], pendingBytes = 0;
@@ -97,6 +97,19 @@ export async function commitStaged(store: KeepsakeStore, staged: Staged, youId: 
   await discardStaged(store, staged);
   const keep = keepsakeIds(p);
   for (const key of await store.keys(youId + '/')) if (!keep.has(key.slice(youId.length + 1))) await store.del(key);
+}
+
+/**
+ * Removes photo copies staged for a file open that never finished (the tab closed mid-way). Staging
+ * prefixes carry their start time; only ones older than `maxAgeMs` go, so an open running in another tab
+ * right now is never touched. Older prefixes without a time are from before this was added and are removed.
+ */
+export async function clearAbandonedStaging(store: KeepsakeStore, now = Date.now(), maxAgeMs = 6 * 60 * 60 * 1000) {
+  const prefixes = new Set((await store.keys('import-')).map(k => k.slice(0, k.indexOf('/'))));
+  for (const prefix of prefixes) {
+    const started = Number(/^import-(\d{13})-/.exec(prefix)?.[1]);
+    if (!started || now - started > maxAgeMs) await discardStaged(store, { prefix });
+  }
 }
 
 export async function discardStaged(store: KeepsakeStore, staged: Pick<Staged, 'prefix'>) {

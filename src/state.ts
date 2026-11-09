@@ -174,6 +174,31 @@ export async function setSession(p: Profile, v: Vault | null, from?: string | nu
   return persist();
 }
 
+/**
+ * Opens a file's record in place of what this browser holds for that You, but only if the stored copy is
+ * still exactly `expected` (what the person agreed to replace, null when nothing was stored). The check,
+ * `commit` (moving the file's checked photos into place) and writing the record all happen under the
+ * same per-You lock saves use, so another tab's save either lands first (and nothing here is replaced)
+ * or waits and then finds this record changed (and asks instead of overwriting).
+ * Returns false, having changed nothing, when the stored copy moved on.
+ */
+export async function openInPlace(p: Profile, v: Vault, expected: string | null, commit: () => Promise<void>): Promise<boolean> {
+  await flushPending();
+  const id = p.id!;
+  const written = await withLock('you-' + id, async () => {
+    if ((await vaultStore.get(id)) !== expected) return null;
+    await commit();
+    const envelope = await encode(v, p);
+    await vaultStore.set(id, envelope);
+    if (await vaultStore.get(id) !== envelope) throw new Error('Could not verify browser copy');
+    return envelope;
+  });
+  if (written === null) return false;
+  await setSession(p, v, written);
+  channel?.postMessage({ id, rev: p.rev });
+  return true;
+}
+
 /** The open You's encrypted browser copy, if there is one. */
 export const storedEnvelope = async (id = currentId()) => { if (!id) return null;
   try { return await migrateVault(id, local); }

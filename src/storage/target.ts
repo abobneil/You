@@ -183,7 +183,8 @@ function cannotDownload(e: unknown) {
   openSheet(`${sheetTop("Couldn't make a copy")}<h3 class="sh-title">The copy couldn’t be made</h3><p>Nothing was changed and your work is still open here. Try again in a moment. If it keeps happening, keep this tab open.</p><div class="menu"><button data-act="close">OK</button></div>`);
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+// The person's own calendar date (not UTC), so a copy made at 7 pm on 8 Nov isn't named 9 Nov.
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 /** "alex-kim (this browser 2026-11-08).you.json": a copy kept beside the main file. */
 const separateName = (what: string) => fileNameFor(profile.name).replace('.you.json', ` (${what} ${today()}).you.json`);
 

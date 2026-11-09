@@ -3,12 +3,12 @@ import { esc } from './dom';
 import { commitFile, stageFile } from '../storage/stageFile';
 // Getting into your data: first visit, returning visit, upgrading old data, and loading a file.
 import { newId } from '../core/cards';
-import { WrongPassphrase, type Vault } from '../core/crypto';
+import { toB64, WrongPassphrase, type Vault } from '../core/crypto';
 import type { Profile } from '../core/types';
-import { canLeave, eraseBrowserCopy, legacyProfile, profile, setSession, storedEnvelope } from '../state';
+import { canLeave, eraseBrowserCopy, flushPending, legacyProfile, openInPlace, profile, setSession, storedEnvelope } from '../state';
 import { decode, readFile, readText, UnsupportedVersion, DamagedFile } from '../storage/fileFormat';
 import { keepsakeStore } from '../storage/keepsakeAccess';
-import { commitStaged, describeProblems, discardStaged, stageKeepsakes, type Staged } from '../storage/keepsakeImport';
+import { clearAbandonedStaging, commitStaged, describeProblems, discardStaged, stageKeepsakes, type Staged } from '../storage/keepsakeImport';
 import { byRecent, currentId, hasVault, listProfiles, placeLabel, setCurrent, startNew } from '../storage/profiles';
 import { downloadCopy, setTarget } from '../storage/target';
 import { askNewPassphrase, askPassphrase, backToPrevious, hideGate, type WhoRow } from './gate';
@@ -54,6 +54,26 @@ function saveAsFile(text: string, name: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
+/**
+ * Saves an unreadable browser copy as a file before it's replaced: the record exactly as stored, plus every
+ * photo and file this browser holds for that You, still encrypted (they open with the same passphrase if
+ * the record is ever repaired). Returns false, so nothing is replaced, if the copy couldn't be made.
+ */
+async function keepUnreadable(id: string, record: string, name: string): Promise<boolean> {
+  try {
+    const keepsakes = [];
+    for (const key of await keepsakeStore.keys(id + '/')) {
+      const sealed = await keepsakeStore.get(key);
+      if (sealed) keepsakes.push({ id: key.slice(id.length + 1), iv: toB64(sealed.iv), data: toB64(sealed.data) });
+    }
+    saveAsFile(JSON.stringify({ app: 'you', unreadableBrowserCopy: true, record, keepsakes }), name);
+    return true;
+  } catch {
+    openSheet(`${sheetTop('Couldn’t open')}<h3 class="sh-title">The unreadable copy couldn’t be saved</h3><p data-announce>Nothing was replaced. Try again, or free some space on this device first.</p><div class="btns"><button class="btn primary" type="button" data-act="close">OK</button></div>`);
+    return false;
+  }
+}
+
 /** True when this browser holds a copy of that You that can't be read (damaged, or changed outside You). */
 async function unreadableHere(id: string): Promise<boolean> {
   const stored = await storedEnvelope(id);
@@ -66,6 +86,8 @@ async function unreadableHere(id: string): Promise<boolean> {
  * or 'landing' if there's nothing to unlock (show the name screen).
  */
 export async function start(): Promise<'home' | 'landing'> {
+  // Photo copies left by a file open that never finished (the tab was closed) are cleared quietly.
+  void clearAbandonedStaging(keepsakeStore).catch(() => { /* tried again next time */ });
   const slot = currentId();
   const stored = await storedEnvelope(slot);
   if (stored) {
@@ -120,7 +142,11 @@ export async function start(): Promise<'home' | 'landing'> {
 
 /** A file that can't be opened: says why in the app's own sheet, and offers another file. Nothing has changed. */
 function cannotOpen(e: unknown) {
-  const why = e instanceof UnsupportedVersion || e instanceof DamagedFile ? e.message : 'That file doesn’t look like your You data.';
+  // Only call the file wrong when it really is; a browser problem while checking it is said as such.
+  const notYou = e instanceof SyntaxError || (e instanceof Error && /not you data|not a you file/i.test(e.message));
+  const why = e instanceof UnsupportedVersion || e instanceof DamagedFile ? e.message
+    : notYou ? 'That file doesn’t look like your You data.'
+    : 'This browser had a problem while checking the file. Nothing was changed; try opening it again.';
   openSheet(`${sheetTop('Couldn’t open')}<h3 class="sh-title">This file couldn’t be opened</h3>
     <p>${esc(why)}</p>
     <p class="hint">${/nothing was changed/i.test(why) ? '' : 'Nothing was changed. '}If you have another saved copy, you can try that one.</p>
@@ -188,32 +214,39 @@ export async function importText(source: Blob | string): Promise<boolean> {
   }
 
   if (!await canLeave()) return give();
+  await flushPending(); // what's stored now is everything typed here, so it's exactly what may be replaced
 
   // Files from before Yous had ids become a new You, never a silent overwrite of the open one.
   loaded.id = loaded.id || newId();
+
+  // What this browser holds for that You right now. It's replaced only if it's still exactly this when the
+  // file is written (another tab may save meanwhile); null means nothing is stored and nothing may appear.
+  let expected: string | null = await storedEnvelope(loaded.id);
 
   // The same You may already be on this browser, possibly with newer changes.
   if (await hasVault(loaded.id)) {
     if (loaded.id === profile.id) {
       const older = (loaded.updatedAt || '') < (profile.updatedAt || '') || (loaded.rev || 0) < (profile.rev || 0);
       const proceed = await new Promise<boolean>(resolve => openSheet(`${sheetTop(older ? "This file is older than what's in this browser" : 'Open this version?')}<p>File saved ${esc(loaded.updatedAt || 'unknown')}, browser ${esc(profile.updatedAt || 'unknown')}.</p><div class="menu"><button data-act="keep">Keep the browser version</button><button data-act="first">Download the browser version first, then open the file</button><button data-act="anyway">Open the file anyway (the browser version is kept as a download)</button></div>`, {
-        keep: () => resolve(false), close: () => resolve(false),
-        first: async () => { await downloadCopy(true); resolve(true); },
-        anyway: async () => { await downloadCopy(true); resolve(true); },
+        keep: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
+        // The browser version is replaced only once its copy has really been made; a cancelled or failed copy changes nothing.
+        first: async () => { resolve(await downloadCopy(true)); },
+        anyway: async () => { resolve(await downloadCopy(true)); },
       }));
       if (!proceed) return give();
+      expected = await storedEnvelope(loaded.id); // the version that was just kept as a download
     } else if (await unreadableHere(loaded.id)) {
       // The browser copy of this You can't be read, so it can't be unlocked and compared. Offer to keep it
-      // as a file, then open this one in its place. Nothing is replaced without that choice.
+      // as a file, with its encrypted photos, then open this one in its place. Nothing is replaced without that choice.
       const label = listProfiles().find(e => e.id === loaded.id)?.label || loaded.name || 'this You';
-      const damaged = (await storedEnvelope(loaded.id))!;
+      const damaged = expected!;
       const replace = await new Promise<boolean>(resolve => openSheet(`${sheetTop('Already in this browser')}<h3 class="sh-title">${esc(label)}’s copy in this browser can’t be read</h3>
-        <p>You can open this file in its place. The unreadable copy is saved as a file first, so nothing is lost.</p>
+        <p>You can open this file in its place. The unreadable copy, with its encrypted photos and files, is saved as a file first, so nothing is lost.</p>
         <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="open">Save the unreadable copy, then open this file</button></div>`, {
-        open: () => { closeSheet(); resolve(true); }, close: () => { closeSheet(); resolve(false); },
+        open: () => { closeSheet(); resolve(true); }, close: () => resolve(false),
       }));
       if (!replace) return give();
-      saveAsFile(damaged, `${label} (copy that couldn't be read).you.json`);
+      if (!await keepUnreadable(loaded.id, damaged, `${label} (copy that couldn't be read).you.json`)) return give();
     } else {
       // This browser already has this You, locked. Unlock that copy first so the two can be compared.
       const label = listProfiles().find(e => e.id === loaded.id)?.label || loaded.name || 'this You';
@@ -231,32 +264,32 @@ export async function importText(source: Blob | string): Promise<boolean> {
     }
   }
 
-  // The keepsake bytes go in first, so the record never mentions a file that isn't here.
-  if (staged) {
-    const controller = new AbortController();
-    openSheet(`${sheetTop('Opening your record…')}<p role="status">Your photos and files have been checked. Opening your record…</p><button class="btn" data-act="cancel">Cancel</button>`, {
-      cancel: () => { controller.abort(); closeSheet(); },
-    }, { onDismiss: () => controller.abort() });
-    try {
-      if (source instanceof Blob) await commitFile(staged, loaded, controller.signal);
-      else await commitStaged(keepsakeStore, staged, loaded.id, loaded, controller.signal);
-      closeSheet();
-    }
-    catch {
-      closeSheet();
-      if (controller.signal.aborted) return give();
-      openSheet(`${sheetTop('Couldn’t open')}<h3 class="sh-title">This browser couldn’t store the attached files</h3><p data-announce>Its storage may be full. Nothing was opened and nothing here changed.</p><div class="btns"><button class="btn primary" type="button" data-act="close">OK</button></div>`);
-      return give();
-    }
-  }
+  // An unencrypted file from before encryption is locked with a new passphrase first.
+  if (!key) key = await askNewPassphrase(loaded.name, 'import');
 
-  if (key) {
-    await setSession(loaded, key);
-  } else {
-    // An unencrypted file from before encryption: lock it with a new passphrase.
-    await setSession(loaded, null);
-    key = await askNewPassphrase(loaded.name, 'import');
-    await setSession(loaded, key);
+  // The photo bytes go in first, so the record never mentions a file that isn't here. Both happen under
+  // the same lock saves use, and only if the stored copy is still `expected`.
+  const controller = new AbortController();
+  openSheet(`${sheetTop('Opening your record…')}<p role="status">${staged ? 'Your photos and files have been checked. ' : ''}Opening your record…</p><button class="btn" data-act="cancel">Cancel</button>`, {
+    cancel: () => { controller.abort(); closeSheet(); },
+  }, { onDismiss: () => controller.abort() });
+  let opened: boolean;
+  try {
+    opened = await openInPlace(loaded, key, expected, async () => {
+      if (!staged) return;
+      if (source instanceof Blob) await commitFile(staged, loaded, controller.signal);
+      else await commitStaged(keepsakeStore, staged, loaded.id!, loaded, controller.signal);
+    });
+    closeSheet();
+  } catch {
+    closeSheet();
+    if (controller.signal.aborted) return give();
+    openSheet(`${sheetTop('Couldn’t open')}<h3 class="sh-title">This browser couldn’t store the attached files</h3><p data-announce>Its storage may be full. Nothing was opened and nothing here changed.</p><div class="btns"><button class="btn primary" type="button" data-act="close">OK</button></div>`);
+    return give();
+  }
+  if (!opened) {
+    openSheet(`${sheetTop('Not opened')}<h3 class="sh-title">This You changed in another tab</h3><p data-announce>Another tab saved changes while this file was opening, so nothing was replaced. Open the file again to compare it with the newest version.</p><div class="btns"><button class="btn primary" type="button" data-act="close">OK</button></div>`);
+    return give();
   }
   hideGate();
   return true;
