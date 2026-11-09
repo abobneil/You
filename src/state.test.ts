@@ -12,8 +12,9 @@ vi.mock('./core/crypto', () => ({ openWith: async (_v: unknown, env: unknown) =>
 vi.mock('./storage/profiles', () => ({ currentId: () => 'you', removeProfile: async () => {}, setCurrent: () => {}, upsertProfile: () => {} }));
 // Earlier versions: record what gets kept, so the test can check the other tab's version is never just overwritten.
 vi.mock('./storage/archive', () => ({
-  archiveVersion: async (id: string, envelope: string) => { h.archived.push({ id, envelope }); return 'archive/' + id + '/k'; },
-  deleteArchived: async () => {}, getArchived: async () => null,
+  archiveVersion: async (id: string, envelope: string) => { h.archived.push({ id, envelope }); return 'archive/' + id + '/' + (h.archived.length - 1); },
+  deleteArchived: async () => {},
+  getArchived: async (key: string) => { const a = h.archived[+key.split('/').pop()!]; return a ? { key, at: '', reason: '', envelope: a.envelope } : null; },
 }));
 
 import * as state from './state';
@@ -79,4 +80,17 @@ it('after unlock, newer work from another tab simply loads when this tab has not
   await state.settleAfterUnlock();
   expect(asked).toBe(0);
   expect(state.profile.name).toBe('newer');
+});
+
+it('Undo after an open only goes back while nothing was saved since (N-1)', async () => {
+  const before = h.stored.get('you')!;
+  const p = { ...emptyProfile(), id: 'you', name: 'from file' };
+  expect(await state.openInPlace(p, {} as never, before, async () => {})).toBe(true);
+  const kept = state.lastReplaced!, wrote = state.lastOpened!;
+  otherTabSaves('saved after the open');
+  expect(await state.restoreArchived('you', kept, wrote)).toBe('changed');
+  expect(JSON.parse(h.stored.get('you')!).name).toBe('saved after the open'); // nothing set aside
+  h.stored.set('you', wrote);
+  expect(await state.restoreArchived('you', kept, wrote)).toBe(true);
+  expect(h.stored.get('you')).toBe(before);
 });

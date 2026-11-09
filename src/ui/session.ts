@@ -5,7 +5,7 @@ import { commitFile, stageFile } from '../storage/stageFile';
 import { newId } from '../core/cards';
 import { toB64, WrongPassphrase, type Vault } from '../core/crypto';
 import type { Profile } from '../core/types';
-import { canLeave, eraseBrowserCopy, flushPending, legacyProfile, lastReplaced, openInPlace, profile, restoreArchived, setSession, storedEnvelope } from '../state';
+import { canLeave, eraseBrowserCopy, flushPending, legacyProfile, lastOpened, lastReplaced, openInPlace, profile, restoreArchived, setSession, storedEnvelope } from '../state';
 import { decode, readFile, readText, UnsupportedVersion, DamagedFile } from '../storage/fileFormat';
 import { keepsakeStore } from '../storage/keepsakeAccess';
 import { clearAbandonedStaging, commitStaged, describeProblems, discardStaged, stageKeepsakes, type Staged } from '../storage/keepsakeImport';
@@ -309,9 +309,8 @@ export async function importText(source: Blob | string): Promise<boolean> {
   // The photo bytes go in first, so the record never mentions a file that isn't here. Both happen under
   // the same lock saves use, and only if the stored copy is still `expected`.
   const controller = new AbortController();
-  openSheet(`${sheetTop('Opening your record…')}<p role="status">${staged ? 'Your photos and files have been checked. ' : ''}Opening your record…</p><button class="btn" data-act="cancel">Cancel</button>`, {
-    cancel: () => { controller.abort(); closeSheet(); },
-  }, { onDismiss: () => controller.abort() });
+  const busyActs: Record<string, () => void> = { cancel: () => { controller.abort(); closeSheet(); } };
+  openSheet(`${sheetTop('Opening your record…')}<p role="status">${staged ? 'Your photos and files have been checked. ' : ''}Opening your record…</p><button class="btn" data-act="cancel">Cancel</button>`, busyActs, { onDismiss: () => controller.abort() });
   let opened: boolean;
   try {
     opened = await openInPlace(loaded, key, expected, async () => {
@@ -320,9 +319,17 @@ export async function importText(source: Blob | string): Promise<boolean> {
       else await commitStaged(keepsakeStore, staged, loaded.id!, loaded, controller.signal);
     }, controller.signal, `before opening ${source instanceof File ? source.name : 'a file'}`, () => {
       // The record is about to be written: take Cancel away rather than offer one that can't work.
-      document.querySelector('#sheet-body [data-act=cancel]')?.remove();
-      const status = document.querySelector('#sheet-body [role=status]');
+      const status = document.querySelector<HTMLElement>('#sheet-body [role=status]');
       if (status) status.textContent = 'Opening your record… almost done.';
+      const cancel = document.querySelector<HTMLElement>('#sheet-body [data-act=cancel]');
+      if (cancel && cancel === document.activeElement) {
+        const heading = document.querySelector<HTMLElement>('#sheet-body [tabindex="-1"]') ?? status;
+        if (heading) { if (!heading.hasAttribute('tabindex')) heading.tabIndex = -1; heading.focus(); }
+      }
+      cancel?.remove();
+      // Nor a close button or Escape that would look like stopping it.
+      document.querySelector('#sheet-body .sh-close')?.remove();
+      busyActs.escape = () => {};
     });
     closeSheet();
   } catch {
@@ -340,11 +347,18 @@ export async function importText(source: Blob | string): Promise<boolean> {
     // Whatever was here was kept as an earlier version just before the file replaced it. Say so, quietly,
     // with a one-step way back.
     const id = loaded.id!;
-    const kept = lastReplaced;
+    const kept = lastReplaced, wrote = lastOpened ?? undefined;
     offerUndo(`Opened ${source instanceof File ? source.name : 'the file'}. What was here is kept in Menu → Earlier versions.`, async () => {
       // Same care as the menu's restore: unsaved work here is saved or downloaded first.
       if (!kept || !await canLeave()) return;
-      if (await restoreArchived(id, kept)) reloadClean();
+      let done: boolean | 'changed' = false;
+      try { done = await restoreArchived(id, kept, wrote); } catch { /* said below */ }
+      // The file that was opened holds what was undone, so stop saving into it; the person chooses again.
+      if (done === true) { setTarget('browser'); return reloadClean(); }
+      // Something was saved since the open, or the version is no longer there: say so, never just do nothing.
+      openSheet(`${sheetTop('Undo')}<h3 class="sh-title">${done === 'changed' ? 'Changes were saved since the file was opened' : 'That version couldn’t be put back'}</h3><p data-announce>${done === 'changed' ? 'So nothing was undone, and those changes stay. ' : 'Nothing was changed. '}Earlier versions in the menu lists what this You looked like before; you can restore any of them.</p><div class="btns"><button class="btn quiet" type="button" data-act="close">Close</button><button class="btn primary" type="button" data-act="earlier">Earlier versions</button></div>`, {
+        earlier: () => { void openEarlier(id); },
+      });
     });
   }
   return true;

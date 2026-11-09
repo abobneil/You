@@ -17,7 +17,7 @@ export function dateInputs(value: FuzzyDate | undefined, key: string): string {
   const [y = '', m = '', d = ''] = (value || '').split('-');
   return `<span class="date" data-date="${key}">
     <input data-d="y" autocomplete="off" inputmode="numeric" maxlength="4" placeholder="Year" value="${esc(y)}" aria-label="Year">
-    <button type="button" class="mbtn${m ? '' : ' empty'}" data-d="m" data-value="${esc(m)}" aria-haspopup="true" aria-expanded="false" aria-label="Month (optional)">${m ? MONTHS[+m - 1] : 'Month'}</button>
+    <button type="button" class="mbtn${m ? '' : ' empty'}" data-d="m" data-value="${esc(m)}" aria-haspopup="true" aria-expanded="false" aria-label="${m ? MONTHS[+m - 1] + ', month' : 'Month'} (optional)">${m ? MONTHS[+m - 1] : 'Month'}</button>
     <input data-d="d" autocomplete="off" inputmode="numeric" maxlength="2" placeholder="Day" value="${esc(d ? +d : '')}" aria-label="Day (optional)"${m ? '' : ' hidden'}>
     <span class="mgrid" role="group" aria-label="Choose a month" hidden>${monthOptions(m)}<button type="button" data-m="" class="clear">No month</button></span>
   </span>`;
@@ -115,6 +115,7 @@ document.addEventListener('click', e => {
     const v = opt.dataset.m!;
     mbtn.dataset.value = v;
     mbtn.textContent = v ? MONTHS[+v - 1] : 'Month';
+    mbtn.setAttribute('aria-label', (v ? MONTHS[+v - 1] + ', month' : 'Month') + ' (optional)');
     mbtn.classList.toggle('empty', !v);
     date.querySelectorAll('.mgrid [data-m]').forEach(b => b.classList.toggle('on', (b as HTMLElement).dataset.m === v && !!v));
     closeAll();

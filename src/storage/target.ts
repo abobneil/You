@@ -150,7 +150,14 @@ function showFileConflict() {
       }
     },
     both: () => downloadCopy(true),
-    other: async () => { if (!await keepVerifiedCopy()) return; const { importText } = await import('../ui/session'); if (handle) await importText(await handle.getFile()); },
+    other: async () => {
+      if (!await keepVerifiedCopy()) return;
+      const { importText } = await import('../ui/session');
+      const h = handle;
+      if (!h || !await importText(await h.getFile())) return;
+      // This tab now holds the file's version, so the file is up to date again: keep saving into it.
+      if (handle === h) { conflict = false; failed = false; dirty = false; await writer.load(h); local.set('you.fileFingerprint.' + profile.id, writer.fingerprint()!); renderPill(); }
+    },
   });
 }
 
@@ -408,5 +415,5 @@ onTabConflict(() => showTabConflict());
 onLeaveFailure(() => new Promise(resolve => openSheet(`${sheetTop("Your latest changes couldn't be saved")}<p>Your work is still here. Download a copy before locking or switching.</p><div class="menu"><button data-act="download">Download before leaving</button><button data-act="stay">Stay here</button></div>`, {
   // If the copy can't be made, say so and stay unlocked: never lock away the only copy.
   // Leaving is allowed only once this tab's work is surely kept somewhere.
-  download: async () => { resolve(await keepVerifiedCopy()); }, stay: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
+  download: async () => { if (await keepVerifiedCopy()) resolve(true); else if (!document.querySelector('#sheet-body [data-act=download]')) resolve(false); }, stay: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
 })));

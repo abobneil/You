@@ -179,6 +179,8 @@ export async function setSession(p: Profile, v: Vault | null, from?: string | nu
 
 /** The earlier version the last open-in-place kept, so its Undo restores exactly that one. */
 export let lastReplaced: string | null = null;
+/** What the last open-in-place wrote, so its Undo only goes back while nothing has been saved since. */
+export let lastOpened: string | null = null;
 
 /**
  * Opens a file's record in place of what this browser holds for that You, but only if the stored copy is
@@ -208,6 +210,10 @@ export async function openInPlace(p: Profile, v: Vault, expected: string | null,
   });
   if (written === null) return false;
   await setSession(p, v, written);
+  // Starting the session saves once more (fresh encryption), so what Undo compares against is what's
+  // stored once that has settled, not the bytes written above.
+  await flushPending();
+  lastOpened = await vaultStore.get(id);
   channel?.postMessage({ id, rev: p.rev });
   return true;
 }
@@ -217,17 +223,21 @@ export async function openInPlace(p: Profile, v: Vault, expected: string | null,
  * version first, so restoring is itself reversible. The caller reloads afterwards: the restored version
  * unlocks with the passphrase it was saved with.
  */
-export async function restoreArchived(id: string, key: string): Promise<boolean> {
+export async function restoreArchived(id: string, key: string, onlyIf?: string): Promise<boolean | 'changed'> {
   await flushPending();
   const earlier = await getArchived(key);
   if (!earlier) return false;
-  await withLock('you-' + id, async () => {
+  const changed = await withLock('you-' + id, async () => {
     const now = await vaultStore.get(id);
+    // Undo after an open: if anything was saved since (here or in another tab), don't quietly set it aside.
+    if (onlyIf !== undefined && now !== onlyIf) return true;
     if (now !== null) await archiveVersion(id, now, 'before restoring an earlier version');
     await vaultStore.set(id, earlier.envelope);
     if (await vaultStore.get(id) !== earlier.envelope) throw new Error('Could not verify browser copy');
     await deleteArchived(key);
+    return false;
   });
+  if (changed) return 'changed';
   channel?.postMessage({ id });
   return true;
 }
