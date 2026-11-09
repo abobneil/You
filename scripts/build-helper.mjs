@@ -41,7 +41,7 @@ const files = {
 await mkdir('dist/downloads', { recursive: true });
 await writeFile('dist/downloads/you-audible-helper.zip', zipSync(files));
 
-if (process.platform === 'win32') {
+if (process.platform === 'win32' && process.env.YOU_SITES_BUILD !== '1') {
   await mkdir('.helper-build', { recursive: true });
   await writeFile('.helper-build/helper.cjs', result.outputFiles[0].contents);
   await writeFile('.helper-build/sea.json', JSON.stringify({ main: '.helper-build/helper.cjs', output: '.helper-build/sea.blob', disableExperimentalSEAWarning: true }));
