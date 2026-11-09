@@ -443,8 +443,11 @@ onBrowserSave(renderPill);
 async function showTabConflict(again = false) {
   if (isLockedInPlace()) return;
   // Not a newer version at all: another tab removed this You from the browser. Say that, and offer a way back.
-  if (profile.id && await storedEnvelope(profile.id).catch(() => 'unknown') === null) {
-    openSheet(`${sheetTop('Removed in another tab')}<h3 class="sh-title">${esc(profile.name || 'This You')} was removed from this browser in another tab</h3><p>Your work is still open here. Keep it in this browser again, or save it as a file.</p><div class="menu"><button data-act="keep">Keep it in this browser</button><button data-act="file">Save it as a file</button></div>`, {
+  const removed = profile.id && await storedEnvelope(profile.id).catch(() => 'unknown') === null;
+  if (isLockedInPlace()) return; // it locked while this was being checked: asked again after unlock
+  if (removed) {
+    const attached = profile.cards.reduce((n, c) => n + (c.keepsakes?.length ?? 0), 0);
+    openSheet(`${sheetTop('Removed in another tab')}<h3 class="sh-title">${esc(profile.name || 'This You')} was removed from this browser in another tab</h3><p>Your writing is still open here. Keep it in this browser again, or save it as a file.</p>${attached ? `<p><b>The ${attached} photo${attached === 1 ? '' : 's'} and file${attached === 1 ? '' : 's'} attached here were removed with it.</b> If you saved a file before, it still has them.</p>` : ''}<div class="menu"><button data-act="keep">Keep it in this browser</button><button data-act="file">Save it as a file</button></div>`, {
       keep: async () => { if (await keepAfterRemoval()) closeSheet(); else void showTabConflict(); },
       file: async () => { if (await keepVerifiedCopy()) closeSheet(); },
     });

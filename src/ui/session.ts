@@ -19,6 +19,7 @@ import { listArchived } from '../storage/archive';
 /** After the name screen: choose a passphrase, then save for the first time. */
 export async function lockNewData() {
   const v = await askNewPassphrase(profile.name, 'new');
+  startFreshTarget(); // a brand-new You never inherits the save file this tab loaded for another
   await setSession(profile, v);
   hideGate();
 }

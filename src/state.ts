@@ -9,7 +9,7 @@ import type { Profile } from './core/types';
 import { encode } from './storage/fileFormat';
 import { archiveVersion, deleteArchived, getArchived } from './storage/archive';
 import { KEYS, local } from './storage/local';
-import { currentId, removeProfile, setCurrent, upsertProfile, wantsNew } from './storage/profiles';
+import { currentId, removeProfile, setCurrent, upsertProfile } from './storage/profiles';
 
 import { migrateVault, vaultStore } from './storage/vaultStore';
 import { saveQueue, type SaveState } from './storage/saveQueue';
@@ -27,10 +27,6 @@ export const onBrowserSave = (fn: () => void) => { saveListeners.push(fn); };
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('you') : null;
 const withLock = <T,>(name: string, fn: () => Promise<T>): Promise<T> =>
   typeof navigator !== 'undefined' && navigator.locks ? navigator.locks.request(name, fn) as Promise<T> : fn();
-/** The You this tab opened at load (switching reloads); '' for a new You. Another tab's saves move the browser-wide current You. */
-const tabYouAtLoad = currentId();
-/** This tab's You for a record without an id: none once the person chose to start a new You here. */
-const tabYou = () => (wantsNew() ? '' : tabYouAtLoad);
 const guard = staleGuard(vaultStore, withLock);
 /** Counts edits; `committedEdit` is the last one known to be in the stored copy. */
 let editCount = 0, committedEdit = 0;
@@ -181,11 +177,13 @@ export function save() {
  */
 export async function setSession(p: Profile, v: Vault | null, from?: string | null) {
   await flushPending();
-  guard.begin(from !== undefined ? from : await vaultStore.get(p.id || tabYou() || newId()));
+  // A You without an id is brand new (the name screen): it always gets a fresh id and may only be written
+  // where nothing is stored, so it can never take over any existing You, whatever this tab or others did.
+  const isNew = !p.id;
+  guard.begin(isNew ? null : from !== undefined ? from : await vaultStore.get(p.id!));
   committedEdit = editCount;
   profile = p;
-  // A You without an id yet is new: never borrow the id of whichever You another tab saved last.
-  profile.id = profile.id || tabYou() || newId();
+  profile.id = profile.id || newId();
   profile.updatedAt = profile.updatedAt || new Date().toISOString();
   vault = v;
   return persist();

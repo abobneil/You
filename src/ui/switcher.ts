@@ -9,7 +9,7 @@ import { deriveVault, openWith, seal, WrongPassphrase, type Envelope, type Vault
 import { askPassphrase, hideGate } from './gate';
 import { keepOpenDraft, offerKeptDrafts } from './drafts';
 import { emit } from './events';
-import { byRecent, currentId, keyFor, placeLabel, setCurrent, startNew } from '../storage/profiles';
+import { byRecent, currentId, hasVault, keyFor, placeLabel, setCurrent, startNew } from '../storage/profiles';
 import { $, esc } from './dom';
 import { closeSheet, openSheet, sheetTop } from './sheet';
 import { isKeptFromOtherCopy } from '../core/compare';
@@ -30,7 +30,9 @@ export const reloadClean = () => { try { history.replaceState(null, ''); } catch
 export async function switchTo(id: string) { if (!await canLeave()) return; setCurrent(id); reloadClean(); }
 export async function addNewYou() { if (!await canLeave()) return; startNew(); reloadClean(); }
 // Locking reloads onto the unlock screen of the current You, so make that this tab's You first.
-export const lockNow = async () => { if (!await canLeave()) return; if (profile.id) setCurrent(profile.id); reloadClean(); };
+export const lockNow = async () => { if (!await canLeave()) return; await returnToThisYou(); reloadClean(); };
+/** After a reload, land on this tab's You, if it still has a record here (another tab may have removed it). */
+async function returnToThisYou() { if (profile.id && await hasVault(profile.id).catch(() => false)) setCurrent(profile.id); }
 
 /** "A" for Alex; "?" if the name isn't known yet. */
 export const initial = (label: string) => (label.trim()[0] || '?').toUpperCase();
@@ -75,7 +77,7 @@ export async function openSwitcher() {
         <p>If you have no saved file, this copy will be gone for good.</p>
         <div class="menu"><button data-act="copy">Download a copy first</button><button data-act="remove">Remove this browser’s copy</button><button data-act="close">Cancel</button></div>`, {
         copy: async () => { await downloadCopy(); },
-        remove: async () => { await eraseBrowserCopy(cur); reloadClean(); },
+        remove: async () => { await forgetFileTarget(cur); await eraseBrowserCopy(cur); reloadClean(); },
       });
     },
   });
@@ -99,7 +101,7 @@ async function checkLock() {
  */
 async function autoLock() {
   keepOpenDraft();
-  if (await flushPending() && browserSaveState().status === 'saved') { if (profile.id) setCurrent(profile.id); reloadClean(); return; }
+  if (await flushPending() && browserSaveState().status === 'saved') { await returnToThisYou(); reloadClean(); return; }
   await lockInPlace();
 }
 
