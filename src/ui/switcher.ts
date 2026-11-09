@@ -9,7 +9,7 @@ import { deriveVault, openWith, seal, WrongPassphrase, type Envelope, type Vault
 import { askPassphrase, hideGate } from './gate';
 import { keepOpenDraft, offerKeptDrafts } from './drafts';
 import { emit } from './events';
-import { byRecent, currentId, placeLabel, setCurrent, startNew } from '../storage/profiles';
+import { byRecent, currentId, keyFor, placeLabel, setCurrent, startNew } from '../storage/profiles';
 import { $, esc } from './dom';
 import { closeSheet, openSheet, sheetTop } from './sheet';
 import { isKeptFromOtherCopy } from '../core/compare';
@@ -173,8 +173,10 @@ export async function openEarlier(id: string) {
     restore: b => {
       const key = b.dataset.key!;
       const v = list.find(x => x.key === key);
+      const savedFile = local.get(keyFor(id, 'target')) === 'file' ? local.get(keyFor(id, 'targetName')) : '';
       openSheet(`${sheetTop('Earlier versions')}<h3 class="sh-title">Go back to the version from ${esc(v ? when(v.at) : 'earlier')}?</h3>
         <p>What’s in this browser now is kept as an earlier version first, so you can come back to it.</p>
+        ${savedFile ? `<p>Your file <b>${esc(savedFile)}</b> keeps its newer version untouched. This one is kept only in this browser until you choose where to save it.</p>` : ''}
         <p class="hint">You’ll unlock it with the passphrase it was saved with.</p>
         <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="go">Restore this version</button></div>`, {
         go: async () => {
