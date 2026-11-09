@@ -90,7 +90,7 @@ async function keepUnreadable(id: string, record: string, name: string): Promise
     const parts: BlobPart[] = [`{"app":"you","unreadableBrowserCopy":true,"record":${JSON.stringify(record)},\n"keepsakes":[\n`];
     let first = true;
     for (const key of await keepsakeStore.keys(id + '/')) {
-      if (key.includes('~')) continue; // copies set aside by an open; the record names its photos plainly
+      // Copies set aside by an open ("<photo id>~<time>") go in too: an earlier version may need one of them.
       const sealed = await keepsakeStore.get(key);
       if (!sealed) continue;
       parts.push(`${first ? '' : ',\n'}{"id":${JSON.stringify(key.slice(id.length + 1))},"iv":"${toB64(sealed.iv)}","data":"${toB64(sealed.data)}"}`);
@@ -264,7 +264,8 @@ export async function importText(source: Blob | string): Promise<boolean> {
         keep: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
         // Opening always keeps the browser version as an earlier version first (openInPlace), so a separate copy
         // is extra, never required. When asked for, the file is opened only once that copy has really been made.
-        first: async () => { const ok = await keepVerifiedCopy(); if (!ok) closeSheet(); resolve(ok); },
+        // A copy that wasn't made closes this prompt, but never the panel that explains why it failed.
+        first: async () => { const ok = await keepVerifiedCopy(); if (!ok && document.querySelector('#sheet-body [data-act=first]')) closeSheet(); resolve(ok); },
         anyway: () => resolve(true),
       }));
       if (!proceed) return give();

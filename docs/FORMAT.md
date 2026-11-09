@@ -23,7 +23,9 @@ file. Keepsake bytes are written before the record that mentions them.
 place, or restoring an earlier version), the copy being replaced is first kept in the same `records`
 store under `archive/<you id>/<ISO time>-<random>`, as JSON `{ at, reason, envelope }` where `envelope`
 is the replaced record exactly as stored (still encrypted). Photo rows are never deleted by a replace,
-so an earlier version's photos are still in the `keepsakes` store when it's restored. Menu → Earlier
+so an earlier version's photos are still in the `keepsakes` store when it's restored. If an opened file brings
+the same photo encrypted with a different key, the stored row is kept beside it as `<You id>/<photo id>~<time>`
+rather than overwritten; whichever copy the current key opens is used. Menu → Earlier
 versions lists and restores them; removing the You from the browser removes them.
 
 **Unreadable-copy files.** When a browser copy can't be read (or unlocked) and is replaced, You first
@@ -31,7 +33,8 @@ saves it as a file shaped `{ "app": "you", "unreadableBrowserCopy": true, "recor
 envelope text, unchanged>", "keepsakes": [ { "id", "iv", "data" }, … ] }` with one keepsake per line,
 each encrypted exactly as in a version 3 file. You recognises this file and explains it rather than
 opening it; a helper with the passphrase can decrypt `record` (if it isn't damaged) and each keepsake
-as described below.
+as described below. An `id` of the form `<photo id>~<time>` is a set-aside copy of that photo (see
+above); try each copy of a photo and use the one the key opens.
 
 ## Envelope (versions 2 and 3)
 
