@@ -39,9 +39,13 @@ const w = window as unknown as {
 export const canWriteFiles = typeof w.showSaveFilePicker === 'function';
 const FILE_TYPES = [{ description: 'You data', accept: { 'application/json': ['.json'] } }];
 
-// Each You has its own save location. Keys use the open You's id ('new' before it's first saved).
-const tk = (k: 'target' | 'targetName') => keyFor(currentId() || 'new', k);
-const handleKey = () => `handle.${currentId() || 'new'}`;
+// Each You has its own save location, keyed by the You open in THIS tab. The browser-wide "current You"
+// moves whenever any tab saves, so it must never decide where this tab's work goes. A tab opens one You
+// (switching reloads), so the id at load stands in until the open You has its own id.
+const tabYou = currentId() || 'new';
+const me = () => profile.id || tabYou;
+const tk = (k: 'target' | 'targetName') => keyFor(me(), k);
+const handleKey = () => `handle.${me()}`;
 
 export const target = {
   kind: (local.get(tk('target')) as TargetKind) || 'browser',
@@ -74,7 +78,7 @@ export function setTarget(kind: TargetKind, name = '') {
  * open), and in every other tab (they hear it through the storage event below). The person chooses again.
  */
 export async function forgetFileTarget(id: string) {
-  if (profile.id === id && (currentId() || 'new') === id) setTarget('browser');
+  if (me() === id) setTarget('browser');
   local.set(keyFor(id, 'target'), 'browser');
   local.set(keyFor(id, 'targetName'), '');
   local.remove('you.fileFingerprint.' + id);
@@ -87,7 +91,7 @@ window.addEventListener('storage', e => {
 /** On startup: find the file we were saving to. Browsers ask for permission again after a reload. */
 export async function initTarget() {
   // Before Yous could be switched, the file handle was stored under one shared key.
-  if (local.get('you.migrateHandle') === currentId()) {
+  if (local.get('you.migrateHandle') === me()) {
     const old = await idb.get<FileHandle>('handle');
     if (old) { await idb.set(handleKey(), old); await idb.del('handle'); }
     local.remove('you.migrateHandle');
@@ -97,7 +101,7 @@ export async function initTarget() {
     if (!handle) setTarget('browser');
     else needsPermission = (await handle.queryPermission({ mode: 'readwrite' })) !== 'granted';
   }
-  if (handle) await writer.load(handle, local.get('you.fileFingerprint.' + currentId()) || undefined);
+  if (handle) await writer.load(handle, local.get('you.fileFingerprint.' + me()) || undefined);
   renderPill();
 }
 

@@ -13,9 +13,9 @@ export const NUDGE_AT = 3;
 const nudge = $('#nudge');
 
 function maybeNudge() {
-  if (target.kind !== 'browser' || local.get(keyFor(currentId(), 'nudged')) || profile.cards.length < NUDGE_AT || !nudge.hidden) return;
+  if (target.kind !== 'browser' || local.get(keyFor(profile.id || currentId(), 'nudged')) || profile.cards.length < NUDGE_AT || !nudge.hidden) return;
   setTimeout(() => {
-    if (target.kind !== 'browser' || local.get(keyFor(currentId(), 'nudged'))) return;
+    if (target.kind !== 'browser' || local.get(keyFor(profile.id || currentId(), 'nudged'))) return;
     $('#nudge-name').textContent = profile.name ? `, ${profile.name}` : '';
     nudge.hidden = false;
   }, 700);
@@ -24,7 +24,7 @@ function maybeNudge() {
 nudge.addEventListener('click', e => {
   const b = (e.target as HTMLElement).closest<HTMLElement>('[data-n]');
   if (!b) return;
-  local.set(keyFor(currentId(), 'nudged'), new Date().toISOString());
+  local.set(keyFor(profile.id || currentId(), 'nudged'), new Date().toISOString());
   nudge.hidden = true;
   if (b.dataset.n === 'safe') openSafety();
   if (b.dataset.n === 'choose') openStoragePicker('save');
