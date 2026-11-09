@@ -9,7 +9,7 @@ vi.mock('./storage/vaultStore', () => ({
 }));
 vi.mock('./storage/fileFormat', () => ({ encode: async (_v: unknown, p: unknown) => JSON.stringify(p) }));
 vi.mock('./core/crypto', () => ({ openWith: async (_v: unknown, env: unknown) => JSON.stringify(env) }));
-vi.mock('./storage/profiles', () => ({ currentId: () => 'you', removeProfile: async () => {}, setCurrent: () => {}, upsertProfile: () => {} }));
+vi.mock('./storage/profiles', () => ({ currentId: () => 'you', wantsNew: () => false, removeProfile: async () => {}, setCurrent: () => {}, upsertProfile: () => {} }));
 // Earlier versions: record what gets kept, so the test can check the other tab's version is never just overwritten.
 vi.mock('./storage/archive', () => ({
   archiveVersion: async (id: string, envelope: string) => { h.archived.push({ id, envelope }); return 'archive/' + id + '/' + (h.archived.length - 1); },

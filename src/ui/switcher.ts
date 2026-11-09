@@ -99,7 +99,7 @@ async function checkLock() {
  */
 async function autoLock() {
   keepOpenDraft();
-  if (await flushPending() && browserSaveState().status === 'saved') { reloadClean(); return; }
+  if (await flushPending() && browserSaveState().status === 'saved') { if (profile.id) setCurrent(profile.id); reloadClean(); return; }
   await lockInPlace();
 }
 

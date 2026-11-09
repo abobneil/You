@@ -30,7 +30,7 @@ export function staleGuard(store: Pick<VaultStore, 'get' | 'set'>, lock: Lock = 
      * downloaded. Compare-and-swap under the lock: that downloaded copy becomes the baseline only if
      * it's still exactly what's stored. Returns false (changing nothing) if another save landed since.
      */
-    adoptStored(id: string, expected: string): Promise<boolean> {
+    adoptStored(id: string, expected: string | null): Promise<boolean> {
       return lock('you-' + id, async () => {
         if (await store.get(id) !== expected) return false;
         baseline = expected; stale = false;

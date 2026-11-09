@@ -10,7 +10,7 @@ import { decode, readFile, readText, UnsupportedVersion, DamagedFile } from '../
 import { keepsakeStore } from '../storage/keepsakeAccess';
 import { clearAbandonedStaging, commitStaged, describeProblems, discardStaged, stageKeepsakes, type Staged } from '../storage/keepsakeImport';
 import { byRecent, currentId, hasVault, listProfiles, placeLabel, setCurrent, startNew } from '../storage/profiles';
-import { canWriteFiles, forgetFileTarget, keepVerifiedCopy, type FileHandle } from '../storage/target';
+import { canWriteFiles, forgetFileTarget, keepVerifiedCopy, startFreshTarget, type FileHandle } from '../storage/target';
 import { askNewPassphrase, askPassphrase, backToPrevious, hideGate, type WhoRow } from './gate';
 import { openStoragePicker } from './storagePicker';
 import { addNewYou, openEarlier, switchTo, reloadClean } from './switcher';
@@ -36,6 +36,7 @@ function whoRow(): WhoRow {
 /** Explains that this browser's copy can't be read, keeps it, and offers it as a file for safekeeping. */
 async function damagedBrowserCopy(slot: string, stored: string) {
   startNew();
+  startFreshTarget(); // nothing started now may save into the damaged You's file either
   const label = listProfiles().find(e => e.id === slot)?.label || 'This You';
   // Earlier versions of it may still be good: offer them here, since the menu only lists them once unlocked.
   const earlier = (await listArchived(slot).catch(() => [])).length;
@@ -161,9 +162,11 @@ export async function start(): Promise<'home' | 'landing'> {
   const legacy = legacyProfile();
   if (legacy) {
     legacy.id = legacy.id || newId();
-    await setSession(legacy, null);
+    // Only where nothing is stored yet: if another tab protected this data meanwhile, that copy wins and
+    // this tab is asked, rather than writing the original data over it.
+    await setSession(legacy, null, null);
     const v = await askNewPassphrase(legacy.name, 'upgrade');
-    await setSession(legacy, v);
+    await setSession(legacy, v, null);
     hideGate();
     return 'home';
   }

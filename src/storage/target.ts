@@ -13,13 +13,13 @@ import { shownValue } from '../ui/sensitive';
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace } from '../state';
+import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encodeBlob, encodeFile, fileNameFor } from './fileFormat';
 import { sealedFor } from './keepsakeAccess';
 import { idb } from './idb';
 import { local } from './local';
-import { currentId, keyFor } from './profiles';
+import { currentId, keyFor, wantsNew } from './profiles';
 
 export type TargetKind = 'browser' | 'file' | 'download';
 
@@ -42,8 +42,8 @@ const FILE_TYPES = [{ description: 'You data', accept: { 'application/json': ['.
 // Each You has its own save location, keyed by the You open in THIS tab. The browser-wide "current You"
 // moves whenever any tab saves, so it must never decide where this tab's work goes. A tab opens one You
 // (switching reloads), so the id at load stands in until the open You has its own id.
-const tabYou = currentId() || 'new';
-const me = () => profile.id || tabYou;
+const tabYouAtLoad = currentId() || 'new';
+const me = () => profile.id || (wantsNew() ? 'new' : tabYouAtLoad);
 const tk = (k: 'target' | 'targetName') => keyFor(me(), k);
 const handleKey = () => `handle.${me()}`;
 
@@ -77,6 +77,17 @@ export function setTarget(kind: TargetKind, name = '') {
  * here. Stop saving into it, for that You whether or not it's the one open (the damaged-copy screen has none
  * open), and in every other tab (they hear it through the storage event below). The person chooses again.
  */
+/**
+ * The person started a new You in this tab without reloading (from the "can't be read" screen). Whatever
+ * this tab loaded for the earlier You (its save file, its handle) must not become the new You's.
+ */
+export function startFreshTarget() {
+  handle = null; conflict = false; dirty = false; failed = false; needsPermission = false;
+  target.kind = 'browser'; target.name = '';
+  renderPill();
+  changeListeners.forEach(fn => fn());
+}
+
 export async function forgetFileTarget(id: string) {
   if (me() === id) setTarget('browser');
   local.set(keyFor(id, 'target'), 'browser');
@@ -429,8 +440,16 @@ onBrowserSave(renderPill);
  * Another tab saved newer changes and this tab has its own. Never offered while locked (state.ts
  * waits until unlock). `again` says the other tab saved once more while the first choice was made.
  */
-function showTabConflict(again = false) {
+async function showTabConflict(again = false) {
   if (isLockedInPlace()) return;
+  // Not a newer version at all: another tab removed this You from the browser. Say that, and offer a way back.
+  if (profile.id && await storedEnvelope(profile.id).catch(() => 'unknown') === null) {
+    openSheet(`${sheetTop('Removed in another tab')}<h3 class="sh-title">${esc(profile.name || 'This You')} was removed from this browser in another tab</h3><p>Your work is still open here. Keep it in this browser again, or save it as a file.</p><div class="menu"><button data-act="keep">Keep it in this browser</button><button data-act="file">Save it as a file</button></div>`, {
+      keep: async () => { if (await keepAfterRemoval()) closeSheet(); else void showTabConflict(); },
+      file: async () => { if (await keepVerifiedCopy()) closeSheet(); },
+    });
+    return;
+  }
   openSheet(`${sheetTop('This You was changed in another tab')}<h3 class="sh-title">Another tab saved newer changes</h3>${again ? '<p><b>The other tab saved again while its copy was downloading, so nothing was overwritten.</b> Choose again; its newest version will be downloaded.</p>' : ''}<p>Both versions can be kept. Whichever you choose, the other one is downloaded first as its own file.</p><div class="menu"><button data-act="newer">Use the other tab’s version (download this tab’s first)</button><button data-act="ours">Keep this tab’s version (download the other tab’s first)</button></div>`, {
   newer: async () => {
     const mark = editMark(); // anything typed after this isn't in the download, so it must not be replaced
@@ -444,12 +463,12 @@ function showTabConflict(again = false) {
     if (!got) return; // couldn't keep the other version: change nothing
     const { name } = got;
     // The other tab saved again during the download: what was downloaded isn't the newest. Ask again.
-    if (!await keepThisTab(got.envelope)) { showTabConflict(true); return; }
+    if (!await keepThisTab(got.envelope)) { void showTabConflict(true); return; }
     openSheet(`${sheetTop('Kept this tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab’s version is saved in this browser. The other tab’s version was saved as <b>${esc(name)}</b>; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
   },
   });
 }
-onTabConflict(() => showTabConflict());
+onTabConflict(() => { void showTabConflict(); });
 
 onLeaveFailure(() => new Promise(resolve => openSheet(`${sheetTop("Your latest changes couldn't be saved")}<p>Your work is still here. Download a copy before locking or switching.</p><div class="menu"><button data-act="download">Download before leaving</button><button data-act="stay">Stay here</button></div>`, {
   // If the copy can't be made, say so and stay unlocked: never lock away the only copy.

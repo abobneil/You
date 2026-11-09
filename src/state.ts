@@ -9,7 +9,7 @@ import type { Profile } from './core/types';
 import { encode } from './storage/fileFormat';
 import { archiveVersion, deleteArchived, getArchived } from './storage/archive';
 import { KEYS, local } from './storage/local';
-import { currentId, removeProfile, setCurrent, upsertProfile } from './storage/profiles';
+import { currentId, removeProfile, setCurrent, upsertProfile, wantsNew } from './storage/profiles';
 
 import { migrateVault, vaultStore } from './storage/vaultStore';
 import { saveQueue, type SaveState } from './storage/saveQueue';
@@ -28,7 +28,9 @@ const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('
 const withLock = <T,>(name: string, fn: () => Promise<T>): Promise<T> =>
   typeof navigator !== 'undefined' && navigator.locks ? navigator.locks.request(name, fn) as Promise<T> : fn();
 /** The You this tab opened at load (switching reloads); '' for a new You. Another tab's saves move the browser-wide current You. */
-const tabYou = currentId();
+const tabYouAtLoad = currentId();
+/** This tab's You for a record without an id: none once the person chose to start a new You here. */
+const tabYou = () => (wantsNew() ? '' : tabYouAtLoad);
 const guard = staleGuard(vaultStore, withLock);
 /** Counts edits; `committedEdit` is the last one known to be in the stored copy. */
 let editCount = 0, committedEdit = 0;
@@ -108,6 +110,15 @@ export async function keepThisTab(downloaded: string): Promise<boolean> {
   await persist();
   return true;
 }
+/**
+ * Another tab removed this You from the browser while it is open here. Keep this tab's work in the browser
+ * again, but only while nothing has been stored for it since. Returns false if something has.
+ */
+export async function keepAfterRemoval(): Promise<boolean> {
+  if (!await guard.adoptStored(profile.id!, null)) return false;
+  await persist();
+  return browserSaveState().status === 'saved';
+}
 channel?.addEventListener('message', async e => {
   if (e.data?.id !== profile.id || !vault) return;
   guard.markStale();
@@ -170,11 +181,11 @@ export function save() {
  */
 export async function setSession(p: Profile, v: Vault | null, from?: string | null) {
   await flushPending();
-  guard.begin(from !== undefined ? from : await vaultStore.get(p.id || tabYou || newId()));
+  guard.begin(from !== undefined ? from : await vaultStore.get(p.id || tabYou() || newId()));
   committedEdit = editCount;
   profile = p;
   // A You without an id yet is new: never borrow the id of whichever You another tab saved last.
-  profile.id = profile.id || tabYou || newId();
+  profile.id = profile.id || tabYou() || newId();
   profile.updatedAt = profile.updatedAt || new Date().toISOString();
   vault = v;
   return persist();
