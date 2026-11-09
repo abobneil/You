@@ -13,6 +13,8 @@ import { byRecent, currentId, placeLabel, setCurrent, startNew } from '../storag
 import { $, esc } from './dom';
 import { closeSheet, openSheet, sheetTop } from './sheet';
 import { isKeptFromOtherCopy } from '../core/compare';
+import { listArchived } from '../storage/archive';
+import { restoreArchived } from '../state';
 
 /** What the preservation bucket holds, in words: copies kept from a combine vs things that couldn't be read. */
 export function unreadableText(items: unknown[] | undefined): string {
@@ -32,10 +34,12 @@ export const lockNow = async () => { if (await canLeave()) reloadClean(); };
 /** "A" for Alex; "?" if the name isn't known yet. */
 export const initial = (label: string) => (label.trim()[0] || '?').toUpperCase();
 
-export function openSwitcher() {
+export async function openSwitcher() {
   const list = byRecent();
   const cur = currentId();
   const unlocked = !!vault && profile.id === cur;
+  // Only offered when there is something to go back to, so the menu stays short.
+  const earlier = unlocked ? (await listArchived(cur).catch(() => [])).length : 0;
   const name = esc(profile.name || 'this You');
   openSheet(`${sheetTop('Yous on this browser')}
     <h3 class="sh-title">Switch You</h3>
@@ -49,6 +53,7 @@ export function openSwitcher() {
     ${unlocked ? `<p class="hint">${unreadableText(profile.unreadable)}</p><label class="sel-lab">Lock after no interaction <select class="fsel" id="lock-time">${[5,15,60,0].map(n => `<option value="${n}" ${n === timeoutMinutes() ? 'selected' : ''}>${n ? n + ' minutes' : 'Never'}</option>`).join('')}</select></label>` : ''}
     <div class="menu"><button type="button" data-act="help">Help</button><button type="button" data-act="safe">Keep it safe</button>
       <button type="button" data-act="new">+ Add a new You</button>
+      ${earlier ? `<button type="button" data-act="earlier">Earlier versions (${earlier})</button>` : ''}
       ${unlocked ? `<button type="button" data-act="open">Open a file…</button>
         <button type="button" data-act="lock">Lock ${name}</button>
         <button type="button" data-act="remove" class="soft">Remove ${name} from this browser…</button>` : ''}
@@ -61,6 +66,7 @@ export function openSwitcher() {
     open: async () => (await import('./storagePicker')).openStoragePicker('open'),
     help: openHelp,
     safe: openSafety,
+    earlier: () => { void openEarlier(cur); },
     remove: () => {
       openSheet(`${sheetTop('Remove from this browser')}<h3 class="sh-title">Remove ${name}?</h3>
         <p>This removes only this browser’s copy of this You. Other Yous and saved files stay.</p>
@@ -148,3 +154,27 @@ export function renderWhoButton() {
   btn.setAttribute('aria-label', `${profile.name || 'You'}: switch or lock`);
 }
 btn.addEventListener('click', openSwitcher);
+
+/**
+ * Earlier versions of this You kept in this browser (each time opening a file replaced it). Restoring one
+ * keeps what's here now as an earlier version too, so nothing is lost either way.
+ */
+async function openEarlier(id: string) {
+  const list = await listArchived(id);
+  const when = (iso: string) => new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  openSheet(`${sheetTop('Earlier versions')}<h3 class="sh-title">Earlier versions kept in this browser</h3>
+    <p class="hint">When opening a file replaced what was here, the version it replaced was kept, still encrypted.</p>
+    <ul class="yous">${list.map(v => `<li><button type="button" data-act="restore" data-key="${esc(v.key)}"><span class="yn"><b>${esc(when(v.at))}</b><small>Kept ${esc(v.reason)} · Restore this version</small></span></button></li>`).join('') || '<li class="hint">None yet.</li>'}</ul>
+    <div class="btns"><button class="btn quiet" type="button" data-act="close">Close</button></div>`, {
+    restore: b => {
+      const key = b.dataset.key!;
+      const v = list.find(x => x.key === key);
+      openSheet(`${sheetTop('Earlier versions')}<h3 class="sh-title">Go back to the version from ${esc(v ? when(v.at) : 'earlier')}?</h3>
+        <p>What’s in this browser now is kept as an earlier version first, so you can come back to it.</p>
+        <p class="hint">You’ll unlock it with the passphrase it was saved with.</p>
+        <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="go">Restore this version</button></div>`, {
+        go: async () => { if (!await canLeave()) return; if (await restoreArchived(id, key)) reloadClean(); },
+      });
+    },
+  });
+}

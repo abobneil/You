@@ -7,6 +7,7 @@ import type { Vault } from './core/crypto';
 import { emptyProfile, normalize } from './core/profile';
 import type { Profile } from './core/types';
 import { encode } from './storage/fileFormat';
+import { archiveVersion, deleteArchived, getArchived } from './storage/archive';
 import { KEYS, local } from './storage/local';
 import { currentId, removeProfile, setCurrent, upsertProfile } from './storage/profiles';
 
@@ -182,13 +183,16 @@ export async function setSession(p: Profile, v: Vault | null, from?: string | nu
  * or waits and then finds this record changed (and asks instead of overwriting).
  * Returns false, having changed nothing, when the stored copy moved on.
  */
-export async function openInPlace(p: Profile, v: Vault, expected: string | null, commit: () => Promise<void>, signal?: AbortSignal): Promise<boolean> {
+export async function openInPlace(p: Profile, v: Vault, expected: string | null, commit: () => Promise<void>, signal?: AbortSignal, reason = 'before opening a file in its place'): Promise<boolean> {
   await flushPending();
   const id = p.id!;
   const written = await withLock('you-' + id, async () => {
     if ((await vaultStore.get(id)) !== expected) return null;
     await commit();
     signal?.throwIfAborted(); // Cancel still counts until the record itself is written
+    // Whatever is stored is kept as an earlier version first, so this replace can't lose it, whatever
+    // this tab knew and whether or not an outside copy was made.
+    if (expected !== null) await archiveVersion(id, expected, reason);
     const envelope = await encode(v, p);
     await vaultStore.set(id, envelope);
     if (await vaultStore.get(id) !== envelope) throw new Error('Could not verify browser copy');
@@ -197,6 +201,26 @@ export async function openInPlace(p: Profile, v: Vault, expected: string | null,
   if (written === null) return false;
   await setSession(p, v, written);
   channel?.postMessage({ id, rev: p.rev });
+  return true;
+}
+
+/**
+ * Puts an earlier version back as this browser's copy of `id`. What's stored now is kept as an earlier
+ * version first, so restoring is itself reversible. The caller reloads afterwards: the restored version
+ * unlocks with the passphrase it was saved with.
+ */
+export async function restoreArchived(id: string, key: string): Promise<boolean> {
+  await flushPending();
+  const earlier = await getArchived(key);
+  if (!earlier) return false;
+  await withLock('you-' + id, async () => {
+    const now = await vaultStore.get(id);
+    if (now !== null) await archiveVersion(id, now, 'before restoring an earlier version');
+    await vaultStore.set(id, earlier.envelope);
+    if (await vaultStore.get(id) !== earlier.envelope) throw new Error('Could not verify browser copy');
+    await deleteArchived(key);
+  });
+  channel?.postMessage({ id });
   return true;
 }
 

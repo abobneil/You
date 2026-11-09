@@ -145,13 +145,15 @@ sheet.addEventListener('keydown', e => {
 });
 // The "close" event arrives a moment later, after focus may already have moved on, so the work
 // is done right away in afterClose(); the event only covers a close the browser forced itself.
-let closedEarly = false;
-sheet.addEventListener('close', () => { if (closedEarly) closedEarly = false; else afterClose(); closedEarly = false; });
+// A count, not a flag: two quick closes queue two close events, and each must be matched to its own early
+// close, or the second would tidy away the next panel that has already opened.
+let closedEarly = 0;
+sheet.addEventListener('close', () => { if (closedEarly > 0) closedEarly--; else { afterClose(); closedEarly--; } }); // afterClose counted itself
 let pendingBack = 0;
 window.addEventListener('popstate', () => { if (pendingBack) { pendingBack--; if (sheet.open) history.pushState({ ...history.state, youSheet: true }, ''); return; } if (sheet.open) dismiss(); });
 function afterClose() {
   if (history.state?.youSheet) { pendingBack++; history.back(); }
-  closedEarly = true;
+  closedEarly++;
   const done = finishing;
   const dismissed = onDismiss;
   onDismiss = undefined;

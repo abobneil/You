@@ -19,6 +19,20 @@ the record as a version 2 envelope, and its `keepsakes` store holds each keepsak
 `{ iv, data }` raw bytes under the key `<you id>/<keepsake id>`, encrypted exactly as in a version 3
 file. Keepsake bytes are written before the record that mentions them.
 
+**Earlier versions.** Whenever something replaces a You's browser copy wholesale (opening a file in its
+place, or restoring an earlier version), the copy being replaced is first kept in the same `records`
+store under `archive/<you id>/<ISO time>-<random>`, as JSON `{ at, reason, envelope }` where `envelope`
+is the replaced record exactly as stored (still encrypted). Photo rows are never deleted by a replace,
+so an earlier version's photos are still in the `keepsakes` store when it's restored. Menu → Earlier
+versions lists and restores them; removing the You from the browser removes them.
+
+**Unreadable-copy files.** When a browser copy can't be read (or unlocked) and is replaced, You first
+saves it as a file shaped `{ "app": "you", "unreadableBrowserCopy": true, "record": "<the stored
+envelope text, unchanged>", "keepsakes": [ { "id", "iv", "data" }, … ] }` with one keepsake per line,
+each encrypted exactly as in a version 3 file. You recognises this file and explains it rather than
+opening it; a helper with the passphrase can decrypt `record` (if it isn't damaged) and each keepsake
+as described below.
+
 ## Envelope (versions 2 and 3)
 
 The file is UTF-8 JSON. Version 3 is written one keepsake per line so it can be read in pieces, but

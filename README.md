@@ -58,7 +58,7 @@ Everything is encrypted with the person's passphrase before it's written anywher
 
 ## Several Yous on one browser
 
-Each You has its own passphrase, encrypted copy (IndexedDB `you-data`, keyed by You id), save location and settings. The list of Yous (`you.index`) keeps only an id and the person's name, so the unlock screen can say "Welcome back, Sam" and offer the others. That name is the only thing stored unencrypted. Switching, adding and locking reload the page, so the previous You's data and key leave memory. A file that belongs to a You already on this browser asks before replacing it. See `src/storage/profiles.ts`.
+Each You has its own passphrase, encrypted copy (IndexedDB `you-data`, keyed by You id), save location and settings. The list of Yous (`you.index`) keeps only an id and the person's name, so the unlock screen can say "Welcome back, Sam" and offer the others. That name is the only thing stored unencrypted. Switching, adding and locking reload the page, so the previous You's data and key leave memory. A file that belongs to a You already on this browser asks before replacing it, makes a copy of the browser version first (written and read back in Chrome and Edge; confirmed by the person elsewhere), and keeps the replaced version as an **earlier version** in the browser, still encrypted. Menu → Earlier versions restores one, keeping what was there as an earlier version too. See `src/storage/profiles.ts` and `src/storage/archive.ts`.
 
 ## Importing
 

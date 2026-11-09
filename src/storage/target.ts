@@ -186,7 +186,9 @@ function cannotDownload(e: unknown) {
 // The person's own calendar date (not UTC), so a copy made at 7 pm on 8 Nov isn't named 9 Nov.
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 /** "alex-kim (this browser 2026-11-08).you.json": a copy kept beside the main file. */
-const separateName = (what: string) => fileNameFor(profile.name).replace('.you.json', ` (${what} ${today()}).you.json`);
+// The time to the second makes every copy's name unique, so an older copy from the same day can't be mistaken for it.
+const stamp = () => { const d = new Date(); return `${today()} ${String(d.getHours()).padStart(2, '0')}-${String(d.getMinutes()).padStart(2, '0')}-${String(d.getSeconds()).padStart(2, '0')}`; };
+const separateName = (what: string) => fileNameFor(profile.name).replace('.you.json', ` (${what} ${stamp()}).you.json`);
 
 /** Downloads an encrypted copy of the open You. Returns false (after saying why) if it couldn't. */
 export async function downloadCopy(separate = false): Promise<boolean> {

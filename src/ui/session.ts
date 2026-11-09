@@ -1,11 +1,12 @@
-import { closeSheet, focusFallbackSoon, openSheet, sheetTop } from './sheet';
+import { closeSheet, focusFallbackSoon, offerUndo, openSheet, sheetTop } from './sheet';
+import { listArchived } from '../storage/archive';
 import { esc } from './dom';
 import { commitFile, stageFile } from '../storage/stageFile';
 // Getting into your data: first visit, returning visit, upgrading old data, and loading a file.
 import { newId } from '../core/cards';
 import { toB64, WrongPassphrase, type Vault } from '../core/crypto';
 import type { Profile } from '../core/types';
-import { canLeave, eraseBrowserCopy, flushPending, legacyProfile, openInPlace, profile, setSession, storedEnvelope } from '../state';
+import { canLeave, eraseBrowserCopy, flushPending, legacyProfile, openInPlace, profile, restoreArchived, setSession, storedEnvelope } from '../state';
 import { decode, readFile, readText, UnsupportedVersion, DamagedFile } from '../storage/fileFormat';
 import { keepsakeStore } from '../storage/keepsakeAccess';
 import { clearAbandonedStaging, commitStaged, describeProblems, discardStaged, stageKeepsakes, type Staged } from '../storage/keepsakeImport';
@@ -313,7 +314,7 @@ export async function importText(source: Blob | string): Promise<boolean> {
       if (!staged) return;
       if (source instanceof Blob) await commitFile(staged, loaded, controller.signal);
       else await commitStaged(keepsakeStore, staged, loaded.id!, loaded, controller.signal);
-    }, controller.signal);
+    }, controller.signal, `before opening ${source instanceof File ? source.name : 'a file'}`);
     closeSheet();
   } catch {
     closeSheet();
@@ -326,6 +327,15 @@ export async function importText(source: Blob | string): Promise<boolean> {
     return give();
   }
   hideGate();
+  if (expected !== null) {
+    // Whatever was here was kept as an earlier version just before the file replaced it. Say so, quietly,
+    // with a one-step way back.
+    const id = loaded.id!;
+    offerUndo(`Opened ${source instanceof File ? source.name : 'the file'}. What was here is kept in Menu → Earlier versions.`, async () => {
+      const [latest] = await listArchived(id);
+      if (latest && await restoreArchived(id, latest.key)) reloadClean();
+    });
+  }
   return true;
 }
 
