@@ -1,4 +1,4 @@
-import { closeSheet, openSheet, sheetTop } from './sheet';
+import { closeSheet, focusFallbackSoon, openSheet, sheetTop } from './sheet';
 import { esc } from './dom';
 import { commitFile, stageFile } from '../storage/stageFile';
 // Getting into your data: first visit, returning visit, upgrading old data, and loading a file.
@@ -202,7 +202,8 @@ export async function importText(source: Blob | string): Promise<boolean> {
 
   // Every attached file is decrypted and checked before anything here changes.
   let staged: Staged | null = null;
-  const give = async () => { if (staged) await discardStaged(keepsakeStore, staged); backToPrevious(); return false; };
+  // Backing out of an open: clear what was staged, return to the previous screen and put focus somewhere sensible.
+  const give = async () => { if (staged) await discardStaged(keepsakeStore, staged); backToPrevious(); focusFallbackSoon(); return false; };
   if (r.kind === 'locked' && key) {
     const controller = new AbortController();
     openSheet(`${sheetTop('Checking your photos and files…')}<p role="status" id="file-check-progress">Checking your photos and files…</p><button class="btn" data-act="cancel">Cancel</button>`, {

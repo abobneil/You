@@ -185,7 +185,7 @@ function afterClose() {
  * focus would be left on nothing. Put it on the most sensible visible control instead.
  */
 /** The screen behind may take a moment (clearing a cancelled open, redrawing the gate), so try for up to a second. */
-function focusFallbackSoon(tries = 10) {
+export function focusFallbackSoon(tries = 10) {
   setTimeout(() => { if (!focusFallback() && tries > 1) focusFallbackSoon(tries - 1); }, 100);
 }
 
