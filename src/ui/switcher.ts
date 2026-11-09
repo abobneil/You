@@ -1,7 +1,7 @@
 import { local } from '../storage/local';
 import { openHelp } from './help';
 import { openSafety } from './safety';
-import { downloadCopy, setTarget } from '../storage/target';
+import { downloadCopy, forgetFileTarget } from '../storage/target';
 // Switching between Yous on this browser. Switching, adding and locking reload the page,
 // so the previous You's data and key are gone from memory.
 import { browserSaveState, canLeave, eraseBrowserCopy, flushPending, persist, profile, setLockedInPlace, settleAfterUnlock, vault } from '../state';
@@ -181,7 +181,7 @@ export async function openEarlier(id: string) {
           if (!await canLeave()) return;
           if (!await restoreArchived(id, key)) return;
           // A file this You was saving into holds the newer version: stop saving there; the person chooses again.
-          if (id === profile.id) setTarget('browser');
+          await forgetFileTarget(id);
           setCurrent(id); reloadClean();
         },
       });

@@ -21,7 +21,12 @@ export function keepFile(name: string, bytes: Uint8Array): Promise<StoreResult> 
 
 /** Deletes rows only a draft referred to (a card that was never added). */
 export async function dropRows(youId: string, ids: string[]) {
-  for (const id of ids) { try { await keepsakeStore.del(rowKey(youId, id)); } catch { /* left for later */ } }
+  for (const id of ids) {
+    try {
+      await keepsakeStore.del(rowKey(youId, id));
+      for (const k of await keepsakeStore.keys(rowKey(youId, id) + '~')) await keepsakeStore.del(k);
+    } catch { /* left for later */ }
+  }
 }
 
 /** The open You's sealed rows, for writing the file: for each photo, the copy the open You's key opens. */

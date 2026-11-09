@@ -68,6 +68,22 @@ export function setTarget(kind: TargetKind, name = '') {
   changeListeners.forEach(fn => fn());
 }
 
+/**
+ * After an earlier version is put back, the file `id` was saving into holds newer work than what's now
+ * here. Stop saving into it, for that You whether or not it's the one open (the damaged-copy screen has none
+ * open), and in every other tab (they hear it through the storage event below). The person chooses again.
+ */
+export async function forgetFileTarget(id: string) {
+  if (profile.id === id && (currentId() || 'new') === id) setTarget('browser');
+  local.set(keyFor(id, 'target'), 'browser');
+  local.set(keyFor(id, 'targetName'), '');
+  local.remove('you.fileFingerprint.' + id);
+  await idb.del(`handle.${id}`);
+}
+window.addEventListener('storage', e => {
+  if (target.kind === 'file' && e.key === tk('target') && e.newValue === 'browser') setTarget('browser');
+});
+
 /** On startup: find the file we were saving to. Browsers ask for permission again after a reload. */
 export async function initTarget() {
   // Before Yous could be switched, the file handle was stored under one shared key.
@@ -156,8 +172,9 @@ function showFileConflict() {
       const h = handle;
       if (!h) return;
       // What is opened is exactly these bytes; if the file changes again while this opens, the next save must notice.
-      const read = await h.getFile();
-      const fp = await fingerprintOf(read);
+      let read: Awaited<ReturnType<typeof h.getFile>>, fp: string;
+      try { read = await h.getFile(); fp = await fingerprintOf(read); }
+      catch { showFileConflict(); return; } // it changed again while being read: ask again rather than do nothing
       if (!await importText(read)) return;
       // This tab now holds the file's version, so the file is up to date again: keep saving into it.
       if (handle === h) { conflict = false; failed = false; dirty = false; await writer.load(h, fp); local.set('you.fileFingerprint.' + profile.id, writer.fingerprint()!); renderPill(); }

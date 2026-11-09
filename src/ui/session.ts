@@ -10,7 +10,7 @@ import { decode, readFile, readText, UnsupportedVersion, DamagedFile } from '../
 import { keepsakeStore } from '../storage/keepsakeAccess';
 import { clearAbandonedStaging, commitStaged, describeProblems, discardStaged, stageKeepsakes, type Staged } from '../storage/keepsakeImport';
 import { byRecent, currentId, hasVault, listProfiles, placeLabel, setCurrent, startNew } from '../storage/profiles';
-import { canWriteFiles, keepVerifiedCopy, setTarget, type FileHandle } from '../storage/target';
+import { canWriteFiles, forgetFileTarget, keepVerifiedCopy, setTarget, type FileHandle } from '../storage/target';
 import { askNewPassphrase, askPassphrase, backToPrevious, hideGate, type WhoRow } from './gate';
 import { openStoragePicker } from './storagePicker';
 import { addNewYou, openEarlier, switchTo, reloadClean } from './switcher';
@@ -359,7 +359,7 @@ export async function importText(source: Blob | string): Promise<boolean> {
       let done: boolean | 'changed' = false;
       try { done = await restoreArchived(id, kept, wrote); } catch { /* said below */ }
       // The file that was opened holds what was undone, so stop saving into it; the person chooses again.
-      if (done === true) { setTarget('browser'); return reloadClean(); }
+      if (done === true) { await forgetFileTarget(id); return reloadClean(); }
       // Something was saved since the open, or the version is no longer there: say so, never just do nothing.
       openSheet(`${sheetTop('Undo')}<h3 class="sh-title">${done === 'changed' ? 'Changes were saved since the file was opened' : 'That version couldn’t be put back'}</h3><p data-announce>${done === 'changed' ? 'So nothing was undone, and those changes stay. ' : 'Nothing was changed. '}Earlier versions in the menu lists what this You looked like before; you can restore any of them.</p><div class="btns"><button class="btn quiet" type="button" data-act="close">Close</button><button class="btn primary" type="button" data-act="earlier">Earlier versions</button></div>`, {
         earlier: () => { void openEarlier(id); },
