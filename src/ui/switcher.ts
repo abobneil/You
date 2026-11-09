@@ -36,7 +36,8 @@ export const initial = (label: string) => (label.trim()[0] || '?').toUpperCase()
 
 export async function openSwitcher() {
   const list = byRecent();
-  const cur = currentId();
+  // The You open in this tab, not whichever You another tab saved last.
+  const cur = (vault && profile.id) || currentId();
   const unlocked = !!vault && profile.id === cur;
   // Only offered when there is something to go back to, so the menu stays short.
   const earlier = unlocked ? (await listArchived(cur).catch(() => [])).length : 0;
