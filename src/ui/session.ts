@@ -333,6 +333,7 @@ export async function importText(source: Blob | string): Promise<boolean> {
       // Nor a close button or Escape that would look like stopping it.
       close?.remove();
       busyActs.escape = () => {};
+      busyActs.hold = () => {}; // nor a click outside or Back
     });
     closeSheet();
   } catch {

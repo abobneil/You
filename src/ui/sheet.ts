@@ -94,6 +94,8 @@ export const closeSheet = () => { if (sheet.open) { finishing = true; sheet.clos
  * `close` handler, so a panel waiting on an answer always hears "cancelled" and never hangs.
  */
 function dismiss() {
+  // A panel whose work can no longer be stopped (data-act "hold") stays until that work closes it.
+  if (handlers.hold) return;
   const onClose = handlers.close; // afterClose() clears the handlers
   commitField();
   if (sheet.open) { sheet.close(); afterClose(); }
@@ -150,7 +152,7 @@ sheet.addEventListener('keydown', e => {
 let closedEarly = 0;
 sheet.addEventListener('close', () => { if (closedEarly > 0) closedEarly--; else { afterClose(); closedEarly--; } }); // afterClose counted itself
 let pendingBack = 0;
-window.addEventListener('popstate', () => { if (pendingBack) { pendingBack--; if (sheet.open) history.pushState({ ...history.state, youSheet: true }, ''); return; } if (sheet.open) dismiss(); });
+window.addEventListener('popstate', () => { if (pendingBack) { pendingBack--; if (sheet.open) history.pushState({ ...history.state, youSheet: true }, ''); return; } if (sheet.open && handlers.hold) { history.pushState({ ...history.state, youSheet: true }, ''); return; } if (sheet.open) dismiss(); });
 function afterClose() {
   if (history.state?.youSheet) { pendingBack++; history.back(); }
   closedEarly++;

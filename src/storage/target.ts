@@ -6,7 +6,7 @@ import { openWith } from '../core/crypto';
 import { normalize } from '../core/profile';
 import { readFile } from './fileFormat';
 import { save, onLeaveFailure } from '../state';
-import { fileWriter, FileChanged } from './fileWriter';
+import { fileWriter, FileChanged, fingerprintOf } from './fileWriter';
 import { openSheet, sheetTop } from '../ui/sheet';
 import { shownValue } from '../ui/sensitive';
 // Where the person's data is kept, and the status pill in the top bar.
@@ -154,9 +154,13 @@ function showFileConflict() {
       if (!await keepVerifiedCopy()) return;
       const { importText } = await import('../ui/session');
       const h = handle;
-      if (!h || !await importText(await h.getFile())) return;
+      if (!h) return;
+      // What is opened is exactly these bytes; if the file changes again while this opens, the next save must notice.
+      const read = await h.getFile();
+      const fp = await fingerprintOf(read);
+      if (!await importText(read)) return;
       // This tab now holds the file's version, so the file is up to date again: keep saving into it.
-      if (handle === h) { conflict = false; failed = false; dirty = false; await writer.load(h); local.set('you.fileFingerprint.' + profile.id, writer.fingerprint()!); renderPill(); }
+      if (handle === h) { conflict = false; failed = false; dirty = false; await writer.load(h, fp); local.set('you.fileFingerprint.' + profile.id, writer.fingerprint()!); renderPill(); }
     },
   });
 }
@@ -328,12 +332,13 @@ export async function chooseOpenFile(importFile: (file: Blob) => Promise<boolean
   try {
     const [h] = await w.showOpenFilePicker!({ types: FILE_TYPES });
     const original = await h.getFile();
+    const fp = await fingerprintOf(original); // later saves check the file is still exactly what was opened
     const legacy = (await readFile(original)).kind === 'plain';
     if (!(await importFile(original))) return false;
     if (legacy) { setTarget('browser'); return true; }
     await idb.set(handleKey(), h);
     setTarget('file', h.name);
-    handle = h; conflict = false; await writer.load(h); local.set('you.fileFingerprint.' + profile.id, writer.fingerprint()!);
+    handle = h; conflict = false; await writer.load(h, fp); local.set('you.fileFingerprint.' + profile.id, writer.fingerprint()!);
     needsPermission = (await h.requestPermission({ mode: 'readwrite' })) !== 'granted';
     renderPill();
     return true;

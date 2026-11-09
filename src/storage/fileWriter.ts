@@ -4,8 +4,9 @@ export interface WritableFile {
   getFile(): Promise<Blob & { lastModified: number }>;
   createWritable(): Promise<{ write(data: string | Blob): Promise<void>; close(): Promise<void>; abort?(): Promise<void> }>;
 }
-export async function fingerprint(h: WritableFile) {
-  const f = await h.getFile();
+export async function fingerprint(h: WritableFile) { return fingerprintOf(await h.getFile()); }
+/** The fingerprint of bytes already read, so a save checks the file is still exactly what was opened. */
+export async function fingerprintOf(f: Blob & { lastModified: number }) {
   const hash = await crypto.subtle.digest('SHA-256', await f.arrayBuffer());
   return `${f.lastModified}/${f.size}/${Array.from(new Uint8Array(hash)).join(',')}`;
 }

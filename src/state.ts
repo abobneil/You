@@ -210,10 +210,10 @@ export async function openInPlace(p: Profile, v: Vault, expected: string | null,
   });
   if (written === null) return false;
   await setSession(p, v, written);
-  // Starting the session saves once more (fresh encryption), so what Undo compares against is what's
-  // stored once that has settled, not the bytes written above.
+  // Starting the session saves once more (fresh encryption), so Undo compares against that save.
   await flushPending();
-  lastOpened = await vaultStore.get(id);
+  // What this tab itself last stored, not whatever is stored now: another tab's save in between must count as a change.
+  lastOpened = guard.baseline() ?? null;
   channel?.postMessage({ id, rev: p.rev });
   return true;
 }
