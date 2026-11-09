@@ -163,9 +163,12 @@ btn.addEventListener('click', openSwitcher);
 export async function openEarlier(id: string) {
   const list = await listArchived(id);
   const when = (iso: string) => new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  // Two versions kept in the same minute would look identical: show seconds for those.
+  const minutes = list.map(v => when(v.at));
+  const label = (v: { at: string }, i: number) => minutes.filter(m => m === minutes[i]).length > 1 ? new Date(v.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'medium' }) : minutes[i];
   openSheet(`${sheetTop('Earlier versions')}<h3 class="sh-title">Earlier versions kept in this browser</h3>
-    <p class="hint">When opening a file replaced what was here, the version it replaced was kept, still encrypted.</p>
-    <ul class="yous">${list.map(v => `<li><button type="button" data-act="restore" data-key="${esc(v.key)}"><span class="yn"><b>${esc(when(v.at))}</b><small>Kept ${esc(v.reason)} · Restore this version</small></span></button></li>`).join('') || '<li class="hint">None yet.</li>'}</ul>
+    <p class="hint">Whenever something replaced what was here (opening a file, restoring a version, or keeping one tab’s version over another’s), the version it replaced was kept, still encrypted.</p>
+    <ul class="yous">${list.map((v, i) => `<li><button type="button" data-act="restore" data-key="${esc(v.key)}"><span class="yn"><b>${esc(label(v, i))}</b><small>Kept ${esc(v.reason)} · Restore this version</small></span></button></li>`).join('') || '<li class="hint">None yet.</li>'}</ul>
     <div class="btns"><button class="btn quiet" type="button" data-act="close">Close</button></div>`, {
     restore: b => {
       const key = b.dataset.key!;

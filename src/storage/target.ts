@@ -167,7 +167,7 @@ function showFileConflict() {
  */
 async function fallBackToDownload(h: FileHandle) {
   // Never delete a chosen file, including when write or close failed.
-  const dated = h.name.replace(/\.you\.json$/, '') + ` (${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}).you.json`;
+  const dated = h.name.replace(/\.you\.json$/, '') + ` (${today()}).you.json`;
   openSheet(`${sheetTop('Keep your latest copy')}<h3 class="sh-title">${esc(h.name)} isn't up to date</h3><p>Your latest changes are here in this browser. The file could not be updated and stays untouched. Download a dated copy to keep these changes.</p><div class="btns"><button class="btn quiet" data-act="close">Later</button><button class="btn primary" data-act="download">Download latest copy</button></div>`, {
     download: async () => { setTarget('download', dated); await downloadCopy(); closeSheet(); },
   });
