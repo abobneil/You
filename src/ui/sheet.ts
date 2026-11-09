@@ -231,9 +231,13 @@ toast.addEventListener('pointerenter', () => clearTimeout(toastTimer));
 toast.addEventListener('pointerleave', armToast);
 toast.addEventListener('focusin', () => clearTimeout(toastTimer));
 toast.addEventListener('focusout', armToast);
+document.addEventListener('focusin', e => { const t = e.target as HTMLElement; if (t.isContentEditable) t.dataset.focusText = t.textContent ?? ''; });
 document.addEventListener('keydown', e => {
   if (!toastAction || sheet.open || e.key.toLowerCase() !== 'z' || !(e.ctrlKey || e.metaKey) || e.shiftKey) return;
-  if ((e.target as HTMLElement).closest?.('input, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+  const t = e.target as HTMLElement;
+  if (t.closest?.('input, textarea')) return;
+  // An editable heading (the name) only keeps Control Z for itself once something was typed in it.
+  if (t.isContentEditable && t.dataset.focusText !== t.textContent) return;
   e.preventDefault();
   runUndo();
 });

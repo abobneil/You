@@ -7,6 +7,7 @@ import { createVault, type Vault } from '../core/crypto';
 import { $ } from './dom';
 import { DamagedFile, UnsupportedVersion } from '../storage/fileFormat';
 import { backToField } from './keyboard';
+import { focusFallbackSoon } from './sheet';
 
 let weakConfirmed = '';
 
@@ -117,6 +118,8 @@ export function hideGate() {
   gate.hidden = true;
   document.body.classList.remove('gated');
   current = previous = null;
+  // Focus was in the gate, which is now hidden: land it on the screen that's showing.
+  focusFallbackSoon();
 }
 
 function setMessage(text: string, isHint = false, field: HTMLInputElement = pass) {

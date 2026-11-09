@@ -324,13 +324,14 @@ export async function importText(source: Blob | string): Promise<boolean> {
       const status = document.querySelector<HTMLElement>('#sheet-body [role=status]');
       if (status) status.textContent = 'Opening your record… almost done.';
       const cancel = document.querySelector<HTMLElement>('#sheet-body [data-act=cancel]');
-      if (cancel && cancel === document.activeElement) {
+      const close = document.querySelector<HTMLElement>('#sheet-body .sh-close');
+      if (document.activeElement && (document.activeElement === cancel || document.activeElement === close)) {
         const heading = document.querySelector<HTMLElement>('#sheet-body [tabindex="-1"]') ?? status;
         if (heading) { if (!heading.hasAttribute('tabindex')) heading.tabIndex = -1; heading.focus(); }
       }
       cancel?.remove();
       // Nor a close button or Escape that would look like stopping it.
-      document.querySelector('#sheet-body .sh-close')?.remove();
+      close?.remove();
       busyActs.escape = () => {};
     });
     closeSheet();
