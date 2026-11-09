@@ -18,12 +18,13 @@ export interface ArchivedVersion {
 const prefix = (id: string) => `archive/${id}/`;
 const range = (id: string) => IDBKeyRange.bound(prefix(id), prefix(id) + '￿');
 
-/** Keeps `envelope` as an earlier version of `id`. Resolves once it's stored and read back. */
-export async function archiveVersion(id: string, envelope: string, reason: string, at = new Date().toISOString()): Promise<void> {
+/** Keeps `envelope` as an earlier version of `id` and returns its key, once it's stored and read back. */
+export async function archiveVersion(id: string, envelope: string, reason: string, at = new Date().toISOString()): Promise<string> {
   const key = `${prefix(id)}${at}-${crypto.randomUUID().slice(0, 8)}`;
   const value = JSON.stringify({ at, reason, envelope });
   await runIn('records', 'readwrite', s => s.put(value, key));
   if (await runIn<string | undefined>('records', 'readonly', s => s.get(key)) !== value) throw new Error('Could not keep the earlier version');
+  return key;
 }
 
 /** Earlier versions of `id`, newest first (without their envelopes). */

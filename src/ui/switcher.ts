@@ -69,7 +69,7 @@ export async function openSwitcher() {
     earlier: () => { void openEarlier(cur); },
     remove: () => {
       openSheet(`${sheetTop('Remove from this browser')}<h3 class="sh-title">Remove ${name}?</h3>
-        <p>This removes only this browser’s copy of this You. Other Yous and saved files stay.</p>
+        <p>This removes only this browser’s copy of this You, with its earlier versions. Other Yous and saved files stay.</p>
         <p>If you have no saved file, this copy will be gone for good.</p>
         <div class="menu"><button data-act="copy">Download a copy first</button><button data-act="remove">Remove this browser’s copy</button><button data-act="close">Cancel</button></div>`, {
         copy: async () => { await downloadCopy(); },
@@ -159,7 +159,7 @@ btn.addEventListener('click', openSwitcher);
  * Earlier versions of this You kept in this browser (each time opening a file replaced it). Restoring one
  * keeps what's here now as an earlier version too, so nothing is lost either way.
  */
-async function openEarlier(id: string) {
+export async function openEarlier(id: string) {
   const list = await listArchived(id);
   const when = (iso: string) => new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
   openSheet(`${sheetTop('Earlier versions')}<h3 class="sh-title">Earlier versions kept in this browser</h3>
@@ -173,7 +173,7 @@ async function openEarlier(id: string) {
         <p>What’s in this browser now is kept as an earlier version first, so you can come back to it.</p>
         <p class="hint">You’ll unlock it with the passphrase it was saved with.</p>
         <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="go">Restore this version</button></div>`, {
-        go: async () => { if (!await canLeave()) return; if (await restoreArchived(id, key)) reloadClean(); },
+        go: async () => { if (!await canLeave()) return; if (await restoreArchived(id, key)) { setCurrent(id); reloadClean(); } },
       });
     },
   });

@@ -2,7 +2,7 @@
 // version" never overwrites a save the other tab made after its copy was downloaded.
 import { beforeEach, expect, it, vi } from 'vitest';
 
-const h = vi.hoisted(() => ({ stored: new Map<string, string>() }));
+const h = vi.hoisted(() => ({ stored: new Map<string, string>(), archived: [] as { id: string; envelope: string }[] }));
 vi.mock('./storage/vaultStore', () => ({
   vaultStore: { get: async (id: string) => h.stored.get(id) ?? null, set: async (id: string, v: string) => { h.stored.set(id, v); }, del: async () => {}, clear: async () => {} },
   migrateVault: async () => null,
@@ -10,6 +10,11 @@ vi.mock('./storage/vaultStore', () => ({
 vi.mock('./storage/fileFormat', () => ({ encode: async (_v: unknown, p: unknown) => JSON.stringify(p) }));
 vi.mock('./core/crypto', () => ({ openWith: async (_v: unknown, env: unknown) => JSON.stringify(env) }));
 vi.mock('./storage/profiles', () => ({ currentId: () => 'you', removeProfile: async () => {}, setCurrent: () => {}, upsertProfile: () => {} }));
+// Earlier versions: record what gets kept, so the test can check the other tab's version is never just overwritten.
+vi.mock('./storage/archive', () => ({
+  archiveVersion: async (id: string, envelope: string) => { h.archived.push({ id, envelope }); return 'archive/' + id + '/k'; },
+  deleteArchived: async () => {}, getArchived: async () => null,
+}));
 
 import * as state from './state';
 import { emptyProfile } from './core/profile';
@@ -48,6 +53,8 @@ it('keep this tab’s version only overwrites the exact copy that was downloaded
   expect(await state.keepThisTab(again.envelope)).toBe(true);
   await state.flushPending();
   expect(JSON.parse(h.stored.get('you')!).name).toBe('A');
+  // The other tab's version that was written over is kept as an earlier version, not just lost.
+  expect(h.archived.some(a => a.id === 'you' && a.envelope === again.envelope)).toBe(true);
 });
 
 it('never offers conflict choices while locked; asks after unlock (item 6)', async () => {

@@ -101,6 +101,8 @@ export async function otherTabVersion(): Promise<{ profile: Profile; envelope: s
  */
 export async function keepThisTab(downloaded: string): Promise<boolean> {
   if (!await guard.adoptStored(profile.id!, downloaded)) return false;
+  // The other tab's version is about to be written over: keep it here as an earlier version too.
+  await archiveVersion(profile.id!, downloaded, 'from another tab, before this tab’s version was kept');
   await persist();
   return true;
 }
@@ -175,6 +177,9 @@ export async function setSession(p: Profile, v: Vault | null, from?: string | nu
   return persist();
 }
 
+/** The earlier version the last open-in-place kept, so its Undo restores exactly that one. */
+export let lastReplaced: string | null = null;
+
 /**
  * Opens a file's record in place of what this browser holds for that You, but only if the stored copy is
  * still exactly `expected` (what the person agreed to replace, null when nothing was stored). The check,
@@ -192,7 +197,7 @@ export async function openInPlace(p: Profile, v: Vault, expected: string | null,
     signal?.throwIfAborted(); // Cancel still counts until the record itself is written
     // Whatever is stored is kept as an earlier version first, so this replace can't lose it, whatever
     // this tab knew and whether or not an outside copy was made.
-    if (expected !== null) await archiveVersion(id, expected, reason);
+    if (expected !== null) lastReplaced = await archiveVersion(id, expected, reason);
     const envelope = await encode(v, p);
     await vaultStore.set(id, envelope);
     if (await vaultStore.get(id) !== envelope) throw new Error('Could not verify browser copy');

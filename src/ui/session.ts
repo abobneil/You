@@ -1,12 +1,11 @@
 import { closeSheet, focusFallbackSoon, offerUndo, openSheet, sheetTop } from './sheet';
-import { listArchived } from '../storage/archive';
 import { esc } from './dom';
 import { commitFile, stageFile } from '../storage/stageFile';
 // Getting into your data: first visit, returning visit, upgrading old data, and loading a file.
 import { newId } from '../core/cards';
 import { toB64, WrongPassphrase, type Vault } from '../core/crypto';
 import type { Profile } from '../core/types';
-import { canLeave, eraseBrowserCopy, flushPending, legacyProfile, openInPlace, profile, restoreArchived, setSession, storedEnvelope } from '../state';
+import { canLeave, eraseBrowserCopy, flushPending, legacyProfile, lastReplaced, openInPlace, profile, restoreArchived, setSession, storedEnvelope } from '../state';
 import { decode, readFile, readText, UnsupportedVersion, DamagedFile } from '../storage/fileFormat';
 import { keepsakeStore } from '../storage/keepsakeAccess';
 import { clearAbandonedStaging, commitStaged, describeProblems, discardStaged, stageKeepsakes, type Staged } from '../storage/keepsakeImport';
@@ -14,7 +13,8 @@ import { byRecent, currentId, hasVault, listProfiles, placeLabel, setCurrent, st
 import { canWriteFiles, keepVerifiedCopy, setTarget, type FileHandle } from '../storage/target';
 import { askNewPassphrase, askPassphrase, backToPrevious, hideGate, type WhoRow } from './gate';
 import { openStoragePicker } from './storagePicker';
-import { addNewYou, switchTo, reloadClean } from './switcher';
+import { addNewYou, openEarlier, switchTo, reloadClean } from './switcher';
+import { listArchived } from '../storage/archive';
 
 /** After the name screen: choose a passphrase, then save for the first time. */
 export async function lockNewData() {
@@ -34,13 +34,16 @@ function whoRow(): WhoRow {
 }
 
 /** Explains that this browser's copy can't be read, keeps it, and offers it as a file for safekeeping. */
-function damagedBrowserCopy(slot: string, stored: string) {
+async function damagedBrowserCopy(slot: string, stored: string) {
   startNew();
   const label = listProfiles().find(e => e.id === slot)?.label || 'This You';
+  // Earlier versions of it may still be good: offer them here, since the menu only lists them once unlocked.
+  const earlier = (await listArchived(slot).catch(() => [])).length;
   openSheet(`${sheetTop('Couldn’t open')}<h3 class="sh-title">${esc(label)}’s copy in this browser can’t be read</h3>
     <p>It may be damaged. It has been kept exactly as it is, and nothing will be saved over it.</p>
     <p class="hint">If you have a saved file, open that instead. You can also save this copy as a file to keep it, or start a new You.</p>
-    <div class="menu"><button data-act="open">Open a saved file</button><button data-act="keep">Save this copy as a file</button><button data-act="close">Start a new You</button></div>`, {
+    <div class="menu">${earlier ? `<button data-act="earlier">Earlier versions (${earlier})</button>` : ''}<button data-act="open">Open a saved file</button><button data-act="keep">Save this copy as a file</button><button data-act="close">Start a new You</button></div>`, {
+    earlier: () => { void openEarlier(slot); },
     open: () => { closeSheet(); openStoragePicker('open'); },
     keep: () => { void keepUnreadable(slot, stored, `${label} (copy that couldn't be read).you.json`); },
   });
@@ -332,9 +335,11 @@ export async function importText(source: Blob | string): Promise<boolean> {
     // Whatever was here was kept as an earlier version just before the file replaced it. Say so, quietly,
     // with a one-step way back.
     const id = loaded.id!;
+    const kept = lastReplaced;
     offerUndo(`Opened ${source instanceof File ? source.name : 'the file'}. What was here is kept in Menu → Earlier versions.`, async () => {
-      const [latest] = await listArchived(id);
-      if (latest && await restoreArchived(id, latest.key)) reloadClean();
+      // Same care as the menu's restore: unsaved work here is saved or downloaded first.
+      if (!kept || !await canLeave()) return;
+      if (await restoreArchived(id, kept)) reloadClean();
     });
   }
   return true;
@@ -347,7 +352,7 @@ function forgot() {
     <p>There’s no way to recover a lost passphrase. That’s what keeps your data private.</p>
     <p>If it’s saved in a password manager, look for this site there, or check where you wrote it down. You can try again any time.</p>
     <h4>Or start over in this browser</h4>
-    <p>This permanently erases <b>${label}</b>’s encrypted copy in this browser. Files you saved elsewhere are not touched, and other Yous here stay.</p>
+    <p>This permanently erases <b>${label}</b>’s encrypted copy in this browser, with its earlier versions. Files you saved elsewhere are not touched, and other Yous here stay.</p>
     <div class="btns"><button type="button" class="btn quiet" data-act="close">Cancel</button><button type="button" class="btn danger" data-act="erase">Erase this browser’s copy of ${label}</button></div>`, {
     erase: async () => {
       closeSheet();
