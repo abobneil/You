@@ -53,12 +53,16 @@ export function upsertProfile(id: string, label: string) {
 
 /** Removes a You from this browser: its encrypted copy, keepsakes and settings. Saved files are untouched. */
 export async function removeProfile(id: string) {
-  await vaultStore.del(id);
-  await deleteAllArchived(id);
-  await deleteYouKeepsakes(idbKeepsakeStore, id);
-  saveIndex(listProfiles().filter(e => e.id !== id));
-  for (const k of ['vault', 'target', 'targetName', 'nudged'] as PerYou[]) local.remove(keyFor(id, k));
-  if (currentId() === id) setCurrent(listProfiles()[0]?.id ?? '');
+  // Under the same lock saves use, so a save from another tab lands wholly before or wholly after the removal.
+  const run = async () => {
+    await vaultStore.del(id);
+    await deleteAllArchived(id);
+    await deleteYouKeepsakes(idbKeepsakeStore, id);
+    saveIndex(listProfiles().filter(e => e.id !== id));
+    for (const k of ['vault', 'target', 'targetName', 'nudged'] as PerYou[]) local.remove(keyFor(id, k));
+    if (currentId() === id) setCurrent(listProfiles()[0]?.id ?? '');
+  };
+  if (typeof navigator !== 'undefined' && navigator.locks) await navigator.locks.request('you-' + id, run); else await run();
 }
 
 export const hasVault = async (id: string) => !!await migrateVault(id, local);

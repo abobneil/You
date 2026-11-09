@@ -1,6 +1,6 @@
 // The open You's keepsakes, for screens and exports. Bytes are decrypted on demand and never cached.
 import type { Keepsake, SealedBytes } from '../core/keepsakes';
-import { profile, vault } from '../state';
+import { browserSaveState, onBrowserSave, profile, vault } from '../state';
 import { idbKeepsakeStore, loadKeepsake, rowKey, sealedRow, storeKeepsake, type KeepsakeStore, type StoreResult } from './keepsakeStore';
 
 export let keepsakeStore: KeepsakeStore = idbKeepsakeStore;
@@ -13,15 +13,28 @@ export function readKeepsake(youId: string, keepsake: Keepsake): Promise<Uint8Ar
   return loadKeepsake(keepsakeStore, vault, youId, keepsake);
 }
 
+/**
+ * Photos stored by THIS tab that no saved record has mentioned yet. Only these may be deleted when a draft
+ * is dropped: once any saved record (a card, a kept draft, an earlier version, another tab's copy) has
+ * mentioned a photo, something may depend on it, so it is kept.
+ */
+const unsaved = new Set<string>();
+const mentioned = (id: string) => JSON.stringify(profile).includes(`"${id}"`);
+onBrowserSave(() => { if (browserSaveState().status === 'saved') for (const id of [...unsaved]) if (mentioned(id)) unsaved.delete(id); });
+
 /** Encrypts and stores a chosen file for the open You. */
-export function keepFile(name: string, bytes: Uint8Array): Promise<StoreResult> {
-  if (!vault || !profile.id) return Promise.resolve({ ok: false, reason: 'Unlock first, then try again.' });
-  return storeKeepsake(keepsakeStore, vault, profile.id, name, bytes);
+export async function keepFile(name: string, bytes: Uint8Array): Promise<StoreResult> {
+  if (!vault || !profile.id) return { ok: false, reason: 'Unlock first, then try again.' };
+  const r = await storeKeepsake(keepsakeStore, vault, profile.id, name, bytes);
+  if (r.ok) unsaved.add(r.keepsake.id);
+  return r;
 }
 
-/** Deletes rows only a draft referred to (a card that was never added). */
+/** Deletes rows only an unsaved draft in this tab referred to (a card that was never added). */
 export async function dropRows(youId: string, ids: string[]) {
   for (const id of ids) {
+    if (!unsaved.has(id) || mentioned(id)) continue; // something saved may still need it: keep it
+    unsaved.delete(id);
     try {
       await keepsakeStore.del(rowKey(youId, id));
       for (const k of await keepsakeStore.keys(rowKey(youId, id) + '~')) await keepsakeStore.del(k);
