@@ -147,7 +147,7 @@ export async function start(): Promise<'home' | 'landing'> {
         who: whoRow(),
         links: [
           { label: 'Load a different file', run: () => openStoragePicker('open') },
-          { label: 'Forgot it?', run: () => forgot(slot) },
+          { label: 'Forgot it?', run: () => forgot(slot, label) },
         ],
       });
       hideGate();
@@ -370,12 +370,10 @@ export async function importText(source: Blob | string): Promise<boolean> {
 }
 
 /** Forgotten passphrase on the unlock screen: explains, and offers starting over as a separate, plainly named choice. */
-function forgot(slot: string) {
-  // The You on this unlock screen, by its own id: another tab may have made a different You "current".
-  const all = byRecent(), entry = all.find(e => e.id === slot);
-  // Two Yous with the same name are told apart by when each was created.
-  const twin = entry && all.some(e => e.id !== slot && e.label === entry.label);
-  const label = esc(!entry ? 'this You' : twin && entry.createdAt ? `${entry.label} (created ${new Date(entry.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })})` : entry.label);
+function forgot(slot: string, shown: string) {
+  // The You on this unlock screen, by its own id (another tab may have made a different You "current"),
+  // named exactly as that screen names it, numbers and all.
+  const label = esc(shown || 'this You');
   openSheet(`${sheetTop('Forgotten passphrase')}<h3 class="sh-title">Nobody can recover it</h3>
     <p>There’s no way to recover a lost passphrase. That’s what keeps your data private.</p>
     <p>If it’s saved in a password manager, look for this site there, or check where you wrote it down. You can try again any time.</p>

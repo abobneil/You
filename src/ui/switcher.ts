@@ -29,7 +29,8 @@ export const reloadClean = () => { try { history.replaceState(null, ''); } catch
 
 export async function switchTo(id: string) { if (!await canLeave()) return; setCurrent(id); reloadClean(); }
 export async function addNewYou() { if (!await canLeave()) return; startNew(); reloadClean(); }
-export const lockNow = async () => { if (await canLeave()) reloadClean(); };
+// Locking reloads onto the unlock screen of the current You, so make that this tab's You first.
+export const lockNow = async () => { if (!await canLeave()) return; if (profile.id) setCurrent(profile.id); reloadClean(); };
 
 /** "A" for Alex; "?" if the name isn't known yet. */
 export const initial = (label: string) => (label.trim()[0] || '?').toUpperCase();
