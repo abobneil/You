@@ -1,7 +1,10 @@
+import { streamingRows, streamingZip } from '../streaming';
+import { streamingWire, restoreStreaming } from '../streamingWire';
+import { zipSync, strToU8 } from 'fflate';
 import { expect, it } from 'vitest';
 import { emptyProfile } from '../../profile';
 import { setField } from '../../cards';
-import { applyProposals, needsTimeReview } from '../match';
+import { applyProposals, needsTimeReview, planFor } from '../match';
 import { healthRows, parseHealth } from '../health';
 import { linkedinRows, unzipCsvs } from '../linkedin';
 import { readFileSync } from 'node:fs';
@@ -76,4 +79,41 @@ it.each(sources)('%s: accepted undated/equal snapshots never stall subsequent up
   applyProposals(profile,[{...make(3,'2028'),fields:{location:'incoming'}}],source);
   expect(c.fields?.location ?? '').toBe('');
  }
+});
+
+// Exercise the actual parsers and the worker's structured-clone boundary, not synthetic clocks.
+it.each(['netflix-csv', 'netflix-archive', 'spotify-account', 'spotify-extended', 'apple', 'youtube'])('%s streaming sequences require acceptance and preserve edits', variant => {
+ const capture = (n: number) => {
+  const days = n === 0 ? ['2025-04-12'] : n === 3 ? ['2024-04-12'] : ['2024-04-11','2024-04-12', ...(n === 2 ? ['2024-04-13'] : [])];
+  let name: string, text: string;
+  if (variant.startsWith('netflix')) { name='NetflixViewingHistory.csv'; text='Title,Date\n'+days.map(d=>'Fable Movie,'+d).join('\n'); }
+  else if (variant === 'apple') { name='Play History Daily Tracks.csv'; text='Track Description,Date Played,Play Count\n'+days.map(d=>'Artist - Song,'+d+',5').join('\n'); }
+  else { name=variant==='youtube'?'watch-history.json':'StreamingHistory.json'; text=JSON.stringify(days.flatMap(d=>Array.from({length:5},()=>variant==='youtube'?{header:'YouTube Music',title:'Watched Song',subtitles:[{name:'Artist'}],time:d+'T12:00:00Z'}:variant==='spotify-account'?{artistName:'Artist',trackName:'Song',endTime:d+' 12:00',msPlayed:60000}:{master_metadata_album_artist_name:'Artist',master_metadata_track_name:'Song',ts:d+'T12:00:00Z',ms_played:60000}))); }
+  const files = variant==='netflix-archive' || variant==='apple' ? streamingZip(zipSync({[name]:strToU8(text)})) : {[name]:text};
+  return restoreStreaming(structuredClone(streamingWire(files,''))).rows[0].build()[0];
+ };
+ const permutations=(xs:number[]):number[][]=>xs.length?xs.flatMap((x,i)=>permutations(xs.filter((_,j)=>i!==j)).map(rest=>[x,...rest])):[[]];
+ for(const sequence of permutations([0,1,2,3,4,5])) {
+  const profile=emptyProfile();applyProposals(profile,[capture(1)],variant);const c=profile.cards[0];
+  const key=variant.startsWith('netflix')?'lastWatched':'plays'; let edited=false;
+  for(const op of sequence) {
+   if(op>=4) {edited=true;setField(profile,c.id,key,op===4?'manual':'');continue;}
+   const p=capture(op);expect(p.sync!.at).toBe('');const before=structuredClone(c);
+   expect(planFor(profile,p)).toBe(needsTimeReview(c,p)?'update':'have');
+   applyProposals(profile,[p],variant);expect(c).toEqual(before);
+   if(op===2) {
+    applyProposals(profile,[{...p,useIncoming:true}],variant);
+    expect(c.since).toBe('2024-04-11');
+    if(edited) expect(c.fields?.[key]).toBe(before.fields?.[key]);
+    else expect(c.fields?.[key]).toBe(p.fields?.[key]);
+    for(const [k,v] of Object.entries(before.fields??{})) if(v!==c.fields?.[k]) expect(c.revisions.some(r=>r.field===k&&r.value===v)).toBe(true);
+   }
+  }
+ }
+});
+it('reproduces the grader Netflix capture with a misleading later event',()=>{
+ const load=(name:string)=>streamingRows({[name]:readFileSync(new URL('./'+name,import.meta.url),'utf8')}).rows[0].build()[0];
+ const profile=emptyProfile();applyProposals(profile,[load('netflix-streamtime-new.csv')],'Netflix');
+ const p=load('netflix-streamtime-old.csv');expect(needsTimeReview(profile.cards[0],p)).toBe(true);
+ applyProposals(profile,[p],'Netflix');expect(profile.cards[0].since).toBe('2024-04-11');
 });
