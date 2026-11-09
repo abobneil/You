@@ -10,7 +10,7 @@ import { decode, readFile, readText, UnsupportedVersion, DamagedFile } from '../
 import { keepsakeStore } from '../storage/keepsakeAccess';
 import { clearAbandonedStaging, commitStaged, describeProblems, discardStaged, stageKeepsakes, type Staged } from '../storage/keepsakeImport';
 import { byRecent, currentId, hasVault, listProfiles, placeLabel, setCurrent, startNew } from '../storage/profiles';
-import { downloadCopy, setTarget } from '../storage/target';
+import { canWriteFiles, keepVerifiedCopy, setTarget, type FileHandle } from '../storage/target';
 import { askNewPassphrase, askPassphrase, backToPrevious, hideGate, type WhoRow } from './gate';
 import { openStoragePicker } from './storagePicker';
 import { addNewYou, switchTo, reloadClean } from './switcher';
@@ -41,17 +41,37 @@ function damagedBrowserCopy(slot: string, stored: string) {
     <p class="hint">If you have a saved file, open that instead. You can also save this copy as a file to keep it, or start a new You.</p>
     <div class="menu"><button data-act="open">Open a saved file</button><button data-act="keep">Save this copy as a file</button><button data-act="close">Start a new You</button></div>`, {
     open: () => { closeSheet(); openStoragePicker('open'); },
-    keep: () => saveAsFile(stored, `${label} (copy that couldn't be read).you.json`),
+    keep: () => { void keepUnreadable(slot, stored, `${label} (copy that couldn't be read).you.json`); },
   });
 }
 
 /** Hands the person a file with exactly these bytes. */
-function saveAsFile(text: string, name: string) {
+/**
+ * Saves a blob as a file and answers true only once it surely exists: written and read back through the
+ * save picker in Chrome and Edge, or a download the person confirms has finished elsewhere.
+ */
+async function saveBlob(blob: Blob, name: string): Promise<boolean> {
+  const picker = (window as unknown as { showSaveFilePicker?: (o: object) => Promise<FileHandle> }).showSaveFilePicker;
+  if (canWriteFiles && picker) {
+    let h: FileHandle;
+    try { h = await picker({ suggestedName: name }); } catch { return false; }
+    const out = await h.createWritable();
+    await (out as unknown as { write(b: Blob): Promise<void> }).write(blob);
+    await out.close();
+    if ((await h.getFile()).size !== blob.size) throw new Error('The copy wasn’t written completely.');
+    return true;
+  }
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.href = URL.createObjectURL(blob);
   a.download = name;
   document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+  return new Promise<boolean>(resolve => openSheet(`${sheetTop('Check your copy')}<h3 class="sh-title">Did the copy finish downloading?</h3>
+    <p>Look in your Downloads for <b>${esc(name)}</b>. Continue only once it’s there; until then, nothing here is replaced.</p>
+    <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel, change nothing</button><button class="btn primary" type="button" data-act="yes">It’s there, continue</button></div>`, {
+    yes: () => { closeSheet(); resolve(true); },
+    close: () => resolve(false),
+  }));
 }
 
 /**
@@ -61,15 +81,20 @@ function saveAsFile(text: string, name: string) {
  */
 async function keepUnreadable(id: string, record: string, name: string): Promise<boolean> {
   try {
-    const keepsakes = [];
+    // Built from parts, one photo at a time, so a lifetime of photos never has to fit in one string.
+    // Each keepsake line has the same shape as a version 3 file's, so a helper can read them the same way.
+    const parts: BlobPart[] = [`{"app":"you","unreadableBrowserCopy":true,"record":${JSON.stringify(record)},\n"keepsakes":[\n`];
+    let first = true;
     for (const key of await keepsakeStore.keys(id + '/')) {
       const sealed = await keepsakeStore.get(key);
-      if (sealed) keepsakes.push({ id: key.slice(id.length + 1), iv: toB64(sealed.iv), data: toB64(sealed.data) });
+      if (!sealed) continue;
+      parts.push(`${first ? '' : ',\n'}{"id":${JSON.stringify(key.slice(id.length + 1))},"iv":"${toB64(sealed.iv)}","data":"${toB64(sealed.data)}"}`);
+      first = false;
     }
-    saveAsFile(JSON.stringify({ app: 'you', unreadableBrowserCopy: true, record, keepsakes }), name);
-    return true;
+    parts.push('\n]}');
+    return await saveBlob(new Blob(parts, { type: 'application/json' }), name);
   } catch {
-    openSheet(`${sheetTop('Couldn’t open')}<h3 class="sh-title">The unreadable copy couldn’t be saved</h3><p data-announce>Nothing was replaced. Try again, or free some space on this device first.</p><div class="btns"><button class="btn primary" type="button" data-act="close">OK</button></div>`);
+    openSheet(`${sheetTop('Couldn’t save')}<h3 class="sh-title">The unreadable copy couldn’t be saved</h3><p data-announce>Nothing was replaced and nothing here changed. Try again; if it keeps happening, this device may be short of space.</p><div class="btns"><button class="btn primary" type="button" data-act="close">OK</button></div>`);
     return false;
   }
 }
@@ -217,7 +242,8 @@ export async function importText(source: Blob | string): Promise<boolean> {
   await flushPending(); // what's stored now is everything typed here, so it's exactly what may be replaced
 
   // Files from before Yous had ids become a new You, never a silent overwrite of the open one.
-  loaded.id = loaded.id || newId();
+  // A You's id names its storage rows, so it must be plain and must never look like a staging prefix.
+  if (!loaded.id || !/^[A-Za-z0-9_-]{1,64}$/.test(loaded.id) || loaded.id.startsWith('import-')) loaded.id = newId();
 
   // What this browser holds for that You right now. It's replaced only if it's still exactly this when the
   // file is written (another tab may save meanwhile); null means nothing is stored and nothing may appear.
@@ -230,11 +256,12 @@ export async function importText(source: Blob | string): Promise<boolean> {
       const proceed = await new Promise<boolean>(resolve => openSheet(`${sheetTop(older ? "This file is older than what's in this browser" : 'Open this version?')}<p>File saved ${esc(loaded.updatedAt || 'unknown')}, browser ${esc(profile.updatedAt || 'unknown')}.</p><div class="menu"><button data-act="keep">Keep the browser version</button><button data-act="first">Download the browser version first, then open the file</button><button data-act="anyway">Open the file anyway (the browser version is kept as a download)</button></div>`, {
         keep: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
         // The browser version is replaced only once its copy has really been made; a cancelled or failed copy changes nothing.
-        first: async () => { resolve(await downloadCopy(true)); },
-        anyway: async () => { resolve(await downloadCopy(true)); },
+        first: async () => { resolve(await keepVerifiedCopy()); },
+        anyway: async () => { resolve(await keepVerifiedCopy()); },
       }));
       if (!proceed) return give();
-      expected = await storedEnvelope(loaded.id); // the version that was just kept as a download
+      // `expected` stays what was stored when the person chose (this tab had nothing unsaved then), so a save
+      // from another tab while the copy was being made means nothing here is replaced.
     } else if (await unreadableHere(loaded.id)) {
       // The browser copy of this You can't be read, so it can't be unlocked and compared. Offer to keep it
       // as a file, with its encrypted photos, then open this one in its place. Nothing is replaced without that choice.
@@ -250,17 +277,23 @@ export async function importText(source: Blob | string): Promise<boolean> {
     } else {
       // This browser already has this You, locked. Unlock that copy first so the two can be compared.
       const label = listProfiles().find(e => e.id === loaded.id)?.label || loaded.name || 'this You';
-      const unlockFirst = await new Promise<boolean>(resolve => openSheet(`${sheetTop('Already in this browser')}<h3 class="sh-title">${esc(label)} is already in this browser</h3>
+      const choice = await new Promise<'unlock' | 'cant' | null>(resolve => openSheet(`${sheetTop('Already in this browser')}<h3 class="sh-title">${esc(label)} is already in this browser</h3>
         <p>The copy in this browser may have newer changes than this file. Nothing has been changed.</p>
         <p>Unlock the browser copy first. Then You will ask for this file again and show you which is newer, so you can keep both.</p>
-        <div class="menu"><button data-act="unlock">Unlock the browser copy first</button><button data-act="close">Cancel</button></div>`, {
-        unlock: () => resolve(true), close: () => resolve(false),
+        <div class="menu"><button data-act="unlock">Unlock the browser copy first</button><button data-act="cant">I can’t unlock the browser copy: save it as a file, then open this one</button><button data-act="close">Cancel</button></div>`, {
+        unlock: () => resolve('unlock'), cant: () => { closeSheet(); resolve('cant'); }, close: () => resolve(null),
       }));
-      if (staged) await discardStaged(keepsakeStore, staged);
-      closeSheet();
-      if (!unlockFirst) { backToPrevious(); return false; }
-      thenOpenFile(loaded.id);
-      return false;
+      if (choice === 'cant') {
+        // A browser copy that won't unlock (damaged inside, or its passphrase is lost) is kept whole, with its
+        // encrypted photos, before this file takes its place. A cancelled or unfinished copy changes nothing.
+        if (!await keepUnreadable(loaded.id, expected!, `${label} (browser copy that couldn't be unlocked).you.json`)) return give();
+      } else {
+        if (staged) await discardStaged(keepsakeStore, staged);
+        closeSheet();
+        if (!choice) { backToPrevious(); return false; }
+        thenOpenFile(loaded.id);
+        return false;
+      }
     }
   }
 
@@ -279,7 +312,7 @@ export async function importText(source: Blob | string): Promise<boolean> {
       if (!staged) return;
       if (source instanceof Blob) await commitFile(staged, loaded, controller.signal);
       else await commitStaged(keepsakeStore, staged, loaded.id!, loaded, controller.signal);
-    });
+    }, controller.signal);
     closeSheet();
   } catch {
     closeSheet();

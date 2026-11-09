@@ -8,7 +8,7 @@ import { openYouData, runIn } from './vaultStore';
 export interface KeepsakeStore {
   putMany?(rows: Array<[string, SealedBytes]>): Promise<void>;
   /** Atomic promotion: missing staged rows abort without changing the destination. */
-  promote?(from: string, to: string, ids: string[], keep: Set<string>, signal?: AbortSignal): Promise<void>;
+  promote?(from: string, to: string, ids: string[], keep: Set<string> | null, signal?: AbortSignal): Promise<void>;
   get(key: string): Promise<SealedBytes | null>;
   /** Resolves only once the write has committed. */
   put(key: string, value: SealedBytes): Promise<void>;
@@ -38,6 +38,7 @@ export const idbKeepsakeStore: KeepsakeStore = {
       c.delete();
       c.continue();
     };
+    if (!keep) return; // additive: leave this You's other rows alone
     const obsolete = s.openKeyCursor(range(to + '/'));
     obsolete.onsuccess = () => {
       const c = obsolete.result;

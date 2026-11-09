@@ -1,7 +1,6 @@
 // Opening a version 3 file: every keepsake is decrypted and checked against the record's own SHA-256
 // before anything in this browser changes. Checked bytes wait under a temporary prefix; only after the
 // person confirms are they moved under the opening You's id. Problems are reported, never silently dropped.
-import { keepsakeIds } from '../core/cards';
 import type { Vault } from '../core/crypto';
 import { openBytes, sealBytes, sha256Hex, type Keepsake, type SealedBytes } from '../core/keepsakes';
 import type { Profile } from '../core/types';
@@ -88,15 +87,16 @@ export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Prof
 /** Moves checked keepsakes under the You's id, and clears that You's rows the record no longer mentions. */
 export async function commitStaged(store: KeepsakeStore, staged: Staged, youId: string, p: Profile, signal?: AbortSignal) {
   signal?.throwIfAborted();
-  if (store.promote) return store.promote(staged.prefix, youId, staged.ids, keepsakeIds(p), signal);
+  // Additive only: rows this You already has are never deleted here. Another tab may have just attached a
+  // photo to a card it hasn't saved yet, and a draft may still point at its own rows.
+  if (store.promote) return store.promote(staged.prefix, youId, staged.ids, null, signal);
   for (const id of staged.ids) {
     const s = await store.get(rowKey(staged.prefix, id));
     if (!s) throw new Error('Staged keepsake disappeared');
     await store.put(rowKey(youId, id), s);
   }
   await discardStaged(store, staged);
-  const keep = keepsakeIds(p);
-  for (const key of await store.keys(youId + '/')) if (!keep.has(key.slice(youId.length + 1))) await store.del(key);
+  void p; // the record is only needed by stores that check what it mentions
 }
 
 /**
@@ -108,7 +108,8 @@ export async function clearAbandonedStaging(store: KeepsakeStore, now = Date.now
   const prefixes = new Set((await store.keys('import-')).map(k => k.slice(0, k.indexOf('/'))));
   for (const prefix of prefixes) {
     const started = Number(/^import-(\d{13})-/.exec(prefix)?.[1]);
-    if (!started || now - started > maxAgeMs) await discardStaged(store, { prefix });
+    // A time in the future (a wrong clock, or a crafted file) is treated as stale too.
+    if (!started || now - started > maxAgeMs || started - now > maxAgeMs) await discardStaged(store, { prefix });
   }
 }
 

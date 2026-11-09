@@ -297,3 +297,12 @@ describe('abandoned staging', () => {
     expect([...store.rows.keys()].sort()).toEqual([`import-${now - 60_000}-recent/k1`, 'you-1/k1'].sort());
   });
 });
+
+describe('a saved unreadable browser copy', () => {
+  it('is recognized and explained, never mistaken for a record or for something else', async () => {
+    const { readText, UnreadableCopyFile } = await import('./fileFormat');
+    const bundle = '{"app":"you","unreadableBrowserCopy":true,"record":"{not json",\n"keepsakes":[\n{"id":"k1","iv":"AAAAAAAAAAAAAAAA","data":"AAAA"}\n]}';
+    expect(() => readText(bundle)).toThrow(UnreadableCopyFile);
+    expect(() => readText(bundle)).toThrow(/saved copy of a browser record/);
+  });
+});

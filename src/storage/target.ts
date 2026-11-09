@@ -211,6 +211,45 @@ export async function downloadCopy(separate = false): Promise<boolean> {
   return true;
 }
 
+/**
+ * Keeps a copy of the open You before something replaces it, and only answers yes once the copy really
+ * exists. In Chrome and Edge it's written into a file the person picks and read back; elsewhere a page
+ * can't tell when a download has finished, so the person checks their Downloads and says so.
+ */
+export async function keepVerifiedCopy(): Promise<boolean> {
+  if (!vault) return false;
+  const name = separateName('this browser');
+  if (canWriteFiles) {
+    let h: FileHandle;
+    try { h = await w.showSaveFilePicker!({ suggestedName: name, types: FILE_TYPES }); }
+    catch { return false; } // the person closed the picker: nothing is replaced
+    const controller = new AbortController();
+    openSheet(`${sheetTop('Making your encrypted copy…')}<p role="status">Saving a copy of this browser’s version…</p><button class="btn" data-act="cancel">Cancel</button>`, {
+      cancel: () => { controller.abort(); closeSheet(); },
+    }, { onDismiss: () => controller.abort() });
+    try {
+      const blob = await encodeBlob(vault, profile, sealedFor(profile.id!), controller.signal);
+      const out = await h.createWritable();
+      await (out as unknown as { write(b: Blob): Promise<void> }).write(blob);
+      await out.close();
+      if ((await h.getFile()).size !== blob.size) throw new Error('The copy wasn’t written completely.');
+      closeSheet();
+      return true;
+    } catch (e) {
+      closeSheet();
+      if (!controller.signal.aborted) cannotDownload(e);
+      return false;
+    }
+  }
+  if (!await downloadCopy(true)) return false;
+  return new Promise<boolean>(resolve => openSheet(`${sheetTop('Check your copy')}<h3 class="sh-title">Did the copy finish downloading?</h3>
+    <p>Look in your Downloads for <b>${esc(name)}</b>. Continue only once it’s there; until then, nothing here is replaced.</p>
+    <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel, change nothing</button><button class="btn primary" type="button" data-act="yes">It’s there, continue</button></div>`, {
+    yes: () => { closeSheet(); resolve(true); },
+    close: () => resolve(false),
+  }));
+}
+
 /** Downloads the version another tab saved (encrypted with the same key). Returns its file name and the exact stored copy, or null. */
 async function downloadOtherTab(): Promise<{ name: string; envelope: string } | null> {
   try {

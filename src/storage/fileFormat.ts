@@ -52,7 +52,17 @@ export type ReadResult =
 
 const noKeepsakes = async function* (): AsyncGenerator<RawKeepsake> { /* none */ };
 
+/** A copy of a browser record that couldn't be read, saved by You before it was replaced. */
+export class UnreadableCopyFile extends DamagedFile {
+  constructor() {
+    super();
+    this.message = 'This is a saved copy of a browser record that couldn’t be read, so it can’t be opened here. Keep it somewhere safe: its record and photos are still encrypted, and a technical helper may be able to repair it (see FORMAT.md).';
+    this.name = 'UnreadableCopyFile';
+  }
+}
+
 function classify(data: any, keepsakes: () => AsyncIterable<RawKeepsake>): ReadResult {
+  if (data && data.app === 'you' && data.unreadableBrowserCopy === true) throw new UnreadableCopyFile();
   if (data && data.app === 'you' && 'version' in data && !KNOWN_VERSIONS.includes(data.version)) throw new UnsupportedVersion(data.version);
   if (isEnvelope(data)) {
     const { version, kdf, cipher, data: d } = data;

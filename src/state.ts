@@ -182,12 +182,13 @@ export async function setSession(p: Profile, v: Vault | null, from?: string | nu
  * or waits and then finds this record changed (and asks instead of overwriting).
  * Returns false, having changed nothing, when the stored copy moved on.
  */
-export async function openInPlace(p: Profile, v: Vault, expected: string | null, commit: () => Promise<void>): Promise<boolean> {
+export async function openInPlace(p: Profile, v: Vault, expected: string | null, commit: () => Promise<void>, signal?: AbortSignal): Promise<boolean> {
   await flushPending();
   const id = p.id!;
   const written = await withLock('you-' + id, async () => {
     if ((await vaultStore.get(id)) !== expected) return null;
     await commit();
+    signal?.throwIfAborted(); // Cancel still counts until the record itself is written
     const envelope = await encode(v, p);
     await vaultStore.set(id, envelope);
     if (await vaultStore.get(id) !== envelope) throw new Error('Could not verify browser copy');
