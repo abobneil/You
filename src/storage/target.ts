@@ -214,27 +214,29 @@ export async function downloadCopy(separate = false): Promise<boolean> {
 }
 
 /**
- * Keeps a copy of the open You before something replaces it, and only answers yes once the copy really
- * exists. In Chrome and Edge it's written into a file the person picks and read back; elsewhere a page
- * can't tell when a download has finished, so the person checks their Downloads and says so.
+ * Saves a copy and only answers yes once it really exists. In Chrome and Edge it's written into a file the
+ * person picks and read back; elsewhere a page can't tell when a download has finished, so the person
+ * checks their Downloads and says so. Cancel counts right up to the end: a cancelled copy is never "kept".
  */
-export async function keepVerifiedCopy(): Promise<boolean> {
-  if (!vault) return false;
-  const name = separateName('this browser');
+async function saveVerifiedBlob(make: (signal: AbortSignal) => Promise<Blob>, name: string, what: string): Promise<boolean> {
+  const controller = new AbortController();
+  const busy = () => openSheet(`${sheetTop('Making your encrypted copy…')}<p role="status">Saving a copy of ${what}…</p><button class="btn" data-act="cancel">Cancel</button>`, {
+    cancel: () => { controller.abort(); closeSheet(); },
+  }, { onDismiss: () => controller.abort() });
   if (canWriteFiles) {
     let h: FileHandle;
     try { h = await w.showSaveFilePicker!({ suggestedName: name, types: FILE_TYPES }); }
-    catch { return false; } // the person closed the picker: nothing is replaced
-    const controller = new AbortController();
-    openSheet(`${sheetTop('Making your encrypted copy…')}<p role="status">Saving a copy of this browser’s version…</p><button class="btn" data-act="cancel">Cancel</button>`, {
-      cancel: () => { controller.abort(); closeSheet(); },
-    }, { onDismiss: () => controller.abort() });
+    catch { return false; } // the person closed the picker: nothing is kept, nothing is replaced
+    busy();
     try {
-      const blob = await encodeBlob(vault, profile, sealedFor(profile.id!), controller.signal);
+      const blob = await make(controller.signal);
+      controller.signal.throwIfAborted();
       const out = await h.createWritable();
       await (out as unknown as { write(b: Blob): Promise<void> }).write(blob);
+      controller.signal.throwIfAborted(); // a cancelled writer is discarded, leaving the chosen file as it was
       await out.close();
       if ((await h.getFile()).size !== blob.size) throw new Error('The copy wasn’t written completely.');
+      controller.signal.throwIfAborted();
       closeSheet();
       return true;
     } catch (e) {
@@ -243,7 +245,17 @@ export async function keepVerifiedCopy(): Promise<boolean> {
       return false;
     }
   }
-  if (!await downloadCopy(true)) return false;
+  busy();
+  try {
+    const blob = await make(controller.signal);
+    controller.signal.throwIfAborted();
+    closeSheet();
+    startDownload(blob, name);
+  } catch (e) {
+    closeSheet();
+    if (!controller.signal.aborted) cannotDownload(e);
+    return false;
+  }
   return new Promise<boolean>(resolve => openSheet(`${sheetTop('Check your copy')}<h3 class="sh-title">Did the copy finish downloading?</h3>
     <p>Look in your Downloads for <b>${esc(name)}</b>. Continue only once it’s there; until then, nothing here is replaced.</p>
     <div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel, change nothing</button><button class="btn primary" type="button" data-act="yes">It’s there, continue</button></div>`, {
@@ -252,13 +264,21 @@ export async function keepVerifiedCopy(): Promise<boolean> {
   }));
 }
 
-/** Downloads the version another tab saved (encrypted with the same key). Returns its file name and the exact stored copy, or null. */
+/** Keeps a verified copy of the open You before something replaces it. */
+export async function keepVerifiedCopy(): Promise<boolean> {
+  if (!vault) return false;
+  const v = vault;
+  return saveVerifiedBlob(signal => encodeBlob(v, profile, sealedFor(profile.id!), signal), separateName('this browser'), 'this browser’s version');
+}
+
+/** Keeps a verified copy of the version another tab saved (same key). Returns its file name and the exact stored copy, or null. */
 async function downloadOtherTab(): Promise<{ name: string; envelope: string } | null> {
   try {
     const other = await otherTabVersion();
     if (!other || !vault) return null;
+    const v = vault;
     const name = separateName('other tab');
-    startDownload(await encodeBlob(vault, other.profile, sealedFor(profile.id!)), name);
+    if (!await saveVerifiedBlob(signal => encodeBlob(v, other.profile, sealedFor(profile.id!), signal), name, 'the other tab’s version')) return null;
     return { name, envelope: other.envelope };
   } catch (e) { cannotDownload(e); return null; }
 }
@@ -368,10 +388,10 @@ function showTabConflict(again = false) {
   openSheet(`${sheetTop('This You was changed in another tab')}<h3 class="sh-title">Another tab saved newer changes</h3>${again ? '<p><b>The other tab saved again while its copy was downloading, so nothing was overwritten.</b> Choose again; its newest version will be downloaded.</p>' : ''}<p>Both versions can be kept. Whichever you choose, the other one is downloaded first as its own file.</p><div class="menu"><button data-act="newer">Use the other tab’s version (download this tab’s first)</button><button data-act="ours">Keep this tab’s version (download the other tab’s first)</button></div>`, {
   newer: async () => {
     const mark = editMark(); // anything typed after this isn't in the download, so it must not be replaced
-    if (!await downloadCopy(true)) return; // couldn't keep this tab's version: change nothing
+    if (!await keepVerifiedCopy()) return; // this tab's version wasn't surely kept: change nothing
     const name = separateName('this browser');
     if (!await useNewer(mark)) return; // something was typed meanwhile: the choice is offered again
-    openSheet(`${sheetTop('Using the other tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab now shows the other tab’s version. A download of this tab’s version was started as <b>${esc(name)}</b>. Check it finished in your Downloads; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
+    openSheet(`${sheetTop('Using the other tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab now shows the other tab’s version. This tab’s version was saved as <b>${esc(name)}</b>; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
   },
   ours: async () => {
     const got = await downloadOtherTab();
@@ -379,7 +399,7 @@ function showTabConflict(again = false) {
     const { name } = got;
     // The other tab saved again during the download: what was downloaded isn't the newest. Ask again.
     if (!await keepThisTab(got.envelope)) { showTabConflict(true); return; }
-    openSheet(`${sheetTop('Kept this tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab’s version is saved in this browser. A download of the other tab’s version was started as <b>${esc(name)}</b>. Check it finished in your Downloads; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
+    openSheet(`${sheetTop('Kept this tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab’s version is saved in this browser. The other tab’s version was saved as <b>${esc(name)}</b>; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
   },
   });
 }

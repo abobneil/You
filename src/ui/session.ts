@@ -258,8 +258,9 @@ export async function importText(source: Blob | string): Promise<boolean> {
       const proceed = await new Promise<boolean>(resolve => openSheet(`${sheetTop(older ? "This file is older than what's in this browser" : 'Open this version?')}<p>File saved ${esc(loaded.updatedAt || 'unknown')}, browser ${esc(profile.updatedAt || 'unknown')}.</p><div class="menu"><button data-act="keep">Keep the browser version</button><button data-act="first">Download the browser version first, then open the file</button><button data-act="anyway">Open the file anyway (the browser version is kept as a download)</button></div>`, {
         keep: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
         // The browser version is replaced only once its copy has really been made; a cancelled or failed copy changes nothing.
-        first: async () => { resolve(await keepVerifiedCopy()); },
-        anyway: async () => { resolve(await keepVerifiedCopy()); },
+        // A copy that wasn't surely made closes this prompt too, so it never sits there doing nothing.
+        first: async () => { const ok = await keepVerifiedCopy(); if (!ok) closeSheet(); resolve(ok); },
+        anyway: async () => { const ok = await keepVerifiedCopy(); if (!ok) closeSheet(); resolve(ok); },
       }));
       if (!proceed) return give();
       // `expected` stays what was stored when the person chose (this tab had nothing unsaved then), so a save
@@ -292,7 +293,7 @@ export async function importText(source: Blob | string): Promise<boolean> {
       } else {
         if (staged) await discardStaged(keepsakeStore, staged);
         closeSheet();
-        if (!choice) { backToPrevious(); return false; }
+        if (!choice) { backToPrevious(); focusFallbackSoon(); return false; }
         thenOpenFile(loaded.id);
         return false;
       }
