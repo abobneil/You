@@ -1,7 +1,7 @@
 // The open You's keepsakes, for screens and exports. Bytes are decrypted on demand and never cached.
 import type { Keepsake, SealedBytes } from '../core/keepsakes';
 import { profile, vault } from '../state';
-import { idbKeepsakeStore, loadKeepsake, rowKey, storeKeepsake, type KeepsakeStore, type StoreResult } from './keepsakeStore';
+import { idbKeepsakeStore, loadKeepsake, rowKey, sealedRow, storeKeepsake, type KeepsakeStore, type StoreResult } from './keepsakeStore';
 
 export let keepsakeStore: KeepsakeStore = idbKeepsakeStore;
 /** For tests. */
@@ -24,5 +24,11 @@ export async function dropRows(youId: string, ids: string[]) {
   for (const id of ids) { try { await keepsakeStore.del(rowKey(youId, id)); } catch { /* left for later */ } }
 }
 
-/** The open You's sealed rows, for writing the file. */
-export const sealedFor = (youId: string) => (id: string): Promise<SealedBytes | null> => keepsakeStore.get(rowKey(youId, id));
+/** The open You's sealed rows, for writing the file: for each photo, the copy the open You's key opens. */
+export const sealedFor = (youId: string) => {
+  let aside: Promise<string[]> | null = null;
+  return async (id: string): Promise<SealedBytes | null> => {
+    aside ??= keepsakeStore.keys(youId + '/').then(keys => keys.filter(k => k.includes('~')));
+    return sealedRow(keepsakeStore, vault, youId, id, await aside);
+  };
+};

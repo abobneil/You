@@ -90,6 +90,7 @@ async function keepUnreadable(id: string, record: string, name: string): Promise
     const parts: BlobPart[] = [`{"app":"you","unreadableBrowserCopy":true,"record":${JSON.stringify(record)},\n"keepsakes":[\n`];
     let first = true;
     for (const key of await keepsakeStore.keys(id + '/')) {
+      if (key.includes('~')) continue; // copies set aside by an open; the record names its photos plainly
       const sealed = await keepsakeStore.get(key);
       if (!sealed) continue;
       parts.push(`${first ? '' : ',\n'}{"id":${JSON.stringify(key.slice(id.length + 1))},"iv":"${toB64(sealed.iv)}","data":"${toB64(sealed.data)}"}`);

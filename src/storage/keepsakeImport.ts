@@ -5,7 +5,7 @@ import type { Vault } from '../core/crypto';
 import { openBytes, sealBytes, sha256Hex, type Keepsake, type SealedBytes } from '../core/keepsakes';
 import type { Profile } from '../core/types';
 import { checkRawKeepsake, DamagedFile, type RawKeepsake } from './fileFormat';
-import { rowKey, type KeepsakeStore } from './keepsakeStore';
+import { rowKey, setAsideKey, type KeepsakeStore } from './keepsakeStore';
 
 export interface KeepsakeProblem { id: string; name: string; problem: 'damaged' | 'changed' | 'missing' }
 
@@ -93,6 +93,8 @@ export async function commitStaged(store: KeepsakeStore, staged: Staged, youId: 
   for (const id of staged.ids) {
     const s = await store.get(rowKey(staged.prefix, id));
     if (!s) throw new Error('Staged keepsake disappeared');
+    const old = await store.get(rowKey(youId, id));
+    if (old && (old.iv.length !== s.iv.length || old.iv.some((v, i) => v !== s.iv[i]))) await store.put(setAsideKey(rowKey(youId, id)), old);
     await store.put(rowKey(youId, id), s);
   }
   await discardStaged(store, staged);

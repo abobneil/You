@@ -220,6 +220,19 @@ export async function downloadCopy(separate = false): Promise<boolean> {
   return true;
 }
 
+/** True when the file read back holds exactly the bytes that were written, compared a piece at a time. */
+async function sameBytes(a: Blob, b: Blob, signal: AbortSignal): Promise<boolean> {
+  if (a.size !== b.size) return false;
+  const step = 8 * 1024 * 1024;
+  for (let at = 0; at < a.size; at += step) {
+    signal.throwIfAborted();
+    const [x, y] = await Promise.all([a.slice(at, at + step).arrayBuffer(), b.slice(at, at + step).arrayBuffer()]);
+    const u = new Uint8Array(x), v = new Uint8Array(y);
+    for (let i = 0; i < u.length; i++) if (u[i] !== v[i]) return false;
+  }
+  return true;
+}
+
 /**
  * Saves a copy and only answers yes once it really exists. In Chrome and Edge it's written into a file the
  * person picks and read back; elsewhere a page can't tell when a download has finished, so the person
@@ -242,7 +255,7 @@ async function saveVerifiedBlob(make: (signal: AbortSignal) => Promise<Blob>, na
       await (out as unknown as { write(b: Blob): Promise<void> }).write(blob);
       controller.signal.throwIfAborted(); // a cancelled writer is discarded, leaving the chosen file as it was
       await out.close();
-      if ((await h.getFile()).size !== blob.size) throw new Error('The copy wasn’t written completely.');
+      if (!await sameBytes(await h.getFile(), blob, controller.signal)) throw new Error('The copy wasn’t written completely.');
       controller.signal.throwIfAborted();
       closeSheet();
       return true;

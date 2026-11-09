@@ -20,6 +20,13 @@ export interface KeepsakeStore {
 export const rowKey = (youId: string, keepsakeId: string) => `${youId}/${keepsakeId}`;
 const range = (prefix: string) => IDBKeyRange.bound(prefix, prefix + '￿');
 const asBytes = (x: unknown) => (x instanceof Uint8Array ? x : new Uint8Array(x as ArrayBuffer));
+/**
+ * Where a photo row goes when an opened file brings the same photo encrypted differently (another
+ * passphrase). The row it replaces is kept beside it, so an earlier version restored later still finds a
+ * copy its own key opens. Readers pick whichever copy opens (sealedRow).
+ */
+export const setAsideKey = (row: string) => `${row}~${new Date().toISOString()}-${crypto.randomUUID().slice(0, 8)}`;
+const sameIv = (a: unknown, b: unknown) => { const x = asBytes(a), y = asBytes(b); return x.length === y.length && x.every((v, i) => v === y[i]); };
 // IndexedDB can clone an immutable Blob by reference when promoting staged rows. Typed arrays
 // require another full byte copy for every cursor read and put. Existing byte-array rows still read.
 const stored = (value: SealedBytes) => ({ iv: value.iv, data: new Blob([value.data as BlobPart]) });
@@ -34,7 +41,13 @@ export const idbKeepsakeStore: KeepsakeStore = {
       if (!c) { if (expected.size) tx.abort(); return; }
       const id = String(c.key).slice(from.length + 1);
       if (!expected.delete(id)) { tx.abort(); return; }
-      s.put(c.value, rowKey(to, id));
+      const dest = rowKey(to, id), value = c.value;
+      const existing = s.get(dest);
+      existing.onsuccess = () => {
+        const old = existing.result;
+        if (old && !sameIv(old.iv, value.iv)) s.put(old, setAsideKey(dest)); // never overwrite a different copy
+        s.put(value, dest);
+      };
       c.delete();
       c.continue();
     };
@@ -115,7 +128,7 @@ export class KeepsakeUnreadable extends Error {
 
 /** Decrypts one keepsake and proves it is the original file. Nothing is kept afterwards. */
 export async function loadKeepsake(store: KeepsakeStore, vault: Vault, youId: string, k: Keepsake): Promise<Uint8Array> {
-  const sealed = await store.get(rowKey(youId, k.id));
+  const sealed = await sealedRow(store, vault, youId, k.id);
   if (!sealed) throw new KeepsakeUnreadable(k.name);
   let bytes: Uint8Array;
   try { bytes = await openBytes(vault, k.id, sealed); } catch { throw new KeepsakeUnreadable(k.name); }
@@ -130,3 +143,21 @@ export async function deleteYouKeepsakes(store: KeepsakeStore, youId: string) {
 
 /** Largest base64 text a keepsake entry may hold: the size limit plus the 16-byte tag. */
 export const MAX_SEALED_B64 = Math.ceil((MAX_KEEPSAKE_BYTES + 16) / 3) * 4;
+
+/**
+ * The stored copy of one photo that `vault` opens. Almost always the plain row; only when an opened file set
+ * a differently encrypted copy aside (setAsideKey) are the copies tried, newest first. `aside` may pass the
+ * You's set-aside keys when the caller already has them.
+ */
+export async function sealedRow(store: KeepsakeStore, vault: Vault | null, youId: string, id: string, aside?: string[]): Promise<SealedBytes | null> {
+  const row = rowKey(youId, id);
+  const main = await store.get(row);
+  const others = (aside ?? await store.keys(row + '~')).filter(k => k.startsWith(row + '~')).sort().reverse();
+  if (!others.length || !vault) return main;
+  for (const k of [row, ...others]) {
+    const s = k === row ? main : await store.get(k);
+    if (!s) continue;
+    try { await openBytes(vault, id, s); return s; } catch { /* another copy may open */ }
+  }
+  return main;
+}
