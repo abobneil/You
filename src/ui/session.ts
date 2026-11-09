@@ -258,12 +258,13 @@ export async function importText(source: Blob | string): Promise<boolean> {
   if (await hasVault(loaded.id)) {
     if (loaded.id === profile.id) {
       const older = (loaded.updatedAt || '') < (profile.updatedAt || '') || (loaded.rev || 0) < (profile.rev || 0);
-      const proceed = await new Promise<boolean>(resolve => openSheet(`${sheetTop(older ? "This file is older than what's in this browser" : 'Open this version?')}<p>File saved ${esc(loaded.updatedAt || 'unknown')}, browser ${esc(profile.updatedAt || 'unknown')}.</p><div class="menu"><button data-act="keep">Keep the browser version</button><button data-act="first">Download the browser version first, then open the file</button><button data-act="anyway">Open the file anyway (the browser version is kept as a download)</button></div>`, {
+      const when = (iso?: string) => { const d = iso ? new Date(iso) : null; return d && !isNaN(+d) ? d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'an unknown date'; };
+      const proceed = await new Promise<boolean>(resolve => openSheet(`${sheetTop(older ? "This file is older than what's in this browser" : 'Open this version?')}<p>The file was saved ${esc(when(loaded.updatedAt))}. This browser’s version was saved ${esc(when(profile.updatedAt))}.</p><p>If you open the file, this browser’s version is kept in Menu → Earlier versions, so you can go back to it.</p><div class="menu"><button data-act="keep">Keep the browser version</button><button data-act="anyway">Open the file</button><button data-act="first">Also save the browser version as a file, then open</button></div>`, {
         keep: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
-        // The browser version is replaced only once its copy has really been made; a cancelled or failed copy changes nothing.
-        // A copy that wasn't surely made closes this prompt too, so it never sits there doing nothing.
+        // Opening always keeps the browser version as an earlier version first (openInPlace), so a separate copy
+        // is extra, never required. When asked for, the file is opened only once that copy has really been made.
         first: async () => { const ok = await keepVerifiedCopy(); if (!ok) closeSheet(); resolve(ok); },
-        anyway: async () => { const ok = await keepVerifiedCopy(); if (!ok) closeSheet(); resolve(ok); },
+        anyway: () => resolve(true),
       }));
       if (!proceed) return give();
       // `expected` stays what was stored when the person chose (this tab had nothing unsaved then), so a save
