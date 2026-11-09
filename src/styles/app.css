@@ -1068,3 +1068,6 @@ html { scroll-padding-top: 76px; scroll-padding-bottom: 24px; }
 .saved { min-width: 0; max-width: 100%; }
 .saved > span:last-child { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+/* Import review: "This export may be older" choice, shaped like the other review chips. */
+.rv-incoming { margin-top: 6px; }

@@ -174,7 +174,34 @@ function afterClose() {
   // The opener may have been redrawn by the listeners above; find its replacement.
   const el = opener.el?.isConnected ? opener.el : opener.key ? findByKey(document, opener.key) : null;
   if (el && canFocus(el)) el.focus();
+  // The screen behind may still change (a cancelled file open goes back to the name page, hiding what
+  // had focus), so check again shortly and only step in if focus has fallen to nothing.
+  focusFallbackSoon();
   if (undo) offerUndo('Draft discarded', undo);
+}
+
+/**
+ * When the control that opened a panel is gone (a cancelled file open, a screen that changed underneath),
+ * focus would be left on nothing. Put it on the most sensible visible control instead.
+ */
+/** The screen behind may take a moment (clearing a cancelled open, redrawing the gate), so try for up to a second. */
+function focusFallbackSoon(tries = 10) {
+  setTimeout(() => { if (!focusFallback() && tries > 1) focusFallbackSoon(tries - 1); }, 100);
+}
+
+/** Returns true once focus is somewhere sensible (or a panel took over). */
+function focusFallback(): boolean {
+  if (sheet.open) return true;
+  const a = document.activeElement;
+  if (a instanceof HTMLElement && a !== document.body && canFocus(a)) return true;
+  for (const sel of ['#gate:not([hidden]) #gate-pass', '#gate:not([hidden]) #gate-go', '#load', '#name', '#d-title', '#life h2', '#you-name']) {
+    const t = document.querySelector<HTMLElement>(sel);
+    if (!t || t.closest('[hidden]') || t.offsetParent === null) continue;
+    if (!t.matches('a, button, input, select, textarea, [tabindex]')) t.tabIndex = -1;
+    t.focus();
+    return true;
+  }
+  return false;
 }
 
 // ---------- "Draft discarded · Undo" ----------

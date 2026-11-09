@@ -79,11 +79,12 @@ The barcode reader (zxing, WebAssembly) and the importers load only when used. N
 
 ### Audible
 
-1. Download [the helper](downloads/you-audible-helper.zip), install Node 22.18 or newer from nodejs.org, and extract the whole zip.
-2. Double-click **You Audible helper.cmd** (Windows) or **You Audible helper.command** (macOS). Keep its window open. It opens You without a developer server. macOS may require approval in System Settings.
+1. **Windows:** download [the helper](downloads/you-audible-helper-win.exe) and double-click it. Nothing needs installing. Windows may ask before the first run because the file isn't signed.
+   **macOS or Linux:** download [the launcher zip](downloads/you-audible-helper.zip), install Node 22.18 or newer from nodejs.org, extract the whole zip and double-click **You Audible helper.command** (macOS; approve it in System Settings if asked) or run `node helper.cjs` (Linux).
+2. When the helper asks, paste the address of the You page from your browser and confirm it. Keep its window open while you use it.
 3. In **Import > Audible**, choose **Connect Audible**, approve the traffic explanation and sign in on Amazon. **Sync from Audible** reads your library for review. **Disconnect** deletes local authorization. Close the window to stop the helper.
 
-Or import an export file with **Choose Audible JSON**, even if the helper or provider is unavailable. This release requires installed Node; it is not a self-contained executable. Only the US store is supported; Audible can change its private interface.
+Or import an export file with **Choose Audible JSON**, even if the helper or provider is unavailable. The Windows helper is self-contained; the macOS and Linux launchers need Node. Only the US store is supported; Audible can change its private interface.
 
 After permission, sign-in opens `www.amazon.com`, registration contacts `api.amazon.com`, and read-only library, completion, ownership and saved-position requests contact `api.audible.com` (or its DNS-published `d*.cloudfront.net` fallback). Passwords are entered only on Amazon. Credentials remain on this computer, outside your record, repository and library responses.
 
@@ -100,7 +101,7 @@ CLI: `npm run audible -- connect`, `export`, `status`, `disconnect`. Export writ
 
 The release build (`npm run build`) also builds the helper into `dist/downloads/`: `you-audible-helper-win.exe`, a Node single executable application that needs nothing installed, and `you-audible-helper.zip`, a fallback with double-click launchers that needs Node 22.18 or newer. When the helper starts it asks for the app address shown in the browser and then trusts only that one origin; set `YOU_APP_URL` at build time to fix it to your deployed HTTPS address instead. It binds only to `127.0.0.1:49631` and serves only API routes. The Windows exe is unsigned, so Windows SmartScreen may ask before the first run. Browser local-network permission may be required. Users need no npm install or source checkout.
 
-Building the exe uses `postject` (a dev dependency) to inject the bundled helper into a copy of the Node binary running the build, so build with a current, patched Node. macOS and Linux single executables can be built the same way on those systems; see `scripts/build-helper.mjs`.
+Building the exe uses `postject` (a dev dependency) to inject the bundled helper into a copy of the Node binary running the build, so the exe carries that Node runtime. `scripts/build-helper.mjs` refuses to build with Node older than 24.16.0 (raise `NODE_FLOOR` there as Node publishes security releases). Node 22.18 is only the floor for running the macOS/Linux launcher zip. macOS and Linux single executables can be built the same way on those systems; see `scripts/build-helper.mjs`.
 
 ## Card rules
 
