@@ -351,7 +351,7 @@ export async function importText(source: Blob | string): Promise<boolean> {
     // with a one-step way back.
     const id = loaded.id!;
     const kept = lastReplaced, wrote = lastOpened ?? undefined;
-    offerUndo(`Opened ${source instanceof File ? source.name : 'the file'}. What was here is kept in Menu → Earlier versions.`, async () => {
+    offerUndo(`Opened ${source instanceof File ? source.name : 'the file'}. The old version is in Earlier versions.`, async () => {
       // Same care as the menu's restore: unsaved work here is saved or downloaded first.
       if (!kept || !await canLeave()) return;
       let done: boolean | 'changed' = false;
