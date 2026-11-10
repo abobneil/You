@@ -57,6 +57,8 @@ let generation = 0;
 let inFlight: Promise<boolean> | undefined;
 let conflict = false;
 let dirty = false, saving = false, needsPermission = false, failed = false;
+/** Why the last file write failed, in plain words, when it's something the person should know. */
+let lastFailure = '';
 let timer: ReturnType<typeof setTimeout> | undefined;
 const changeListeners: (() => void)[] = [];
 export const onTargetChange = (fn: () => void) => { changeListeners.push(fn); };
@@ -164,6 +166,7 @@ export function writeFile(): Promise<boolean> {
       if (gen === generation) { dirty = false; local.remove(behindKey()); }
     } catch (e) {
       failed = true;
+      lastFailure = (e as Error)?.name === 'MissingKeepsake' ? (e as Error).message : '';
       if (e instanceof FileChanged) { conflict = true; showFileConflict(); }
       if ((e as Error)?.name === 'NotAllowedError') needsPermission = true;
     }
@@ -450,7 +453,7 @@ export async function pillClick(): Promise<'menu' | 'picker' | 'done'> {
   }
   if (failed) {
     if (conflict) { showFileConflict(); return 'done'; }
-    openSheet(`${sheetTop("Your file couldn't be saved")}<p>Your work is still here. Keep a copy somewhere safe.</p><div class="menu"><button data-act="retry">Retry</button><button data-act="elsewhere">Save elsewhere</button><button data-act="download">Download a copy</button></div>`, { retry: () => writeFile(), elsewhere: () => chooseSaveFile(), download: () => downloadCopy(true) });
+    openSheet(`${sheetTop("Your file couldn't be saved")}${lastFailure ? `<p>${esc(lastFailure)}</p>` : ''}<p>Your work is still here. Keep a copy somewhere safe.</p><div class="menu"><button data-act="retry">Retry</button><button data-act="elsewhere">Save elsewhere</button><button data-act="download">Download a copy</button></div>`, { retry: () => writeFile(), elsewhere: () => chooseSaveFile(), download: () => downloadCopy(true) });
     return 'done';
   }
   if (target.kind === 'download' && dirty) { downloadCopy(); return 'done'; }
