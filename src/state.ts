@@ -142,6 +142,8 @@ const queue = saveQueue(async ({ p, v, edit }: { p: Profile; v: Vault; edit: num
   local.remove(KEYS.profile);
 }, () => saveListeners.forEach(fn => fn()));
 export const browserSaveState = (): SaveState => queue.state();
+/** True when this tab holds exactly what this browser has stored (no newer save from another tab since). */
+export const browserCopyIsCurrent = () => queue.state().status === 'saved' && !guard.isStale();
 const flushers: (() => Promise<boolean>)[] = [];
 export const registerFlush = (fn: () => Promise<boolean>) => { flushers.push(fn); };
 export const flushPending = async () => { await queue.flush(); return (await Promise.all(flushers.map(fn => fn()))).every(Boolean); };

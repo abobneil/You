@@ -13,7 +13,7 @@ import { shownValue } from '../ui/sensitive';
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope } from '../state';
+import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope, browserCopyIsCurrent } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encodeBlob, encodeFile, fileNameFor } from './fileFormat';
 import { sealedFor } from './keepsakeAccess';
@@ -156,6 +156,8 @@ window.addEventListener('storage', e => {
 let copyKeptToLeave = false;
 window.addEventListener('beforeunload', e => { if ((target.kind === 'file' || target.kind === 'download') && (dirty || failed) && !copyKeptToLeave) e.preventDefault(); });
 
+onBrowserSave(() => { if (target.kind === 'file' && dirty && handle && browserSaveState().status === 'saved' && !needsPermission) { clearTimeout(timer); timer = setTimeout(writeFile, 600); } });
+
 /** Call after every change. */
 export function scheduleWrite() {
   if (target.kind === 'browser') return;
@@ -173,6 +175,12 @@ export function writeFile(): Promise<boolean> {
   clearTimeout(timer);
   if (inFlight) return inFlight.then(ok => ok && dirty ? writeFile() : ok);
   if (handle && !vault && dirty && !conflict) { clearTimeout(timer); timer = setTimeout(writeFile, 1000); return Promise.resolve(false); } // not unlocked yet: try again
+  // The file only ever gets what this browser has stored: while this tab's own save is pending, refused
+  // (another tab saved newer changes) or failed, writing its record into the file could replace newer work.
+  if (handle && vault && !browserCopyIsCurrent()) {
+    if (browserSaveState().status === 'saving') { clearTimeout(timer); timer = setTimeout(writeFile, 300); }
+    return Promise.resolve(false);
+  }
   if (!handle || !vault || conflict) return Promise.resolve(false);
   const h = handle, v = vault, p = structuredClone(profile), gen = generation;
   saving = true; failed = false; renderPill();
@@ -195,7 +203,11 @@ export function writeFile(): Promise<boolean> {
   })().finally(() => { inFlight = undefined; });
   return inFlight;
 }
-registerFlush(async () => { while (target.kind === 'file' && dirty) { if (!await writeFile()) return false; } return true; });
+registerFlush(async () => {
+  if (!vault) return true; // locked: the work is in the browser copy, and the file stays marked as behind
+  while (target.kind === 'file' && dirty) { if (!await writeFile()) return false; }
+  return true;
+});
 function showFileConflict() {
   openSheet(`${sheetTop('Your file changed somewhere else')}<p>Your work is still here. Keep a separate copy before opening the other version.</p><div class="menu"><button data-act="both">Keep both</button><button data-act="other">Open the other version</button><button data-act="compare">Compare</button></div>`, {
     compare: async () => {
@@ -299,7 +311,8 @@ export async function downloadCopy(separate = false): Promise<boolean> {
     if (!controller.signal.aborted) { closeSheet(); cannotDownload(e); }
     return false;
   }
-  if (target.kind === 'download' && !separate) { dirty = false; local.remove(behindKey()); renderPill(); }
+  // Only a download of what this browser has stored counts as up to date for every tab.
+  if (target.kind === 'download' && !separate) { dirty = false; if (browserCopyIsCurrent()) local.remove(behindKey()); renderPill(); }
   return true;
 }
 
