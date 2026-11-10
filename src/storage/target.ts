@@ -13,7 +13,7 @@ import { shownValue } from '../ui/sensitive';
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope, browserCopyIsCurrent, hasUnsavedEdits } from '../state';
+import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope, browserCopyIsCurrent, hasUnsavedEdits, storedBaseline, storedIs, onStored } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encodeBlob, encodeFile, fileNameFor } from './fileFormat';
 import { sealedFor } from './keepsakeAccess';
@@ -176,6 +176,8 @@ window.addEventListener('storage', e => {
 let copyKeptToLeave = false;
 window.addEventListener('beforeunload', e => { if ((target.kind === 'file' || target.kind === 'download') && (dirty || failed) && !copyKeptToLeave) e.preventDefault(); });
 
+// The save place is behind from the moment this tab's edit is stored, whichever tab later writes the file.
+onStored(() => { if (target.kind === 'file' || target.kind === 'download') local.set(behindKey(), behindToken()); });
 onBrowserSave(() => {
   if (browserSaveState().status !== 'saved' || !dirty || (target.kind !== 'file' && target.kind !== 'download')) return;
   // This tab's edit is now in the browser copy. Mark the save place behind again with a fresh token: a write
@@ -209,7 +211,7 @@ export function writeFile(): Promise<boolean> {
   }
   if (!handle || !vault || conflict) return Promise.resolve(false);
   // What this write will contain, and which "behind" mark it answers: a newer save (any tab) changes the mark.
-  const h = handle, v = vault, p = structuredClone(profile), gen = generation, answers = local.get(behindKey());
+  const h = handle, v = vault, p = structuredClone(profile), gen = generation, answers = local.get(behindKey()), base = storedBaseline();
   saving = true; failed = false; renderPill();
   inFlight = (async () => {
     try {
@@ -221,9 +223,13 @@ export function writeFile(): Promise<boolean> {
       await (navigator.locks ? navigator.locks.request('you-file-' + p.id, write) : write());
       local.set('you.fileFingerprint.' + p.id, writer.fingerprint()!);
       // Clear the shared mark only if nothing newer was saved since this snapshot was taken.
+      // ...and the browser still stores exactly the copy this snapshot was of (no save landed meanwhile).
+      const unchanged = await storedIs(base);
       const now = local.get(behindKey());
-      if (now === answers) local.remove(behindKey());
-      if (gen === generation && now === answers) dirty = false;
+      if (now === answers && unchanged) local.remove(behindKey());
+      if (gen === generation && now === answers && unchanged) dirty = false;
+      // Write again only once this tab holds what is stored now; otherwise the tab that saved it (or the fallback) does.
+      else if (!unchanged) { clearTimeout(timer); timer = setTimeout(async () => { if (browserCopyIsCurrent() && await storedIs(storedBaseline())) void writeFile(); }, 1000); }
       else if (now === null && browserCopyIsCurrent() && !hasUnsavedEdits()) dirty = false; // another tab already brought it up to date
       else if (now !== answers) { clearTimeout(timer); timer = setTimeout(() => { if (local.get(behindKey()) && browserCopyIsCurrent()) void writeFile(); }, 1000); } // catch up with the newer save
     } catch (e) {
@@ -336,7 +342,7 @@ const separateName = (what: string) => fileNameFor(profile.name).replace('.you.j
 export async function downloadCopy(separate = false): Promise<boolean> {
   if (!vault) return false;
   // The download answers the "behind" mark as it is now, and is of this tab's copy as it is now.
-  const answers = local.get(behindKey()), currentAtStart = browserCopyIsCurrent();
+  const answers = local.get(behindKey()), currentAtStart = browserCopyIsCurrent(), base = storedBaseline();
   const controller = new AbortController();
   openSheet(`${sheetTop('Making your encrypted copy…')}<p role="status">Keeping your record, photos and files together…</p><button class="btn" data-act="cancel">Cancel</button>`, {
     cancel: () => { controller.abort(); closeSheet(); },
@@ -356,7 +362,7 @@ export async function downloadCopy(separate = false): Promise<boolean> {
   // Only a download of what this browser has stored counts as up to date for every tab.
   if (target.kind === 'download' && !separate) {
     // Only a download of the stored copy, with nothing newer saved meanwhile, brings every tab up to date.
-    const caughtUp = currentAtStart && browserCopyIsCurrent() && local.get(behindKey()) === answers;
+    const caughtUp = currentAtStart && browserCopyIsCurrent() && local.get(behindKey()) === answers && await storedIs(base);
     if (caughtUp) { dirty = false; local.remove(behindKey()); }
     renderPill();
   }

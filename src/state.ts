@@ -123,9 +123,14 @@ channel?.addEventListener('message', async e => {
   if (browserSaveState().status === 'saved' && editCount === committedEdit && !draftOpen()) await useNewer();
   else if (editCount !== committedEdit) tabConflict();
 });
+const storedHooks: (() => void)[] = [];
+/** Runs right after this tab's save is in the browser copy, before anything else happens. */
+export const onStored = (fn: () => void) => { storedHooks.push(fn); };
 const queue = saveQueue(async ({ p, v, edit }: { p: Profile; v: Vault; edit: number }) => {
   const envelope = await encode(v, p);
   const result = await guard.write(p.id!, envelope, edit !== committedEdit);
+  // The very next thing once this tab's save is stored: nothing (a slow read, a crash) can come in between.
+  if (result !== 'newer' && result !== 'conflict' && edit !== committedEdit) storedHooks.forEach(fn => fn());
   if (result === 'newer') { await useNewer(); return; }
   if (result === 'conflict') {
     tabConflict();
@@ -144,6 +149,10 @@ const queue = saveQueue(async ({ p, v, edit }: { p: Profile; v: Vault; edit: num
 export const browserSaveState = (): SaveState => queue.state();
 /** True when this tab holds exactly what this browser has stored (no newer save from another tab since). */
 export const browserCopyIsCurrent = () => queue.state().status === 'saved' && !guard.isStale();
+/** The stored copy this tab's record corresponds to (what it last saved or loaded). */
+export const storedBaseline = () => guard.baseline();
+/** True while the browser still stores exactly `envelope`: nothing was saved since, in any tab. */
+export const storedIs = async (envelope: string | null | undefined) => envelope !== undefined && (await vaultStore.get(profile.id!)) === envelope;
 const flushers: (() => Promise<boolean>)[] = [];
 export const registerFlush = (fn: () => Promise<boolean>) => { flushers.push(fn); };
 export const flushPending = async () => { await queue.flush(); return (await Promise.all(flushers.map(fn => fn()))).every(Boolean); };
