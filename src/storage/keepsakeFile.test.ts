@@ -4,7 +4,7 @@ import { createVault, type Vault } from '../core/crypto';
 import { checkSize, MAX_KEEPSAKE_BYTES, sha256Hex, type Keepsake } from '../core/keepsakes';
 import { emptyProfile, normalize } from '../core/profile';
 import type { Profile } from '../core/types';
-import { decode, DamagedFile, encodeBlob, encodeFile, readFile, readText, UnsupportedVersion, type RawKeepsake } from './fileFormat';
+import { decode, DamagedFile, encodeBlob, encodeFile, MissingKeepsake, readFile, readText, UnsupportedVersion, type RawKeepsake } from './fileFormat';
 import { commitStaged, stageKeepsakes } from './keepsakeImport';
 import { deleteYouKeepsakes, loadKeepsake, memoryKeepsakeStore, rowKey, storeKeepsake, type KeepsakeStore } from './keepsakeStore';
 
@@ -159,6 +159,14 @@ describe('file format version 3', () => {
     const r = readText(parts[0]);
     expect(r.kind === 'locked' && r.env.version).toBe(2);
     if (r.kind === 'locked') expect(await collect(r.keepsakes())).toEqual([]);
+  });
+
+  it('a write over the save file stops when a listed photo is missing, instead of writing fewer photos (CAP3-O)', async () => {
+    const { vault, p } = await setup();
+    const parts: string[] = [];
+    await expect((async () => { for await (const s of encodeFile(vault, p, async () => null, true)) parts.push(s); })()).rejects.toThrow(MissingKeepsake);
+    // A new copy still leaves missing rows out rather than refusing.
+    for await (const s of encodeFile(vault, p, async () => null)) parts.push(s);
   });
 
   it('rejects unknown versions, so nothing is replaced', async () => {

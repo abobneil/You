@@ -136,7 +136,7 @@ export function writeFile(): Promise<boolean> {
   saving = true; failed = false; renderPill();
   inFlight = (async () => {
     try {
-      await writer.write(h, encodeFile(v, p, sealedFor(p.id!)));
+      await writer.write(h, encodeFile(v, p, sealedFor(p.id!), true)); // never replace the file with fewer photos
       local.set('you.fileFingerprint.' + p.id, writer.fingerprint()!);
       if (gen === generation) dirty = false;
     } catch (e) {

@@ -168,9 +168,14 @@ const B64_CHUNK = 3 * 1024 * 1024;
 
 /**
  * The file, as a series of pieces to write one after another. Without keepsakes it is a version 2
- * envelope; with them, version 3 with one keepsake per line (rows without bytes in this browser are left out).
+ * envelope; with them, version 3 with one keepsake per line. Rows without bytes in this browser are left out
+ * of a new copy; with `complete` (writing over the person's own save file) a missing row stops the write
+ * instead, so the file they already have is never replaced by one with fewer photos.
  */
-export async function* encodeFile(vault: Vault, p: Profile, getSealed: (id: string) => Promise<SealedBytes | null>): AsyncGenerator<string> {
+export class MissingKeepsake extends Error {
+  constructor() { super('A photo or file this record lists is no longer in this browser, so the saved file was left as it was.'); this.name = 'MissingKeepsake'; }
+}
+export async function* encodeFile(vault: Vault, p: Profile, getSealed: (id: string) => Promise<SealedBytes | null>, complete = false): AsyncGenerator<string> {
   const ids = [...keepsakeIds(p)];
   if (!ids.length) { yield await encode(vault, p); return; }
   const env = await sealEnvelope(vault, JSON.stringify(p));
@@ -180,7 +185,7 @@ export async function* encodeFile(vault: Vault, p: Profile, getSealed: (id: stri
   let first = true;
   for (const id of ids) {
     const s = await getSealed(id);
-    if (!s) continue;
+    if (!s) { if (complete) throw new MissingKeepsake(); continue; }
     yield `${first ? '' : ',\n'}{"id":${JSON.stringify(id)},"iv":"${toB64(s.iv)}","data":"`;
     for (let i = 0; i < s.data.length; i += B64_CHUNK) yield toB64(s.data.subarray(i, i + B64_CHUNK));
     yield '"}';
