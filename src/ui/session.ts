@@ -1,3 +1,4 @@
+import { local } from '../storage/local';
 import { closeSheet, focusFallbackSoon, offerUndo, openSheet, sheetTop } from './sheet';
 import { esc } from './dom';
 import { commitFile, stageFile } from '../storage/stageFile';
@@ -211,6 +212,7 @@ export async function importText(source: Blob | string): Promise<boolean> {
 
   // Every attached file is decrypted and checked before anything here changes.
   let staged: Staged | null = null;
+  let missingAtOpen: string[] = []; // attached files the file itself couldn't supply ("Open the rest")
   // Backing out of an open: clear what was staged, return to the previous screen and put focus somewhere sensible.
   const give = async () => { if (staged) await discardStaged(keepsakeStore, staged); backToPrevious(); focusFallbackSoon(); return false; };
   if (r.kind === 'locked' && key) {
@@ -245,6 +247,7 @@ export async function importText(source: Blob | string): Promise<boolean> {
         close: () => { closeSheet(); resolve(false); },
       }));
       if (!openRest) return give();
+      missingAtOpen = problems.map(x => x.id);
     }
   }
 
@@ -351,6 +354,9 @@ export async function importText(source: Blob | string): Promise<boolean> {
     openSheet(`${sheetTop('Not opened')}<h3 class="sh-title">This You changed in another tab</h3><p data-announce>Another tab saved changes while this file was opening, so nothing was replaced. Open the file again to compare it with the newest version.</p><div class="btns"><button class="btn primary" type="button" data-act="close">OK</button></div>`);
     return give();
   }
+  // Remembered per You so saving back into a file never stops over photos the file never had.
+  if (missingAtOpen.length) local.set('you.missingPhotos.' + loaded.id, JSON.stringify(missingAtOpen));
+  else local.remove('you.missingPhotos.' + loaded.id);
   hideGate();
   if (expected !== null) {
     // Whatever was here was kept as an earlier version just before the file replaced it. Say so, quietly,

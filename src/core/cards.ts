@@ -327,8 +327,18 @@ export function replaceKeepsake(p: Profile, cardId: string, oldId: string, next:
   return true;
 }
 
-/** Every keepsake id referenced by any card, removed ones included. */
-export const keepsakeIds = (p: Profile) => new Set(p.cards.flatMap(c => (c.keepsakes ?? []).map(k => k.id)));
+/** Photos and files in kept unfinished cards (drafts kept at auto-lock). The file must carry these too. */
+export function draftKeepsakes(p: Profile): Keepsake[] {
+  const drafts = (p as { drafts?: unknown }).drafts;
+  if (!Array.isArray(drafts)) return [];
+  return drafts.flatMap(d => {
+    const ks = (d as { data?: { keepsakes?: unknown } })?.data?.keepsakes;
+    return Array.isArray(ks) ? ks.filter((k): k is Keepsake => !!k && typeof (k as Keepsake).id === 'string') : [];
+  });
+}
+
+/** Every keepsake id referenced by any card (removed ones included) or by a kept unfinished card. */
+export const keepsakeIds = (p: Profile) => new Set([...p.cards.flatMap(c => (c.keepsakes ?? []).map(k => k.id)), ...draftKeepsakes(p).map(k => k.id)]);
 
 /** Unknown target endpoints can establish possibility, never certainty. */
 export function contextOverlap(c: Card, other: Card) {

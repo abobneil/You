@@ -67,6 +67,7 @@ export function setTarget(kind: TargetKind, name = '') {
   local.set(tk('target'), kind);
   local.set(tk('targetName'), name);
   if (kind !== 'file') { handle = null; idb.del(handleKey()); }
+  local.remove(behindKey());
   dirty = false; failed = false; needsPermission = false;
   renderPill();
   changeListeners.forEach(fn => fn());
@@ -93,6 +94,7 @@ export async function forgetFileTarget(id: string) {
   local.set(keyFor(id, 'target'), 'browser');
   local.set(keyFor(id, 'targetName'), '');
   local.remove('you.fileFingerprint.' + id);
+  local.remove('you.fileBehind.' + id);
   await idb.del(`handle.${id}`);
 }
 window.addEventListener('storage', e => {
@@ -113,13 +115,31 @@ export async function initTarget() {
     else needsPermission = (await handle.queryPermission({ mode: 'readwrite' })) !== 'granted';
   }
   if (handle) await writer.load(handle, local.get('you.fileFingerprint.' + me()) || undefined);
+  // The file was left behind last time (a failed write, or the page closed before it ran): say so, and
+  // catch it up now if this browser may write to it.
+  if (handle && fileIsBehind(me())) { dirty = true; if (!needsPermission) timer = setTimeout(writeFile, 600); }
   renderPill();
 }
+
+/**
+ * "The file is behind what's in this browser", remembered outside this tab's memory, so a reload or
+ * another tab never shows "Saved to <file>" while the file is missing work (and Remove can warn).
+ */
+const behindKey = () => 'you.fileBehind.' + me();
+export const fileIsBehind = (id: string) => !!local.get('you.fileBehind.' + id);
+window.addEventListener('storage', e => {
+  if (target.kind === 'file' && e.key === behindKey() && e.newValue && !dirty) { dirty = true; renderPill(); }
+});
+// Leaving while the file hasn't caught up: the browser asks first (the next visit catches the file up).
+// Not after the person already kept a verified copy to leave (the leave prompt), so they aren't asked twice.
+let copyKeptToLeave = false;
+window.addEventListener('beforeunload', e => { if (target.kind === 'file' && (dirty || failed) && !copyKeptToLeave) e.preventDefault(); });
 
 /** Call after every change. */
 export function scheduleWrite() {
   if (target.kind === 'browser') return;
   generation++; dirty = true;
+  if (target.kind === 'file') local.set(behindKey(), '1');
   if (target.kind === 'file' && handle && !needsPermission) {
     clearTimeout(timer);
     timer = setTimeout(writeFile, 600);
@@ -136,9 +156,12 @@ export function writeFile(): Promise<boolean> {
   saving = true; failed = false; renderPill();
   inFlight = (async () => {
     try {
-      await writer.write(h, encodeFile(v, p, sealedFor(p.id!), true)); // never replace the file with fewer photos
+      // Never replace the file with fewer photos than it had; photos that were already unreadable when this
+      // record was opened ("Open the rest") weren't in it to begin with, so they don't block the write.
+      const known = new Set<string>(JSON.parse(local.get('you.missingPhotos.' + p.id) || '[]'));
+      await writer.write(h, encodeFile(v, p, sealedFor(p.id!), id => !known.has(id)));
       local.set('you.fileFingerprint.' + p.id, writer.fingerprint()!);
-      if (gen === generation) dirty = false;
+      if (gen === generation) { dirty = false; local.remove(behindKey()); }
     } catch (e) {
       failed = true;
       if (e instanceof FileChanged) { conflict = true; showFileConflict(); }
@@ -476,5 +499,5 @@ onTabConflict(() => { void showTabConflict(); });
 onLeaveFailure(() => new Promise(resolve => openSheet(`${sheetTop("Your latest changes couldn't be saved")}<p>Your work is still here. Download a copy before locking or switching.</p><div class="menu"><button data-act="download">Download before leaving</button><button data-act="stay">Stay here</button></div>`, {
   // If the copy can't be made, say so and stay unlocked: never lock away the only copy.
   // Leaving is allowed only once this tab's work is surely kept somewhere.
-  download: async () => { if (await keepVerifiedCopy()) resolve(true); else if (!document.querySelector('#sheet-body [data-act=download]')) resolve(false); }, stay: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
+  download: async () => { if (await keepVerifiedCopy()) { copyKeptToLeave = true; resolve(true); } else if (!document.querySelector('#sheet-body [data-act=download]')) resolve(false); }, stay: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
 })));

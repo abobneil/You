@@ -60,6 +60,7 @@ export async function removeProfile(id: string) {
     await deleteYouKeepsakes(idbKeepsakeStore, id);
     saveIndex(listProfiles().filter(e => e.id !== id));
     for (const k of ['vault', 'target', 'targetName', 'nudged'] as PerYou[]) local.remove(keyFor(id, k));
+    for (const k of ['fileBehind', 'missingPhotos', 'fileFingerprint']) local.remove(`you.${k}.${id}`);
     if (currentId() === id) setCurrent(listProfiles()[0]?.id ?? '');
   };
   if (typeof navigator !== 'undefined' && navigator.locks) await navigator.locks.request('you-' + id, run); else await run();

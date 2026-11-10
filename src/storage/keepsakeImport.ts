@@ -1,6 +1,7 @@
 // Opening a version 3 file: every keepsake is decrypted and checked against the record's own SHA-256
 // before anything in this browser changes. Checked bytes wait under a temporary prefix; only after the
 // person confirms are they moved under the opening You's id. Problems are reported, never silently dropped.
+import { draftKeepsakes } from '../core/cards';
 import type { Vault } from '../core/crypto';
 import { openBytes, sealBytes, sha256Hex, type Keepsake, type SealedBytes } from '../core/keepsakes';
 import type { Profile } from '../core/types';
@@ -18,6 +19,7 @@ export interface Staged {
 const metaById = (p: Profile) => {
   const m = new Map<string, Keepsake>();
   for (const c of p.cards) for (const k of c.keepsakes ?? []) m.set(k.id, k);
+  for (const k of draftKeepsakes(p)) if (!m.has(k.id)) m.set(k.id, k); // a kept unfinished card's photos
   return m;
 };
 
