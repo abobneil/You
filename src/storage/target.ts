@@ -146,6 +146,14 @@ export async function initTarget() {
  * another tab never shows "Saved to <file>" while the file is missing work (and Remove can warn).
  */
 const behindKey = () => 'you.fileBehind.' + me();
+/** Writes the file for another tab that didn't, unless some tab is writing it right now (then checks again later). */
+async function fallbackWrite() {
+  if (!local.get(behindKey()) || !browserCopyIsCurrent()) return;
+  const busy = navigator.locks ? (await navigator.locks.query()).held?.some(l => l.name === 'you-file-' + me()) : false;
+  if (busy) { clearTimeout(timer); timer = setTimeout(fallbackWrite, 15000); return; }
+  void writeFile();
+}
+
 /** Each save that hasn't reached the file yet gets a new value, so a write of an older snapshot can tell. */
 const behindToken = () => `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 export const fileIsBehind = (id: string) => !!local.get('you.fileBehind.' + id) || (me() === id && (target.kind === 'file' || target.kind === 'download') && (dirty || failed));
@@ -157,10 +165,10 @@ window.addEventListener('storage', e => {
       dirty = true; renderPill();
       // Normally the tab that saved writes the file within moments. Only if it's still behind well after
       // that (that tab failed or closed) does this tab, holding the same stored copy, write it instead.
-      if (handle && !needsPermission) { clearTimeout(timer); timer = setTimeout(() => { if (local.get(behindKey()) && browserCopyIsCurrent()) void writeFile(); }, 15000); }
+      if (handle && !needsPermission) { clearTimeout(timer); timer = setTimeout(fallbackWrite, 15000); }
     }
     // Another tab brought it up to date: only true for this tab if it holds exactly what was stored.
-    else if (!e.newValue && dirty && !saving && !failed && browserCopyIsCurrent() && !hasUnsavedEdits()) { dirty = false; renderPill(); }
+    else if (!e.newValue && (dirty || failed) && !saving && browserCopyIsCurrent() && !hasUnsavedEdits()) { dirty = false; failed = false; lastFailure = ''; renderPill(); }
   }
 });
 // Leaving while the file hasn't caught up: the browser asks first (the next visit catches the file up).
@@ -224,7 +232,13 @@ export function writeFile(): Promise<boolean> {
 }
 registerFlush(async () => {
   if (!vault) return true; // locked: the work is in the browser copy, and the file stays marked as behind
-  while (target.kind === 'file' && dirty) { if (!await writeFile()) return false; }
+  while (target.kind === 'file' && dirty) {
+    // Another tab may be holding the file (a slow or stuck write). After a few seconds, carry on: the work
+    // is in this browser's copy and the file stays marked as behind, so it's caught up on the next visit.
+    const done = await Promise.race([writeFile(), new Promise<'wait'>(r => setTimeout(() => r('wait'), 5000))]);
+    if (done === 'wait') return !!local.get(behindKey());
+    if (!done) return false;
+  }
   return true;
 });
 function showFileConflict() {
