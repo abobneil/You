@@ -176,7 +176,13 @@ window.addEventListener('storage', e => {
 let copyKeptToLeave = false;
 window.addEventListener('beforeunload', e => { if ((target.kind === 'file' || target.kind === 'download') && (dirty || failed) && !copyKeptToLeave) e.preventDefault(); });
 
-onBrowserSave(() => { if (target.kind === 'file' && dirty && handle && browserSaveState().status === 'saved' && !needsPermission) { clearTimeout(timer); timer = setTimeout(writeFile, 600); } });
+onBrowserSave(() => {
+  if (browserSaveState().status !== 'saved' || !dirty || (target.kind !== 'file' && target.kind !== 'download')) return;
+  // This tab's edit is now in the browser copy. Mark the save place behind again with a fresh token: a write
+  // or download another tab took from an older copy while this edit was still on its way can't answer it.
+  local.set(behindKey(), behindToken());
+  if (target.kind === 'file' && handle && !needsPermission) { clearTimeout(timer); timer = setTimeout(writeFile, 600); }
+});
 
 /** Call after every change. */
 export function scheduleWrite() {
@@ -218,6 +224,7 @@ export function writeFile(): Promise<boolean> {
       const now = local.get(behindKey());
       if (now === answers) local.remove(behindKey());
       if (gen === generation && now === answers) dirty = false;
+      else if (now === null && browserCopyIsCurrent() && !hasUnsavedEdits()) dirty = false; // another tab already brought it up to date
       else if (now !== answers) { clearTimeout(timer); timer = setTimeout(() => { if (local.get(behindKey()) && browserCopyIsCurrent()) void writeFile(); }, 1000); } // catch up with the newer save
     } catch (e) {
       failed = true;
