@@ -146,6 +146,8 @@ export async function initTarget() {
  * another tab never shows "Saved to <file>" while the file is missing work (and Remove can warn).
  */
 const behindKey = () => 'you.fileBehind.' + me();
+/** Each save that hasn't reached the file yet gets a new value, so a write of an older snapshot can tell. */
+const behindToken = () => `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 export const fileIsBehind = (id: string) => !!local.get('you.fileBehind.' + id) || (me() === id && (target.kind === 'file' || target.kind === 'download') && (dirty || failed));
 window.addEventListener('storage', e => {
   if (target.kind === 'file' && handle && e.key === 'you.fileFingerprint.' + me() && e.newValue) void writer.load(handle, e.newValue); // another tab of this You wrote it
@@ -172,7 +174,7 @@ onBrowserSave(() => { if (target.kind === 'file' && dirty && handle && browserSa
 export function scheduleWrite() {
   if (target.kind === 'browser') return;
   generation++; dirty = true;
-  local.set(behindKey(), '1'); // a file or a download: behind until the latest is really in it
+  local.set(behindKey(), behindToken()); // a file or a download: behind until the latest is really in it
   if (target.kind === 'file' && handle && !needsPermission) {
     clearTimeout(timer);
     timer = setTimeout(writeFile, 600);
@@ -192,7 +194,8 @@ export function writeFile(): Promise<boolean> {
     return Promise.resolve(false);
   }
   if (!handle || !vault || conflict) return Promise.resolve(false);
-  const h = handle, v = vault, p = structuredClone(profile), gen = generation;
+  // What this write will contain, and which "behind" mark it answers: a newer save (any tab) changes the mark.
+  const h = handle, v = vault, p = structuredClone(profile), gen = generation, answers = local.get(behindKey());
   saving = true; failed = false; renderPill();
   inFlight = (async () => {
     try {
@@ -203,10 +206,14 @@ export function writeFile(): Promise<boolean> {
       const write = () => writer.write(h, encodeFile(v, p, sealedFor(p.id!), id => !known.has(id)));
       await (navigator.locks ? navigator.locks.request('you-file-' + p.id, write) : write());
       local.set('you.fileFingerprint.' + p.id, writer.fingerprint()!);
-      if (gen === generation) { dirty = false; local.remove(behindKey()); }
+      // Clear the shared mark only if nothing newer was saved since this snapshot was taken.
+      const now = local.get(behindKey());
+      if (now === answers) local.remove(behindKey());
+      if (gen === generation && now === answers) dirty = false;
+      else if (now !== answers) { clearTimeout(timer); timer = setTimeout(() => { if (local.get(behindKey()) && browserCopyIsCurrent()) void writeFile(); }, 1000); } // catch up with the newer save
     } catch (e) {
       failed = true;
-      local.set('you.fileBehind.' + p.id, '1');
+      if (!local.get('you.fileBehind.' + p.id)) local.set('you.fileBehind.' + p.id, behindToken());
       lastFailure = (e as Error)?.name === 'MissingKeepsake' ? (e as Error).message : '';
       if (e instanceof FileChanged) { conflict = true; showFileConflict(); }
       if ((e as Error)?.name === 'NotAllowedError') needsPermission = true;
@@ -307,6 +314,8 @@ const separateName = (what: string) => fileNameFor(profile.name).replace('.you.j
 /** Downloads an encrypted copy of the open You. Returns false (after saying why) if it couldn't. */
 export async function downloadCopy(separate = false): Promise<boolean> {
   if (!vault) return false;
+  // The download answers the "behind" mark as it is now, and is of this tab's copy as it is now.
+  const answers = local.get(behindKey()), currentAtStart = browserCopyIsCurrent();
   const controller = new AbortController();
   openSheet(`${sheetTop('Making your encrypted copy…')}<p role="status">Keeping your record, photos and files together…</p><button class="btn" data-act="cancel">Cancel</button>`, {
     cancel: () => { controller.abort(); closeSheet(); },
@@ -324,7 +333,12 @@ export async function downloadCopy(separate = false): Promise<boolean> {
     return false;
   }
   // Only a download of what this browser has stored counts as up to date for every tab.
-  if (target.kind === 'download' && !separate) { dirty = false; if (browserCopyIsCurrent()) local.remove(behindKey()); renderPill(); }
+  if (target.kind === 'download' && !separate) {
+    // Only a download of the stored copy, with nothing newer saved meanwhile, brings every tab up to date.
+    const caughtUp = currentAtStart && browserCopyIsCurrent() && local.get(behindKey()) === answers;
+    if (caughtUp) { dirty = false; local.remove(behindKey()); }
+    renderPill();
+  }
   return true;
 }
 
@@ -427,7 +441,7 @@ export async function chooseSaveFile(): Promise<boolean> {
     // A file that already has something in it isn't the one those photos were missing from: no allowance.
     if ((await h.getFile()).size > 0) local.remove('you.missingPhotos.' + me());
     handle = h; conflict = false; await writer.load(h);
-    dirty = true; local.set(behindKey(), '1'); // behind until its first write has really landed
+    dirty = true; local.set(behindKey(), behindToken()); // behind until its first write has really landed
     if (!(await writeFile())) { await fallBackToDownload(h); return false; }
     return true;
   } catch (e) {
