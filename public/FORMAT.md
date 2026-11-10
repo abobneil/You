@@ -63,7 +63,12 @@ layout opens.
   authenticated data = the UTF-8 bytes of its `id`, so a keepsake can't be swapped onto another entry.
 - Every save of the record uses a fresh random IV. A keepsake keeps the IV it was sealed with when it
   was attached; a replaced file is a new keepsake with a new id and a new IV.
-- Only keepsakes whose bytes are present are written. An entry whose id no card mentions, a repeated
+- Keepsakes belong to cards, or to a kept unfinished card in the record's `drafts` (`drafts[].data.keepsakes`,
+  same metadata shape), which is written the same way so it can be finished on another device.
+- When writing over an existing save file, a keepsake the record lists but this browser doesn't have
+  stops the write (the file is left as it was), except ones that were already unreadable when that
+  record was opened. A new copy simply leaves missing ones out.
+- Only keepsakes whose bytes are present are written. An entry whose id no card (or kept draft) mentions, a repeated
   id or an IV that isn't 12 bytes makes the file unreadable; a keepsake that fails to decrypt, whose
   SHA-256 doesn't match its card's metadata, or that is missing is reported by name before anything
   is replaced.
