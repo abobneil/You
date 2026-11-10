@@ -104,7 +104,19 @@ window.addEventListener('storage', e => {
   const kind = (local.get(tk('target')) as TargetKind) || 'browser', name = local.get(tk('targetName')) || '';
   if (kind === target.kind && name === target.name) return;
   if (kind === 'file') void followFile(name);
-  else if (target.kind === 'file') setTarget('browser');
+  else if (kind === 'download') {
+    // Another tab chose downloads for this You: this tab's edits must mark that download behind too.
+    handle = null; conflict = false; failed = false; needsPermission = false;
+    target.kind = 'download'; target.name = name;
+    dirty = fileIsBehind(me());
+    renderPill(); changeListeners.forEach(fn => fn());
+  }
+  else if (target.kind !== 'browser') {
+    // Another tab stopped saving elsewhere: follow it here, without rewriting the shared choice.
+    handle = null; conflict = false; failed = false; needsPermission = false; dirty = false;
+    target.kind = 'browser'; target.name = '';
+    renderPill(); changeListeners.forEach(fn => fn());
+  }
 });
 /** Another tab chose a different save file for this You: save into that one here too, never the old one. */
 async function followFile(name: string) {
@@ -185,6 +197,11 @@ onBrowserSave(() => {
   local.set(behindKey(), behindToken());
   if (target.kind === 'file' && handle && !needsPermission) { clearTimeout(timer); timer = setTimeout(writeFile, 600); }
 });
+
+// A tab that was busy (a draft open, loading a newer copy) when the save place caught up rechecks now and then.
+setInterval(() => {
+  if (dirty && !saving && !failed && target.kind !== 'browser' && !local.get(behindKey()) && browserCopyIsCurrent() && !hasUnsavedEdits()) { dirty = false; renderPill(); }
+}, 5000);
 
 /** Call after every change. */
 export function scheduleWrite() {
