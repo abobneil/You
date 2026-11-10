@@ -115,8 +115,8 @@ export async function disconnectAudible(): Promise<string> {
 
 /** Shared markup for the source-card owner; file selection remains in the import hub. */
 export function helperConnectionHtml(live: AudibleStatus | null): string {
-  if (import.meta.env.VITE_SITES_BUILD === '1') return `<p>${helperInfo}. <a href="${helperDownload}">Get the helper launcher ZIP</a> (requires Node 22.18 or newer on your computer). Paste this address when the helper asks: <b>${esc(location.origin)}</b>.</p>`;
-  return `<p>${helperInfo}. <a href="/downloads/you-audible-helper-win.exe">Get the Windows helper</a> (no Node installation needed). <a href="${helperDownload}">Other systems / launcher zip</a> (requires Node). Paste this address when the helper asks: <b>${esc(location.origin)}</b>.</p>
+  if (import.meta.env.VITE_SITES_BUILD === '1') return `<p>${helperInfo}. <a href="${helperDownload}" download>Get the helper launcher ZIP</a> (requires Node 22.18 or newer on your computer). Paste this address when the helper asks: <b>${esc(location.origin)}</b>.</p>`;
+  return `<p>${helperInfo}. <a href="/downloads/you-audible-helper-win.exe" download>Get the Windows helper</a> (no Node installation needed). <a href="${helperDownload}" download>Other systems / launcher zip</a> (requires Node). Paste this address when the helper asks: <b>${esc(location.origin)}</b>.</p>
     <p role="status">${live?.connected ? 'Connected' : live ? 'Helper connected — sign in to Audible' : 'Not running / not connected'}</p>
     <p>Or import an export file. This works when the helper is unavailable or Audible has a problem.</p>
     <p>${esc(audibleTraffic)}</p>`;

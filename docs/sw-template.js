@@ -19,6 +19,8 @@ self.addEventListener('fetch', event => {
   // Helper/API requests are never navigation requests and remain outside this cache.
   url.hash = '';
   url.search = '';
+  // Downloads (the helper, its zip) are files, not app pages: let the network serve them as they are.
+  if (url.pathname.includes('/downloads/')) return;
   const key = request.mode === 'navigate' ? shell : url.href;
   if (!urls.includes(key)) return;
   event.respondWith(caches.open(CACHE).then(cache => cache.match(key)).then(hit => hit || fetch(request)));
