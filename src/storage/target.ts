@@ -168,7 +168,7 @@ window.addEventListener('storage', e => {
       if (handle && !needsPermission) { clearTimeout(timer); timer = setTimeout(fallbackWrite, 15000); }
     }
     // Another tab brought it up to date: only true for this tab if it holds exactly what was stored.
-    else if (!e.newValue && (dirty || failed) && !saving && browserCopyIsCurrent() && !hasUnsavedEdits()) { dirty = false; failed = false; lastFailure = ''; renderPill(); }
+    else if (!e.newValue && (dirty || failed) && !saving && browserCopyIsCurrent() && !hasUnsavedEdits()) { dirty = false; failed = false; lastFailure = ''; conflict = false; renderPill(); } // another tab of this You wrote the stored copy: the file is that, not something changed elsewhere
   }
 });
 // Leaving while the file hasn't caught up: the browser asks first (the next visit catches the file up).
