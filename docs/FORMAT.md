@@ -9,7 +9,7 @@ passphrase and standard tools. It is the contract the app writes and reads.
 |---|---|---|
 | 1 | legacy, read-only | Plain JSON `{ app: 'you', version: 1, savedAt, profile }` (unencrypted, from before encryption). Opened and re-saved as the current version. |
 | 2 | read and written when no card has a keepsake | One encrypted envelope (below), no keepsakes. |
-| 3 | written once any card has a keepsake (removed ones included) | Envelope plus a `keepsakes` array of separately encrypted files. |
+| 3 | written once any card, or kept unfinished card, has a keepsake (removed ones included) | Envelope plus a `keepsakes` array of separately encrypted files. |
 
 A reader must reject versions it doesn't know rather than guess. The app never overwrites a file it
 can't fully read.
@@ -66,8 +66,9 @@ layout opens.
 - Keepsakes belong to cards, or to a kept unfinished card in the record's `drafts` (`drafts[].data.keepsakes`,
   same metadata shape), which is written the same way so it can be finished on another device.
 - When writing over an existing save file, a keepsake the record lists but this browser doesn't have
-  stops the write (the file is left as it was), except ones that were already unreadable when that
-  record was opened. A new copy simply leaves missing ones out.
+  stops the write (the file is left as it was), except ones the file itself didn't contain when that record
+  was opened. Entries that were damaged or altered in the opened file are kept byte for byte and
+  written back unchanged (they show as unreadable). A new copy simply leaves missing ones out.
 - Only keepsakes whose bytes are present are written. An entry whose id no card (or kept draft) mentions, a repeated
   id or an IV that isn't 12 bytes makes the file unreadable; a keepsake that fails to decrypt, whose
   SHA-256 doesn't match its card's metadata, or that is missing is reported by name before anything
@@ -138,7 +139,8 @@ record = json.loads(aes.decrypt(base64.b64decode(f['cipher']['iv']), base64.b64d
 print(record['name'], len(record['cards']), 'cards')
 for k in f.get('keepsakes', []):
     raw = aes.decrypt(base64.b64decode(k['iv']), base64.b64decode(k['data']), k['id'].encode())
-    meta = next(m for c in record['cards'] for m in c.get('keepsakes', []) if m['id'] == k['id'])
+    owners = record['cards'] + [d.get('data') or {} for d in record.get('drafts', [])]  # kept unfinished cards too
+    meta = next(m for c in owners for m in c.get('keepsakes', []) if m['id'] == k['id'])
     open(meta['name'], 'wb').write(raw)
 ```
 

@@ -60,11 +60,15 @@ export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Prof
       if (!k) throw new DamagedFile('it holds a keepsake no card mentions');
       if (seen.has(id)) throw new DamagedFile('it holds the same keepsake twice');
       seen.add(id);
+      // A damaged or altered entry is still the file's own bytes, and may be recoverable elsewhere. Keep it
+      // exactly as it came (it shows as unreadable), so saving back into a file writes it back unchanged.
+      const keepAsIs = () => { pending.push([rowKey(staged.prefix, id), sealed]); pendingBytes += sealed.data.byteLength; staged.ids.push(id); };
       let bytes: Uint8Array;
       try { bytes = await openBytes(vault, id, sealed); }
-      catch { staged.problems.push({ id, name: k.name, problem: 'damaged' }); continue; }
+      catch { staged.problems.push({ id, name: k.name, problem: 'damaged' }); keepAsIs(); continue; }
       if (bytes.length !== k.size || (await sha256Hex(bytes)) !== k.sha256) {
         staged.problems.push({ id, name: k.name, problem: 'changed' });
+        keepAsIs();
         continue;
       }
       options.signal?.throwIfAborted();

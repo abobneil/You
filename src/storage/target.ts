@@ -100,8 +100,25 @@ export async function forgetFileTarget(id: string) {
   await idb.del(`handle.${id}`);
 }
 window.addEventListener('storage', e => {
-  if (target.kind === 'file' && e.key === tk('target') && e.newValue === 'browser') setTarget('browser');
+  if (e.key !== tk('target') && e.key !== tk('targetName')) return;
+  const kind = (local.get(tk('target')) as TargetKind) || 'browser', name = local.get(tk('targetName')) || '';
+  if (kind === target.kind && name === target.name) return;
+  if (kind === 'file') void followFile(name);
+  else if (target.kind === 'file') setTarget('browser');
 });
+/** Another tab chose a different save file for this You: save into that one here too, never the old one. */
+async function followFile(name: string) {
+  const h = canWriteFiles ? (await idb.get<FileHandle>(handleKey())) ?? null : null;
+  target.kind = 'file'; target.name = name;
+  handle = h; conflict = false; failed = false;
+  if (h) {
+    await writer.load(h, local.get('you.fileFingerprint.' + me()) || undefined);
+    needsPermission = (await h.queryPermission({ mode: 'readwrite' })) !== 'granted';
+  }
+  dirty = fileIsBehind(me());
+  renderPill();
+  changeListeners.forEach(fn => fn());
+}
 
 /** On startup: find the file we were saving to. Browsers ask for permission again after a reload. */
 export async function initTarget() {
@@ -128,7 +145,7 @@ export async function initTarget() {
  * another tab never shows "Saved to <file>" while the file is missing work (and Remove can warn).
  */
 const behindKey = () => 'you.fileBehind.' + me();
-export const fileIsBehind = (id: string) => !!local.get('you.fileBehind.' + id);
+export const fileIsBehind = (id: string) => !!local.get('you.fileBehind.' + id) || (me() === id && target.kind === 'file' && (dirty || failed || needsPermission));
 window.addEventListener('storage', e => {
   if (target.kind === 'file' && e.key === behindKey() && e.newValue && !dirty) { dirty = true; renderPill(); }
 });
@@ -166,6 +183,7 @@ export function writeFile(): Promise<boolean> {
       if (gen === generation) { dirty = false; local.remove(behindKey()); }
     } catch (e) {
       failed = true;
+      local.set('you.fileBehind.' + p.id, '1');
       lastFailure = (e as Error)?.name === 'MissingKeepsake' ? (e as Error).message : '';
       if (e instanceof FileChanged) { conflict = true; showFileConflict(); }
       if ((e as Error)?.name === 'NotAllowedError') needsPermission = true;
@@ -373,7 +391,7 @@ export async function chooseSaveFile(): Promise<boolean> {
     await idb.set(handleKey(), h);
     setTarget('file', h.name);
     handle = h; conflict = false; await writer.load(h);
-    dirty = true;
+    dirty = true; local.set(behindKey(), '1'); // behind until its first write has really landed
     if (!(await writeFile())) { await fallBackToDownload(h); return false; }
     return true;
   } catch (e) {

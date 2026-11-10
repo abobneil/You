@@ -247,7 +247,8 @@ export async function importText(source: Blob | string): Promise<boolean> {
         close: () => { closeSheet(); resolve(false); },
       }));
       if (!openRest) return give();
-      missingAtOpen = problems.map(x => x.id);
+      // Only photos the file didn't contain at all; damaged or altered ones were kept as they are.
+      missingAtOpen = problems.filter(x => x.problem === 'missing').map(x => x.id);
     }
   }
 
