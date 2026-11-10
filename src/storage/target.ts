@@ -146,10 +146,13 @@ export async function initTarget() {
  * another tab never shows "Saved to <file>" while the file is missing work (and Remove can warn).
  */
 const behindKey = () => 'you.fileBehind.' + me();
-export const fileIsBehind = (id: string) => !!local.get('you.fileBehind.' + id) || (me() === id && (target.kind === 'file' || target.kind === 'download') && (dirty || failed || needsPermission));
+export const fileIsBehind = (id: string) => !!local.get('you.fileBehind.' + id) || (me() === id && (target.kind === 'file' || target.kind === 'download') && (dirty || failed));
 window.addEventListener('storage', e => {
   if (target.kind === 'file' && handle && e.key === 'you.fileFingerprint.' + me() && e.newValue) void writer.load(handle, e.newValue); // another tab of this You wrote it
-  if ((target.kind === 'file' || target.kind === 'download') && e.key === behindKey() && e.newValue && !dirty) { dirty = true; renderPill(); }
+  if ((target.kind === 'file' || target.kind === 'download') && e.key === behindKey()) {
+    if (e.newValue && !dirty) { dirty = true; renderPill(); }
+    else if (!e.newValue && dirty && !saving && !failed) { dirty = false; renderPill(); } // another tab brought it up to date
+  }
 });
 // Leaving while the file hasn't caught up: the browser asks first (the next visit catches the file up).
 // Not after the person already kept a verified copy to leave (the leave prompt), so they aren't asked twice.
@@ -401,6 +404,12 @@ async function downloadOtherTab(): Promise<{ name: string; envelope: string } | 
 
 /** Asks where to save, then starts saving there. Returns false if the person cancelled. */
 export async function chooseSaveFile(): Promise<boolean> {
+  const missing: string[] = JSON.parse(local.get('you.missingPhotos.' + me()) || '[]');
+  if (missing.length && canWriteFiles) {
+    // Choosing an existing file in the picker empties it straight away in some browsers, so say this first.
+    const go = await new Promise<boolean>(resolve => openSheet(`${sheetTop('Save to a file')}<h3 class="sh-title">Save to a new file name</h3><p>${missing.length === 1 ? 'One photo or file' : `${missing.length} photos or files`} this record lists isn’t in this browser. Choose a new name rather than an existing copy, or that copy would lose ${missing.length === 1 ? 'it' : 'them'}.</p><div class="btns"><button class="btn quiet" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="go">Choose a new file name</button></div>`, { go: () => { closeSheet(); resolve(true); }, close: () => resolve(false) }));
+    if (!go) return false;
+  }
   if (!canWriteFiles) { setTarget('download', fileNameFor(profile.name, occupiedFileNames(profile.id ?? ''))); return downloadCopy(); }
   try {
     const h = await w.showSaveFilePicker!({ suggestedName: fileNameFor(profile.name, occupiedFileNames(profile.id ?? '')), types: FILE_TYPES });
@@ -454,7 +463,8 @@ export function renderPill() {
   else if (browser.status === 'failed') state = 'warn fail', html = `<span class="dot"></span><span>Couldn't save in this browser (${browser.reason}) · <b>Download a copy / Retry</b></span>`;
   else if (browser.status === 'saving') { state = ''; html = '<span class="spin"></span><span>Saving in this browser…</span>'; }
   else if (target.kind === 'browser') html = `<span class="dot"></span><span>Only in this browser · <b>Choose where to keep it</b></span>`;
-  else if (needsPermission) state = 'warn fail', html = `<span class="dot"></span><span>${n} isn't up to date · <b>Fix</b></span>`;
+  else if (needsPermission && (dirty || fileIsBehind(me()))) state = 'warn fail', html = `<span class="dot"></span><span>${n} isn't up to date · <b>Fix</b></span>`;
+  else if (needsPermission) html = `<span class="dot"></span><span>Saved to ${n} · <b>Allow saving here</b></span>`; // current; the browser asks again after a restart
   else if (failed) state = 'warn fail', html = `<span class="dot"></span><span>${n} isn't up to date · <b>Fix</b></span>`;
   else if (target.kind === 'download' && dirty) html = `<span class="dot"></span><span>Unsaved changes · <b>Download ${n}</b></span>`;
   else if (saving || dirty) { state = ''; html = `<span class="spin"></span><span>Saving to ${n}…</span>`; }
