@@ -13,7 +13,7 @@ import { shownValue } from '../ui/sensitive';
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope, browserCopyIsCurrent } from '../state';
+import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope, browserCopyIsCurrent, hasUnsavedEdits } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encodeBlob, encodeFile, fileNameFor } from './fileFormat';
 import { sealedFor } from './keepsakeAccess';
@@ -150,8 +150,15 @@ export const fileIsBehind = (id: string) => !!local.get('you.fileBehind.' + id) 
 window.addEventListener('storage', e => {
   if (target.kind === 'file' && handle && e.key === 'you.fileFingerprint.' + me() && e.newValue) void writer.load(handle, e.newValue); // another tab of this You wrote it
   if ((target.kind === 'file' || target.kind === 'download') && e.key === behindKey()) {
-    if (e.newValue && !dirty) { dirty = true; renderPill(); }
-    else if (!e.newValue && dirty && !saving && !failed) { dirty = false; renderPill(); } // another tab brought it up to date
+    // Another tab's work isn't in the file yet: if this tab holds the stored copy, it can bring the file up to date too.
+    if (e.newValue && !dirty) {
+      dirty = true; renderPill();
+      // Normally the tab that saved writes the file within moments. Only if it's still behind well after
+      // that (that tab failed or closed) does this tab, holding the same stored copy, write it instead.
+      if (handle && !needsPermission) { clearTimeout(timer); timer = setTimeout(() => { if (local.get(behindKey()) && browserCopyIsCurrent()) void writeFile(); }, 15000); }
+    }
+    // Another tab brought it up to date: only true for this tab if it holds exactly what was stored.
+    else if (!e.newValue && dirty && !saving && !failed && browserCopyIsCurrent() && !hasUnsavedEdits()) { dirty = false; renderPill(); }
   }
 });
 // Leaving while the file hasn't caught up: the browser asks first (the next visit catches the file up).
@@ -192,7 +199,9 @@ export function writeFile(): Promise<boolean> {
       // Never replace the file with fewer photos than it had; photos that were already unreadable when this
       // record was opened ("Open the rest") weren't in it to begin with, so they don't block the write.
       const known = new Set<string>(JSON.parse(local.get('you.missingPhotos.' + p.id) || '[]'));
-      await writer.write(h, encodeFile(v, p, sealedFor(p.id!), id => !known.has(id)));
+      // One tab at a time writes a given You's file, so the fingerprint check and the swap can't interleave.
+      const write = () => writer.write(h, encodeFile(v, p, sealedFor(p.id!), id => !known.has(id)));
+      await (navigator.locks ? navigator.locks.request('you-file-' + p.id, write) : write());
       local.set('you.fileFingerprint.' + p.id, writer.fingerprint()!);
       if (gen === generation) { dirty = false; local.remove(behindKey()); }
     } catch (e) {
@@ -531,6 +540,7 @@ async function showTabConflict(again = false) {
     if (!await keepVerifiedCopy()) return; // this tab's version wasn't surely kept: change nothing
     const name = separateName('this browser');
     if (!await useNewer(mark)) return; // something was typed meanwhile: the choice is offered again
+    scheduleWrite(); // the save file gets the version now kept here
     openSheet(`${sheetTop('Using the other tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab now shows the other tab’s version. This tab’s version was saved as <b>${esc(name)}</b>; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
   },
   ours: async () => {
@@ -539,6 +549,7 @@ async function showTabConflict(again = false) {
     const { name } = got;
     // The other tab saved again during the download: what was downloaded isn't the newest. Ask again.
     if (!await keepThisTab(got.envelope)) { void showTabConflict(true); return; }
+    scheduleWrite(); // the save file gets this tab's version, which is now the one kept
     openSheet(`${sheetTop('Kept this tab’s version')}<h3 class="sh-title">Both versions are kept</h3><p>This tab’s version is saved in this browser. The other tab’s version was saved as <b>${esc(name)}</b>; you can open it any time with “Load a different file”.</p><div class="menu"><button data-act="close">OK</button></div>`);
   },
   });
