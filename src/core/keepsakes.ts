@@ -70,7 +70,8 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return Array.from(d, x => x.toString(16).padStart(2, '0')).join('');
 }
 
-export interface SealedBytes { iv: Uint8Array; data: Uint8Array }
+/** `damaged`: kept exactly as an opened file had it, though it doesn't open; never preferred over a copy that does. */
+export interface SealedBytes { iv: Uint8Array; data: Uint8Array; damaged?: boolean }
 
 const aad = (id: string) => new TextEncoder().encode(id);
 

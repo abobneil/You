@@ -29,7 +29,7 @@ export const setAsideKey = (row: string) => `${row}~${new Date().toISOString()}-
 const sameIv = (a: unknown, b: unknown) => { const x = asBytes(a), y = asBytes(b); return x.length === y.length && x.every((v, i) => v === y[i]); };
 // IndexedDB can clone an immutable Blob by reference when promoting staged rows. Typed arrays
 // require another full byte copy for every cursor read and put. Existing byte-array rows still read.
-const stored = (value: SealedBytes) => ({ iv: value.iv, data: new Blob([value.data as BlobPart]) });
+const stored = (value: SealedBytes) => ({ iv: value.iv, data: new Blob([value.data as BlobPart]), ...(value.damaged ? { damaged: true } : {}) });
 
 export const idbKeepsakeStore: KeepsakeStore = {
   putMany: rows => transaction(s => { for (const [key, value] of rows) s.put(stored(value), key); }),
@@ -45,6 +45,8 @@ export const idbKeepsakeStore: KeepsakeStore = {
       const existing = s.get(dest);
       existing.onsuccess = () => {
         const old = existing.result;
+        // A damaged copy never replaces one already here (it may be the only good one): it goes aside.
+        if (old && value.damaged) { s.put(value, setAsideKey(dest)); return; }
         if (old && !sameIv(old.iv, value.iv)) s.put(old, setAsideKey(dest)); // never overwrite a different copy
         s.put(value, dest);
       };
@@ -61,8 +63,8 @@ export const idbKeepsakeStore: KeepsakeStore = {
     };
   }, signal),
   get: async key => {
-    const v = await runIn<{ iv: unknown; data: unknown } | undefined>('keepsakes', 'readonly', s => s.get(key));
-    return v ? { iv: asBytes(v.iv), data: v.data instanceof Blob ? new Uint8Array(await v.data.arrayBuffer()) : asBytes(v.data) } : null;
+    const v = await runIn<{ iv: unknown; data: unknown; damaged?: boolean } | undefined>('keepsakes', 'readonly', s => s.get(key));
+    return v ? { iv: asBytes(v.iv), data: v.data instanceof Blob ? new Uint8Array(await v.data.arrayBuffer()) : asBytes(v.data), ...(v.damaged ? { damaged: true } : {}) } : null;
   },
   put: async (key, value) => { await runIn('keepsakes', 'readwrite', s => s.put(stored(value), key)); },
   del: async key => { await runIn('keepsakes', 'readwrite', s => s.delete(key)); },
@@ -93,7 +95,7 @@ export function memoryKeepsakeStore(): KeepsakeStore & { rows: Map<string, Seale
   return {
     rows,
     get: async k => rows.get(k) ?? null,
-    put: async (k, v) => { rows.set(k, { iv: v.iv.slice(), data: v.data.slice() }); },
+    put: async (k, v) => { rows.set(k, { iv: v.iv.slice(), data: v.data.slice(), ...(v.damaged ? { damaged: true } : {}) }); },
     del: async k => { rows.delete(k); },
     keys: async prefix => [...rows.keys()].filter(k => k.startsWith(prefix)),
   };

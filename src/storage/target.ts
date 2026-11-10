@@ -137,6 +137,7 @@ export async function initTarget() {
   // The file was left behind last time (a failed write, or the page closed before it ran): say so, and
   // catch it up now if this browser may write to it.
   if (handle && fileIsBehind(me())) { dirty = true; if (!needsPermission) timer = setTimeout(writeFile, 600); }
+  if (target.kind === 'download' && fileIsBehind(me())) dirty = true;
   renderPill();
 }
 
@@ -145,20 +146,21 @@ export async function initTarget() {
  * another tab never shows "Saved to <file>" while the file is missing work (and Remove can warn).
  */
 const behindKey = () => 'you.fileBehind.' + me();
-export const fileIsBehind = (id: string) => !!local.get('you.fileBehind.' + id) || (me() === id && target.kind === 'file' && (dirty || failed || needsPermission));
+export const fileIsBehind = (id: string) => !!local.get('you.fileBehind.' + id) || (me() === id && (target.kind === 'file' || target.kind === 'download') && (dirty || failed || needsPermission));
 window.addEventListener('storage', e => {
-  if (target.kind === 'file' && e.key === behindKey() && e.newValue && !dirty) { dirty = true; renderPill(); }
+  if (target.kind === 'file' && handle && e.key === 'you.fileFingerprint.' + me() && e.newValue) void writer.load(handle, e.newValue); // another tab of this You wrote it
+  if ((target.kind === 'file' || target.kind === 'download') && e.key === behindKey() && e.newValue && !dirty) { dirty = true; renderPill(); }
 });
 // Leaving while the file hasn't caught up: the browser asks first (the next visit catches the file up).
 // Not after the person already kept a verified copy to leave (the leave prompt), so they aren't asked twice.
 let copyKeptToLeave = false;
-window.addEventListener('beforeunload', e => { if (target.kind === 'file' && (dirty || failed) && !copyKeptToLeave) e.preventDefault(); });
+window.addEventListener('beforeunload', e => { if ((target.kind === 'file' || target.kind === 'download') && (dirty || failed) && !copyKeptToLeave) e.preventDefault(); });
 
 /** Call after every change. */
 export function scheduleWrite() {
   if (target.kind === 'browser') return;
   generation++; dirty = true;
-  if (target.kind === 'file') local.set(behindKey(), '1');
+  local.set(behindKey(), '1'); // a file or a download: behind until the latest is really in it
   if (target.kind === 'file' && handle && !needsPermission) {
     clearTimeout(timer);
     timer = setTimeout(writeFile, 600);
@@ -170,6 +172,7 @@ export function scheduleWrite() {
 export function writeFile(): Promise<boolean> {
   clearTimeout(timer);
   if (inFlight) return inFlight.then(ok => ok && dirty ? writeFile() : ok);
+  if (handle && !vault && dirty && !conflict) { clearTimeout(timer); timer = setTimeout(writeFile, 1000); return Promise.resolve(false); } // not unlocked yet: try again
   if (!handle || !vault || conflict) return Promise.resolve(false);
   const h = handle, v = vault, p = structuredClone(profile), gen = generation;
   saving = true; failed = false; renderPill();
@@ -296,7 +299,7 @@ export async function downloadCopy(separate = false): Promise<boolean> {
     if (!controller.signal.aborted) { closeSheet(); cannotDownload(e); }
     return false;
   }
-  if (target.kind === 'download') { dirty = false; renderPill(); }
+  if (target.kind === 'download' && !separate) { dirty = false; local.remove(behindKey()); renderPill(); }
   return true;
 }
 
@@ -390,6 +393,8 @@ export async function chooseSaveFile(): Promise<boolean> {
     const h = await w.showSaveFilePicker!({ suggestedName: fileNameFor(profile.name, occupiedFileNames(profile.id ?? '')), types: FILE_TYPES });
     await idb.set(handleKey(), h);
     setTarget('file', h.name);
+    // A file that already has something in it isn't the one those photos were missing from: no allowance.
+    if ((await h.getFile()).size > 0) local.remove('you.missingPhotos.' + me());
     handle = h; conflict = false; await writer.load(h);
     dirty = true; local.set(behindKey(), '1'); // behind until its first write has really landed
     if (!(await writeFile())) { await fallBackToDownload(h); return false; }

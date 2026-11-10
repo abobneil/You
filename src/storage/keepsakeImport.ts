@@ -62,7 +62,7 @@ export async function stageKeepsakes(store: KeepsakeStore, vault: Vault, p: Prof
       seen.add(id);
       // A damaged or altered entry is still the file's own bytes, and may be recoverable elsewhere. Keep it
       // exactly as it came (it shows as unreadable), so saving back into a file writes it back unchanged.
-      const keepAsIs = () => { pending.push([rowKey(staged.prefix, id), sealed]); pendingBytes += sealed.data.byteLength; staged.ids.push(id); };
+      const keepAsIs = () => { pending.push([rowKey(staged.prefix, id), { ...sealed, damaged: true }]); pendingBytes += sealed.data.byteLength; staged.ids.push(id); };
       let bytes: Uint8Array;
       try { bytes = await openBytes(vault, id, sealed); }
       catch { staged.problems.push({ id, name: k.name, problem: 'damaged' }); keepAsIs(); continue; }
@@ -100,6 +100,7 @@ export async function commitStaged(store: KeepsakeStore, staged: Staged, youId: 
     const s = await store.get(rowKey(staged.prefix, id));
     if (!s) throw new Error('Staged keepsake disappeared');
     const old = await store.get(rowKey(youId, id));
+    if (old && s.damaged) { await store.put(setAsideKey(rowKey(youId, id)), s); continue; } // never over a copy here
     if (old && (old.iv.length !== s.iv.length || old.iv.some((v, i) => v !== s.iv[i]))) await store.put(setAsideKey(rowKey(youId, id)), old);
     await store.put(rowKey(youId, id), s);
   }

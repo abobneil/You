@@ -75,16 +75,16 @@ export async function openSwitcher() {
       let confirmedBehind = false;
       openSheet(`${sheetTop('Remove from this browser')}<h3 class="sh-title">Remove ${name}?</h3>
         <p>This removes only this browser’s copy of this You, with its earlier versions. Other Yous and saved files stay.</p>
-        ${local.get(keyFor(cur, 'target')) === 'file' && fileIsBehind(cur) ? `<p><b>Your file ${esc(local.get(keyFor(cur, 'targetName')) || '')} doesn’t have your latest changes.</b> Download a copy first, or those changes will be gone.</p>` : '<p>If you have no saved file, this copy will be gone for good.</p>'}
+        ${['file', 'download'].includes(local.get(keyFor(cur, 'target')) || '') && fileIsBehind(cur) ? `<p><b>Your saved copy ${esc(local.get(keyFor(cur, 'targetName')) || '')} doesn’t have your latest changes.</b> Download a copy first, or those changes will be gone.</p>` : '<p>If you have no saved file, this copy will be gone for good.</p>'}
         <div class="menu"><button data-act="copy">Download a copy first</button><button data-act="remove">Remove this browser’s copy</button><button data-act="close">Cancel</button></div>`, {
         copy: async () => { await downloadCopy(); },
         // The file catches up first (a write may be waiting), then stops being saved to, then the browser copy goes.
         remove: async () => {
           await flushPending();
           // The file still lacks the latest changes (it couldn't be written): ask once more, plainly.
-          if (local.get(keyFor(cur, 'target')) === 'file' && fileIsBehind(cur) && !confirmedBehind) {
+          if (['file', 'download'].includes(local.get(keyFor(cur, 'target')) || '') && fileIsBehind(cur) && !confirmedBehind) {
             confirmedBehind = true;
-            openSheet(`${sheetTop('Remove from this browser')}<h3 class="sh-title">Your file doesn’t have your latest changes</h3><p>${esc(local.get(keyFor(cur, 'targetName')) || 'Your file')} couldn’t be updated. If you remove this browser’s copy now, those changes will be gone.</p><div class="menu"><button data-act="copy">Download a copy first</button><button data-act="remove" class="soft">Remove anyway</button><button data-act="close">Cancel</button></div>`, { copy: async () => { await downloadCopy(); }, remove: async () => { await forgetFileTarget(cur); await eraseBrowserCopy(cur); reloadClean(); } });
+            openSheet(`${sheetTop('Remove from this browser')}<h3 class="sh-title">Your saved copy doesn’t have your latest changes</h3><p>${esc(local.get(keyFor(cur, 'targetName')) || 'Your saved copy')} doesn’t have them yet. If you remove this browser’s copy now, those changes will be gone.</p><div class="menu"><button data-act="copy">Download a copy first</button><button data-act="remove" class="soft">Remove anyway</button><button data-act="close">Cancel</button></div>`, { copy: async () => { await downloadCopy(); }, remove: async () => { await forgetFileTarget(cur); await eraseBrowserCopy(cur); reloadClean(); } });
             return;
           }
           await forgetFileTarget(cur); await eraseBrowserCopy(cur); reloadClean();
