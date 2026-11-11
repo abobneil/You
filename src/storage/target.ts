@@ -601,6 +601,16 @@ async function showTabConflict(again = false) {
   const removed = profile.id && await storedEnvelope(profile.id).catch(() => 'unknown') === null;
   if (isLockedInPlace()) return; // it locked while this was being checked: asked again after unlock
   removedElsewhere = !!removed; renderPill();
+  // The other tab saved this You with a different passphrase: this tab can't read that version, so neither
+  // choice below could work. Say what happened and the way out.
+  const unreadable = !removed && await otherTabVersion().then(() => false, () => true);
+  if (unreadable) {
+    openSheet(`${sheetTop('This You was changed in another tab')}<h3 class="sh-title">The other tab saved it with a different passphrase</h3><p>Your work here is still open. Save it as a file first. Then reload this page and unlock with the passphrase the other tab used; you can open your file from there to bring these changes in.</p><div class="menu"><button data-act="file">Save my work as a file</button><button data-act="reload">Reload now</button><button data-act="close">Not now</button></div>`, {
+      file: async () => { if (await keepVerifiedCopy()) closeSheet(); },
+      reload: () => { location.reload(); },
+    });
+    return;
+  }
   if (removed) {
     const attached = profile.cards.reduce((n, c) => n + (c.keepsakes?.length ?? 0), 0);
     openSheet(`${sheetTop('Removed in another tab')}<h3 class="sh-title">${esc(profile.name || 'This You')} was removed from this browser in another tab</h3><p>Your writing is still open here. Keep it in this browser again, or save it as a file.</p>${attached ? `<p><b>The ${attached} photo${attached === 1 ? '' : 's'} and file${attached === 1 ? '' : 's'} attached here were removed with it.</b> If you saved a file before, it still has them.</p>` : ''}<div class="menu"><button data-act="keep">Keep it in this browser</button><button data-act="file">Save it as a file</button></div>`, {

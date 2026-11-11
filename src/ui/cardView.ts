@@ -301,6 +301,13 @@ function saveFix(c: Card, dateRows: { key: string; label: string }[]) {
   const isDate = kind.value === 'date';
   const err = sheetBody.querySelector<HTMLElement>('#e-err')!;
   err.hidden = true;
+  // The card as it is stored now (another tab may have changed or removed it while this form was open).
+  const cur = profile.cards.find(x => x.id === id);
+  if (!cur) {
+    err.textContent = 'This card was removed in another tab, so these changes couldn’t be saved. You can add it again as a new card.';
+    err.hidden = false;
+    return;
+  }
   if (!checkDates(sheetBody, [...dateRows, ...detailDates(kind, 'vf')])) return;
   if (isDate && !e.since) {
     return dateError(sheetBody, 'vdate', `${kind.name}: add at least the year.`);
@@ -311,10 +318,16 @@ function saveFix(c: Card, dateRows: { key: string; label: string }[]) {
   if (bad) {
     return dateError(sheetBody, 'until', `Ended: ${bad}`);
   }
-  const oldKind = kindOf(c.area, c.kind, profile);
-  const wasBuilt = !!oldKind.titleFrom && c.value === oldKind.titleFrom(c.fields ?? {});
+  const curKind = kindOf(cur.area, cur.kind, profile);
+  const stillBuilt = !!curKind.titleFrom && cur.value === curKind.titleFrom(cur.fields ?? {});
   let value = isDate ? fmtDate(e.since) : e.value.trim();
-  if (!isDate && wasBuilt && value === c.value && kind.titleFrom) value = kind.titleFrom(e.fields) || value;
+  if (!isDate && value === c.value) {
+    // The person didn't retype the title. If it's still built from the details, rebuild it from the details
+    // as stored now with only their changes applied; otherwise keep the title as it's stored now.
+    const fields = { ...(cur.fields ?? {}) };
+    for (const k of new Set([...Object.keys(c.fields ?? {}), ...Object.keys(e.fields)])) if ((e.fields[k] ?? '') !== (c.fields?.[k] ?? '')) fields[k] = e.fields[k] ?? '';
+    value = stillBuilt && kind.titleFrom ? (kind.titleFrom(fields) || cur.value) : cur.value;
+  }
   if (!value) {
     err.textContent = `${kind.name}: it can’t be empty. To take the card out, use Remove instead.`;
     err.hidden = false;
@@ -330,7 +343,7 @@ function saveFix(c: Card, dateRows: { key: string; label: string }[]) {
   for (const k of new Set([...Object.keys(c.fields ?? {}), ...Object.keys(e.fields)])) {
     if ((e.fields[k] ?? '') !== (c.fields?.[k] ?? '') && setField(profile, id, k, e.fields[k] ?? '', now)) changed++;
   }
-  if (value !== c.value && correctValue(profile, id, value, now)) changed++;
+  if (value !== cur.value && correctValue(profile, id, value, now)) changed++;
   const note = e.note.trim() ? e.note : '';
   if (note !== (c.note ?? '') && setNote(profile, id, note, now)) changed++;
   if (e.since !== (c.since ?? '') && correctMeta(profile, id, 'since', e.since, now)) changed++;
