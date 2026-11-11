@@ -2,7 +2,7 @@ import { cleanLinks } from './core/relations';
 // The open You's data in memory, the unlocked key, and "something changed" notifications.
 // Nothing is written anywhere until there is a key: the browser copy is encrypted too.
 import { newId } from './core/cards';
-import { openWith } from './core/crypto';
+import { openWith, WrongPassphrase } from './core/crypto';
 import type { Vault } from './core/crypto';
 import { emptyProfile, normalize } from './core/profile';
 import type { Profile } from './core/types';
@@ -56,7 +56,7 @@ export async function settleAfterUnlock() {
   const changed = guard.baseline() !== undefined && stored !== guard.baseline();
   if (!changed && !waiting) return;
   if (!changed) { if (browserSaveState().status === 'failed') void persist(); return; }
-  if (editCount === committedEdit && browserSaveState().status !== 'failed') { await useNewer(); return; }
+  if (editCount === committedEdit && browserSaveState().status !== 'failed') { await useNewer().catch(askAboutUnreadable); return; }
   conflictListeners.forEach(fn => fn());
 }
 /** True while a panel with unsaved typing is open (set by the sheet), so another tab's save never reloads it away. */
@@ -68,7 +68,8 @@ export const setDraftCheck = (fn: () => boolean) => { draftOpen = fn; };
 // once, never over a panel they have open, and not again unless another save arrives.
 let unreadableNewer = false, askedUnreadable = false;
 const panelOpen = () => typeof document !== 'undefined' && !!document.querySelector('dialog[open]');
-function askAboutUnreadable() {
+function askAboutUnreadable(e?: unknown) {
+  if (e !== undefined && !(e instanceof WrongPassphrase)) return; // a passing read error: try again on the next tick
   unreadableNewer = true;
   if (askedUnreadable || panelOpen()) return; // asked already, or wait until the open panel is closed
   askedUnreadable = true; tabConflict();
@@ -138,7 +139,7 @@ channel?.addEventListener('message', async e => {
   if (lockedInPlace) { conflictWaiting = true; return; } // settled on unlock (settleAfterUnlock)
   // Nothing unsaved here: simply show the newer copy. Otherwise the next save asks what to keep.
   askedUnreadable = false; // a new save from another tab may be asked about once more
-  if (browserSaveState().status === 'saved' && editCount === committedEdit && !draftOpen()) await useNewer().catch(() => { unreadableNewer = false; askAboutUnreadable(); }); // can't read it: ask (not over an open panel), don't throw
+  if (browserSaveState().status === 'saved' && editCount === committedEdit && !draftOpen()) await useNewer().catch(e => { unreadableNewer = false; askAboutUnreadable(e); }); // can't read it: ask (not over an open panel), don't throw
   else if (editCount !== committedEdit) tabConflict();
 });
 const storedHooks: (() => void)[] = [];
@@ -186,6 +187,9 @@ export async function canLeave() {
 /** Set once the person has kept a verified copy to leave, so the browser doesn't ask a second time. */
 let leaveCopyKept = false;
 export const markLeaveCopyKept = () => { leaveCopyKept = true; };
+const keptCopyListeners: (() => void)[] = [];
+/** Runs when a new edit makes an earlier kept copy out of date. */
+export const onKeptCopyStale = (fn: () => void) => { keptCopyListeners.push(fn); };
 if (typeof window !== 'undefined') window.addEventListener('beforeunload', e => {
   if (browserSaveState().status !== 'saved' && !leaveCopyKept) { e.preventDefault(); e.returnValue = ''; }
 });
@@ -198,6 +202,8 @@ export const hasUnsavedEdits = () => editCount !== committedEdit || browserSaveS
 
 export function save() {
   editCount++;
+  leaveCopyKept = false; // a kept copy doesn't cover anything typed after it
+  keptCopyListeners.forEach(fn => fn());
   profile.rev = (profile.rev || 0) + 1;
   profile.updatedAt = new Date().toISOString();
   persist();

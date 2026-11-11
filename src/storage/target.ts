@@ -13,7 +13,7 @@ import { shownValue } from '../ui/sensitive';
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope, browserCopyIsCurrent, hasUnsavedEdits, storedBaseline, storedIs, onStored, copyIsStale, markLeaveCopyKept } from '../state';
+import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope, browserCopyIsCurrent, hasUnsavedEdits, storedBaseline, storedIs, onStored, copyIsStale, markLeaveCopyKept, onKeptCopyStale } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encodeBlob, encodeFile, fileNameFor } from './fileFormat';
 import { sealedFor } from './keepsakeAccess';
@@ -189,6 +189,7 @@ window.addEventListener('storage', e => {
 // Leaving while the file hasn't caught up: the browser asks first (the next visit catches the file up).
 // Not after the person already kept a verified copy to leave (the leave prompt), so they aren't asked twice.
 let copyKeptToLeave = false;
+onKeptCopyStale(() => { copyKeptToLeave = false; });
 window.addEventListener('beforeunload', e => { if ((target.kind === 'file' || target.kind === 'download') && (dirty || failed) && !copyKeptToLeave) e.preventDefault(); });
 
 // The save place is behind from the moment this tab's edit is stored, whichever tab later writes the file.
