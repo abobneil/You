@@ -62,6 +62,11 @@ export async function settleAfterUnlock() {
 /** True while a panel with unsaved typing is open (set by the sheet), so another tab's save never reloads it away. */
 let draftOpen: () => boolean = () => false;
 export const setDraftCheck = (fn: () => boolean) => { draftOpen = fn; };
+// A tab that missed another tab's save while a card was open catches up once it's idle again, so it never
+// stays quietly on an older copy (which its downloads and file writes would otherwise be made from).
+if (typeof window !== 'undefined') setInterval(() => {
+  if (vault && profile.id && guard.isStale() && queue.state().status === 'saved' && editCount === committedEdit && !draftOpen() && !lockedInPlace) void useNewer();
+}, 3000);
 const replacedListeners: (() => void)[] = [];
 /** Runs after the open record was swapped for the newer copy another tab saved, so the screen can redraw. */
 export const onReplaced = (fn: () => void) => { replacedListeners.push(fn); };

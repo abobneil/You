@@ -238,7 +238,7 @@ export function writeFile(): Promise<boolean> {
       // One tab at a time writes a given You's file, so the fingerprint check and the swap can't interleave.
       const write = () => writer.write(h, encodeFile(v, p, sealedFor(p.id!), id => !known.has(id)));
       await (navigator.locks ? navigator.locks.request('you-file-' + p.id, write) : write());
-      local.set('you.fileFingerprint.' + p.id, writer.fingerprint()!);
+      if (handle === h) local.set('you.fileFingerprint.' + p.id, writer.fingerprint()!); // only for the file still being saved to
       // Clear the shared mark only if nothing newer was saved since this snapshot was taken.
       // ...and the browser still stores exactly the copy this snapshot was of (no save landed meanwhile).
       const unchanged = await storedIs(base);
@@ -358,6 +358,11 @@ const separateName = (what: string) => fileNameFor(profile.name).replace('.you.j
 /** Downloads an encrypted copy of the open You. Returns false (after saying why) if it couldn't. */
 export async function downloadCopy(separate = false): Promise<boolean> {
   if (!vault) return false;
+  // A tab that quietly fell behind another tab's save first takes the newest stored copy, so a download is
+  // never of an older version. With unsaved work of its own, it asks which version to keep instead.
+  if (!browserCopyIsCurrent() && browserSaveState().status !== 'saving') {
+    if (hasUnsavedEdits() || !await useNewer()) { void showTabConflict(); return false; }
+  }
   // The download answers the "behind" mark as it is now, and is of this tab's copy as it is now.
   const answers = local.get(behindKey()), currentAtStart = browserCopyIsCurrent(), base = storedBaseline();
   const controller = new AbortController();
