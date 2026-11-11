@@ -64,11 +64,20 @@ let draftOpen: () => boolean = () => false;
 export const setDraftCheck = (fn: () => boolean) => { draftOpen = fn; };
 // A tab that missed another tab's save while a card was open catches up once it's idle again, so it never
 // stays quietly on an older copy (which its downloads and file writes would otherwise be made from).
-let idleAsked = false; // asked once already about a newer copy this tab can't read
+// A newer copy this tab can't read (saved with another passphrase) is tried once, then the person is asked
+// once, never over a panel they have open, and not again unless another save arrives.
+let unreadableNewer = false, askedUnreadable = false;
+const panelOpen = () => typeof document !== 'undefined' && !!document.querySelector('dialog[open]');
+function askAboutUnreadable() {
+  unreadableNewer = true;
+  if (askedUnreadable || panelOpen()) return; // asked already, or wait until the open panel is closed
+  askedUnreadable = true; tabConflict();
+}
 if (typeof window !== 'undefined') setInterval(() => {
-  if (!guard.isStale()) { idleAsked = false; return; }
-  if (vault && profile.id && !idleAsked && queue.state().status === 'saved' && editCount === committedEdit && !draftOpen() && !lockedInPlace)
-    useNewer().catch(() => { if (typeof document !== 'undefined' && document.querySelector('dialog[open]')) return; idleAsked = true; tabConflict(); }); // can't read it (another passphrase): ask once, not over an open panel
+  if (!guard.isStale()) { unreadableNewer = askedUnreadable = false; return; }
+  if (unreadableNewer) { askAboutUnreadable(); return; } // known unreadable: no more attempts, just ask once when free
+  if (vault && profile.id && queue.state().status === 'saved' && editCount === committedEdit && !draftOpen() && !lockedInPlace)
+    useNewer().catch(askAboutUnreadable);
 }, 3000);
 const replacedListeners: (() => void)[] = [];
 /** Runs after the open record was swapped for the newer copy another tab saved, so the screen can redraw. */
@@ -128,7 +137,8 @@ channel?.addEventListener('message', async e => {
   guard.markStale();
   if (lockedInPlace) { conflictWaiting = true; return; } // settled on unlock (settleAfterUnlock)
   // Nothing unsaved here: simply show the newer copy. Otherwise the next save asks what to keep.
-  if (browserSaveState().status === 'saved' && editCount === committedEdit && !draftOpen()) await useNewer().catch(() => tabConflict()); // a copy this tab can't read: ask, don't throw
+  askedUnreadable = false; // a new save from another tab may be asked about once more
+  if (browserSaveState().status === 'saved' && editCount === committedEdit && !draftOpen()) await useNewer().catch(() => { unreadableNewer = false; askAboutUnreadable(); }); // can't read it: ask (not over an open panel), don't throw
   else if (editCount !== committedEdit) tabConflict();
 });
 const storedHooks: (() => void)[] = [];
@@ -173,8 +183,11 @@ export async function canLeave() {
   if (filesOK && browserSaveState().status !== 'failed') return true;
   return recoverBeforeLeave ? recoverBeforeLeave() : false;
 }
+/** Set once the person has kept a verified copy to leave, so the browser doesn't ask a second time. */
+let leaveCopyKept = false;
+export const markLeaveCopyKept = () => { leaveCopyKept = true; };
 if (typeof window !== 'undefined') window.addEventListener('beforeunload', e => {
-  if (browserSaveState().status !== 'saved') { e.preventDefault(); e.returnValue = ''; }
+  if (browserSaveState().status !== 'saved' && !leaveCopyKept) { e.preventDefault(); e.returnValue = ''; }
 });
 export function persist(): Promise<void> {
   if (!vault || !profile.id) return Promise.resolve();

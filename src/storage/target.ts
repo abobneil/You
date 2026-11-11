@@ -13,7 +13,7 @@ import { shownValue } from '../ui/sensitive';
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope, browserCopyIsCurrent, hasUnsavedEdits, storedBaseline, storedIs, onStored, copyIsStale } from '../state';
+import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope, browserCopyIsCurrent, hasUnsavedEdits, storedBaseline, storedIs, onStored, copyIsStale, markLeaveCopyKept } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encodeBlob, encodeFile, fileNameFor } from './fileFormat';
 import { sealedFor } from './keepsakeAccess';
@@ -607,7 +607,7 @@ async function showTabConflict(again = false) {
   if (unreadable) {
     openSheet(`${sheetTop('This You was changed in another tab')}<h3 class="sh-title">The other tab saved it with a different passphrase</h3><p>Your work here is still open. Save it as a file first. Then reload this page and unlock with the passphrase the other tab used; you can open your file from there to bring these changes in.</p><div class="menu"><button data-act="file">Save my work as a file</button><button data-act="reload">Reload now</button><button data-act="close">Not now</button></div>`, {
       file: async () => { if (await keepVerifiedCopy()) closeSheet(); },
-      reload: async () => { if (hasUnsavedEdits() && !await keepVerifiedCopy()) return; copyKeptToLeave = true; location.reload(); },
+      reload: async () => { if (hasUnsavedEdits() && !await keepVerifiedCopy()) return; copyKeptToLeave = true; markLeaveCopyKept(); location.reload(); },
     });
     return;
   }
@@ -644,5 +644,5 @@ onTabConflict(() => { void showTabConflict(); });
 onLeaveFailure(() => new Promise(resolve => openSheet(`${sheetTop("Your latest changes couldn't be saved")}<p>Your work is still here. Download a copy before locking or switching.</p><div class="menu"><button data-act="download">Download before leaving</button><button data-act="stay">Stay here</button></div>`, {
   // If the copy can't be made, say so and stay unlocked: never lock away the only copy.
   // Leaving is allowed only once this tab's work is surely kept somewhere.
-  download: async () => { if (await keepVerifiedCopy()) { copyKeptToLeave = true; resolve(true); } else if (!document.querySelector('#sheet-body [data-act=download]')) resolve(false); }, stay: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
+  download: async () => { if (await keepVerifiedCopy()) { copyKeptToLeave = true; markLeaveCopyKept(); resolve(true); } else if (!document.querySelector('#sheet-body [data-act=download]')) resolve(false); }, stay: () => { closeSheet(); resolve(false); }, close: () => resolve(false),
 })));
