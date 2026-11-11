@@ -141,7 +141,9 @@ async function doCombine(a: OpenedCopy, b: Side) {
       }
     } catch (e) { for (const s of staged) await discardStaged(keepsakeStore, s); throw e; }
     for (const s of staged) await commitStaged(keepsakeStore, s, merged.id!, merged);
-    Object.assign(profile, merged);
+    // Merge again with what this tab holds now: another tab may have saved while the photos were checked,
+    // and this tab may have loaded that newer copy. Done in one step with the save, so nothing slips between.
+    Object.assign(profile, combine(profile, fromFiles));
     save();
     announce('Combined into one.');
     openSheet(`${sheetTop('Compare two copies')}<h3 class="sh-title">Combined into one</h3>

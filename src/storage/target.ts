@@ -13,7 +13,7 @@ import { shownValue } from '../ui/sensitive';
 //   'browser'  – default; only in this browser
 //   'file'     – a real file on this device; every change saves into it (Chrome, Edge)
 //   'download' – browsers that can't write files (Safari, Firefox): download a fresh copy when asked
-import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope, browserCopyIsCurrent, hasUnsavedEdits, storedBaseline, storedIs, onStored } from '../state';
+import { browserSaveState, onBrowserSave, persist, profile, vault, registerFlush, onTabConflict, useNewer, editMark, keepThisTab, otherTabVersion, isLockedInPlace, keepAfterRemoval, storedEnvelope, browserCopyIsCurrent, hasUnsavedEdits, storedBaseline, storedIs, onStored, copyIsStale } from '../state';
 import { $, ICON, esc } from '../ui/dom';
 import { encodeBlob, encodeFile, fileNameFor } from './fileFormat';
 import { sealedFor } from './keepsakeAccess';
@@ -291,7 +291,7 @@ function showFileConflict() {
                 if (staged.problems.length) throw new Error('Keep both copies: some attachments could not be read');
                 await commitStaged((await import('./keepsakeAccess')).keepsakeStore, staged, merged.id!, merged);
               }
-              Object.assign(profile, merged); setTarget('browser'); save();
+              Object.assign(profile, combine(profile, other)); setTarget('browser'); save(); // merged with what's here now
             } catch (e) {
               console.error(e);
               openSheet(`${sheetTop('Compare versions')}<h3 class="sh-title">These versions couldn’t be combined</h3><p>Nothing was changed. Keep both as separate files instead.</p><div class="menu"><button data-act="both">Keep both as separate files</button></div>`, { both: () => downloadCopy(true) });
@@ -360,7 +360,7 @@ export async function downloadCopy(separate = false): Promise<boolean> {
   if (!vault) return false;
   // A tab that quietly fell behind another tab's save first takes the newest stored copy, so a download is
   // never of an older version. With unsaved work of its own, it asks which version to keep instead.
-  if (!browserCopyIsCurrent() && browserSaveState().status !== 'saving') {
+  if (copyIsStale() && browserSaveState().status !== 'saving') {
     if (hasUnsavedEdits() || !await useNewer()) { void showTabConflict(); return false; }
   }
   // The download answers the "behind" mark as it is now, and is of this tab's copy as it is now.

@@ -156,6 +156,8 @@ export const browserSaveState = (): SaveState => queue.state();
 export const browserCopyIsCurrent = () => queue.state().status === 'saved' && !guard.isStale();
 /** The stored copy this tab's record corresponds to (what it last saved or loaded). */
 export const storedBaseline = () => guard.baseline();
+/** True once another tab has saved this You since this tab last loaded or saved it. */
+export const copyIsStale = () => guard.isStale();
 /** True while the browser still stores exactly `envelope`: nothing was saved since, in any tab. */
 export const storedIs = async (envelope: string | null | undefined) => envelope !== undefined && (await vaultStore.get(profile.id!)) === envelope;
 const flushers: (() => Promise<boolean>)[] = [];
