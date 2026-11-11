@@ -1072,3 +1072,7 @@ html { scroll-padding-top: 76px; scroll-padding-bottom: 24px; }
 
 /* Import review: "This export may be older" choice, shaped like the other review chips. */
 .rv-incoming { margin-top: 6px; }
+
+/* A status line holding keyboard focus while a button works shows where focus is. */
+/* (More specific than the [tabindex="-1"] rule above, which hides rings on headings focused by script.) */
+[tabindex="-1"].waiting-focus:focus { outline: 2px solid var(--focus) !important; outline-offset: 3px; border-radius: 6px; }

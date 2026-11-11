@@ -71,6 +71,8 @@ export function clearFieldError(field: HTMLElement) {
 export function disableKeepingFocus(button: HTMLButtonElement, keep: HTMLElement) {
   if (document.activeElement === button) {
     if (!keep.matches('a, button, input, select, textarea, [tabindex]')) keep.tabIndex = -1;
+    keep.classList.add('waiting-focus'); // shows a focus ring while it holds focus
+    keep.addEventListener('blur', () => keep.classList.remove('waiting-focus'), { once: true });
     keep.focus();
   }
   button.disabled = true;
