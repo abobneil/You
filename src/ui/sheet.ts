@@ -112,7 +112,12 @@ export function openDraft(): DraftHook | null {
 }
 /** Saves a half-typed field the way leaving it would. */
 export const commitOpenField = () => commitField();
-setDraftCheck(() => !!openDraft());
+setDraftCheck(() => {
+  if (openDraft()) return true;
+  // The You's name heading while it's being edited and differs from what's saved.
+  const h = document.getElementById('you-name');
+  return !!h && document.activeElement === h && (h.textContent ?? '') !== (h.dataset.focusText ?? h.textContent);
+});
 /** Calls one of the current panel's handlers directly, e.g. from an Enter key. */
 export const act = (name: string) => run(name, sheetBody, new MouseEvent('click'));
 /** Runs a handler. A date that can't be read has already been flagged next to its field, so that just stops it. */

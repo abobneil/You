@@ -292,6 +292,7 @@ function showFileConflict() {
                 await commitStaged((await import('./keepsakeAccess')).keepsakeStore, staged, merged.id!, merged);
               }
               Object.assign(profile, combine(profile, other)); setTarget('browser'); save(); // merged with what's here now
+              openSheet(`${sheetTop('Compare versions')}<h3 class="sh-title">Combined into one</h3><p data-announce>This browser now holds the combined record, and the file is unchanged. Choose where to save it so you have one up-to-date file.</p><div class="btns"><button class="btn quiet" type="button" data-act="close">Later</button><button class="btn primary" type="button" data-act="save">Choose where to save it</button></div>`, { save: () => { void chooseSaveFile(); } });
             } catch (e) {
               console.error(e);
               openSheet(`${sheetTop('Compare versions')}<h3 class="sh-title">These versions couldn’t be combined</h3><p>Nothing was changed. Keep both as separate files instead.</p><div class="menu"><button data-act="both">Keep both as separate files</button></div>`, { both: () => downloadCopy(true) });
