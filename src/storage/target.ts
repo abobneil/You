@@ -57,6 +57,9 @@ let generation = 0;
 let inFlight: Promise<boolean> | undefined;
 let conflict = false;
 let dirty = false, saving = false, needsPermission = false, failed = false;
+/** Another tab removed this You from the browser while it's open here (the pill says so). */
+let removedElsewhere = false;
+onBrowserSave(() => { if (removedElsewhere && browserSaveState().status === 'saved') { removedElsewhere = false; renderPill(); } });
 /** Why the last file write failed, in plain words, when it's something the person should know. */
 let lastFailure = '';
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -537,7 +540,9 @@ export function renderPill() {
   const n = esc(target.name);
   let html: string, state = 'warn';
   const browser = browserSaveState();
-  if (browser.status === 'failed' && browser.reason === 'other tab') state = 'warn fail', html = `<span class="dot"></span><span>Another tab saved newer changes · <b>Choose what to keep</b></span>`;
+  if (browser.status === 'failed' && browser.reason === 'other tab') state = 'warn fail', html = removedElsewhere
+    ? `<span class="dot"></span><span>Removed in another tab · <b>Keep your work</b></span>`
+    : `<span class="dot"></span><span>Another tab saved newer changes · <b>Choose what to keep</b></span>`;
   else if (browser.status === 'failed') state = 'warn fail', html = `<span class="dot"></span><span>Couldn't save in this browser (${browser.reason}) · <b>Download a copy / Retry</b></span>`;
   else if (browser.status === 'saving') { state = ''; html = '<span class="spin"></span><span>Saving in this browser…</span>'; }
   else if (target.kind === 'browser') html = `<span class="dot"></span><span>Only in this browser · <b>Choose where to keep it</b></span>`;
@@ -595,6 +600,7 @@ async function showTabConflict(again = false) {
   // Not a newer version at all: another tab removed this You from the browser. Say that, and offer a way back.
   const removed = profile.id && await storedEnvelope(profile.id).catch(() => 'unknown') === null;
   if (isLockedInPlace()) return; // it locked while this was being checked: asked again after unlock
+  removedElsewhere = !!removed; renderPill();
   if (removed) {
     const attached = profile.cards.reduce((n, c) => n + (c.keepsakes?.length ?? 0), 0);
     openSheet(`${sheetTop('Removed in another tab')}<h3 class="sh-title">${esc(profile.name || 'This You')} was removed from this browser in another tab</h3><p>Your writing is still open here. Keep it in this browser again, or save it as a file.</p>${attached ? `<p><b>The ${attached} photo${attached === 1 ? '' : 's'} and file${attached === 1 ? '' : 's'} attached here were removed with it.</b> If you saved a file before, it still has them.</p>` : ''}<div class="menu"><button data-act="keep">Keep it in this browser</button><button data-act="file">Save it as a file</button></div>`, {
