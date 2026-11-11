@@ -4,7 +4,7 @@ import { passphraseStrength } from '../core/passphrase';
 //   unlock – returning visitor unlocks the browser copy
 //   file   – unlock a locked file being loaded
 import { createVault, type Vault } from '../core/crypto';
-import { $ } from './dom';
+import { $, disableKeepingFocus } from './dom';
 import { DamagedFile, UnsupportedVersion } from '../storage/fileFormat';
 import { backToField } from './keyboard';
 import { focusFallbackSoon } from './sheet';
@@ -147,7 +147,7 @@ form.addEventListener('submit', async e => {
     if (passphraseStrength(p) === 'Weak' && weakConfirmed !== p) { weakConfirmed = p; setMessage('This may be easy to guess. Try a few unrelated words, or use it anyway.', true); go.textContent = 'Use it anyway'; return; }
     if (p !== again.value) { setMessage('The second passphrase doesn’t match the first. Type it again.', false, again); again.value = ''; return again.focus(); }
   } else if (!p) { setMessage('Type your passphrase first.'); return pass.focus(); }
-  go.disabled = true;
+  disableKeepingFocus(go, pass);
   go.textContent = s.busy;
   setMessage('');
   let ok = false, problem = '';

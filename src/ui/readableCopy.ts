@@ -19,9 +19,11 @@ export function openReadableCopy(from = '', to = from) {
       const all = sheetBody.querySelector<HTMLSelectElement>('#readable-period')!.value === 'all';
       const controller = new AbortController(); running = controller;
       const button = sheetBody.querySelector<HTMLButtonElement>('[data-act="make"]')!;
-      button.disabled = true;
       const status = sheetBody.querySelector<HTMLElement>('#readable-progress')!;
       status.textContent = 'Preparing your copy…';
+      // Keep keyboard focus inside the panel while the button is disabled (some browsers drop it to the page).
+      status.tabIndex = -1; status.focus();
+      button.disabled = true;
       try {
         const result = await buildReadable(profile, { from: all ? undefined : from, to: all ? undefined : to,
           includeFiles: sheetBody.querySelector<HTMLInputElement>('#readable-files')!.checked,
@@ -35,8 +37,9 @@ export function openReadableCopy(from = '', to = from) {
         running = undefined;
         status.textContent = 'Your download is ready. On iPhone, find it in Files. Keep it somewhere private.';
         button.textContent = 'Done'; button.disabled = false; button.onclick = closeSheet; button.removeAttribute('data-act');
+        button.focus();
       } catch (error) {
-        if (!controller.signal.aborted) { status.textContent = error instanceof Error ? error.message : 'Could not make the copy. Please try again.'; button.disabled = false; }
+        if (!controller.signal.aborted) { status.textContent = error instanceof Error ? error.message : 'Could not make the copy. Please try again.'; button.disabled = false; button.focus(); }
       } finally { if (running === controller) running = undefined; }
     },
   });

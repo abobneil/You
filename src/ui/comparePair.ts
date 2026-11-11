@@ -8,7 +8,7 @@ import { shownValue } from './sensitive';
 import { keepBothNames, openCopy, pairProblem, pairSummary, type OpenedCopy } from '../storage/filePair';
 import { downloadCopy } from '../storage/target';
 import { profile, save, vault } from '../state';
-import { $, announce, esc } from './dom';
+import { $, announce, esc, disableKeepingFocus } from './dom';
 import { passField, wirePeek } from './passField';
 import { openSheet, sheetBody, sheetTop } from './sheet';
 import { openStoragePicker } from './storagePicker';
@@ -50,7 +50,7 @@ export function openComparePair() {
     const pa = $<HTMLInputElement>('#pair-a-pass', form), pb = $<HTMLInputElement>('#pair-b-pass', form);
     if (!fa) { msg.textContent = 'Choose the first saved file.'; return; }
     if (!usingBrowser() && !fb) { msg.textContent = 'Choose the second saved file, or compare with this browser’s copy.'; return; }
-    go.disabled = true; msg.textContent = 'Opening…';
+    msg.textContent = 'Opening…'; disableKeepingFocus(go, msg);
     try {
       // Passphrases are read once and cleared straight away; nothing is kept.
       const passA = pa.value, passB = pb.value; pa.value = ''; pb.value = '';

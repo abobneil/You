@@ -2,7 +2,7 @@ import { profile } from '../state';
 import { fileNameFor } from '../storage/fileFormat';
 import { target } from '../storage/target';
 import { buildPlan, checkFile, planBody, type AccessPlan } from '../core/safety';
-import { $, esc } from './dom';
+import { $, esc, disableKeepingFocus } from './dom';
 import { openSheet, sheetBody, sheetTop } from './sheet';
 import { passField, wirePeek } from './passField';
 import { openComparePair } from './comparePair';
@@ -30,8 +30,8 @@ function openCheck() {
     const pass = $<HTMLInputElement>('#check-pass', form);
     const result = $('#check-result', form);
     const button = $<HTMLButtonElement>('button[type=submit]', form);
-    button.disabled = true;
     result.textContent = 'Checking…';
+    disableKeepingFocus(button, result);
     try {
       const pending = checkFile(await file.text(), pass.value);
       pass.value = '';

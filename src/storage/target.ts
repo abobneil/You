@@ -607,7 +607,7 @@ async function showTabConflict(again = false) {
   if (unreadable) {
     openSheet(`${sheetTop('This You was changed in another tab')}<h3 class="sh-title">The other tab saved it with a different passphrase</h3><p>Your work here is still open. Save it as a file first. Then reload this page and unlock with the passphrase the other tab used; you can open your file from there to bring these changes in.</p><div class="menu"><button data-act="file">Save my work as a file</button><button data-act="reload">Reload now</button><button data-act="close">Not now</button></div>`, {
       file: async () => { if (await keepVerifiedCopy()) closeSheet(); },
-      reload: () => { location.reload(); },
+      reload: async () => { if (hasUnsavedEdits() && !await keepVerifiedCopy()) return; copyKeptToLeave = true; location.reload(); },
     });
     return;
   }

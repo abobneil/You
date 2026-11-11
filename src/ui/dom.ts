@@ -63,3 +63,15 @@ export function clearFieldError(field: HTMLElement) {
   if (rest.length) field.setAttribute('aria-describedby', rest.join(' ')); else field.removeAttribute('aria-describedby');
   delete field.dataset.err;
 }
+
+/**
+ * Disables a button while work runs without losing keyboard focus: some browsers drop focus to the page
+ * when the focused button is disabled, so focus moves to `keep` (a status line, or the field) first.
+ */
+export function disableKeepingFocus(button: HTMLButtonElement, keep: HTMLElement) {
+  if (document.activeElement === button) {
+    if (!keep.matches('a, button, input, select, textarea, [tabindex]')) keep.tabIndex = -1;
+    keep.focus();
+  }
+  button.disabled = true;
+}

@@ -68,7 +68,7 @@ let idleAsked = false; // asked once already about a newer copy this tab can't r
 if (typeof window !== 'undefined') setInterval(() => {
   if (!guard.isStale()) { idleAsked = false; return; }
   if (vault && profile.id && !idleAsked && queue.state().status === 'saved' && editCount === committedEdit && !draftOpen() && !lockedInPlace)
-    useNewer().catch(() => { idleAsked = true; tabConflict(); }); // can't read the newer copy (another passphrase): ask once
+    useNewer().catch(() => { if (typeof document !== 'undefined' && document.querySelector('dialog[open]')) return; idleAsked = true; tabConflict(); }); // can't read it (another passphrase): ask once, not over an open panel
 }, 3000);
 const replacedListeners: (() => void)[] = [];
 /** Runs after the open record was swapped for the newer copy another tab saved, so the screen can redraw. */

@@ -1,6 +1,6 @@
 import { audibleRows } from '../../core/import/audible';
 import type { ImportResult } from '../../core/import/types';
-import { esc } from '../dom';
+import { esc, disableKeepingFocus } from '../dom';
 import { openSheet, sheetTop } from '../sheet';
 
 const BASE = 'http://127.0.0.1:49631/__you/audible/';
@@ -91,8 +91,8 @@ async function signInAudible(show: Show, kept: string) {
       const msg = document.getElementById('aud-msg')!;
       const go = document.querySelector<HTMLButtonElement>('#sheet [data-act="finish"]')!;
       if (!input.value.trim()) { msg.textContent = 'Paste the address first.'; input.focus(); return; }
-      go.disabled = true;
       msg.textContent = 'Connecting…';
+      disableKeepingFocus(go, msg);
       try {
         await call('finish', { redirect: input.value.trim() }, 30_000);
         input.value = '';

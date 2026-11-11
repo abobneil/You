@@ -320,7 +320,8 @@ function saveFix(c: Card, dateRows: { key: string; label: string }[]) {
   }
   const curKind = kindOf(cur.area, cur.kind, profile);
   const stillBuilt = !!curKind.titleFrom && cur.value === curKind.titleFrom(cur.fields ?? {});
-  let value = isDate ? fmtDate(e.since) : e.value.trim();
+  // A date card's title follows its date; if the person didn't change the date, keep the title as stored now.
+  let value = isDate ? (e.since !== (c.since ?? '') ? fmtDate(e.since) : cur.value) : e.value.trim();
   if (!isDate && value === c.value) {
     // The person didn't retype the title. If it's still built from the details, rebuild it from the details
     // as stored now with only their changes applied; otherwise keep the title as it's stored now.
