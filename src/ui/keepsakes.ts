@@ -8,7 +8,7 @@ import { checkSize, isViewableImage, LIMIT_TEXT, type Keepsake } from '../core/k
 import type { Card } from '../core/types';
 import { profile, save } from '../state';
 import { keepFile, readKeepsake } from '../storage/keepsakeAccess';
-import { esc } from './dom';
+import { disableKeepingFocus, esc } from './dom';
 import { onSheetClose, openSheet, sheetBody, sheetTop } from './sheet';
 
 /** What the file picker offers. On iPhone this brings up Photo Library, Take Photo and Choose File. */
@@ -93,9 +93,11 @@ export async function keepFiles(files: File[]): Promise<{ added: Keepsake[]; rea
 
 /** Shows "Keeping it safe…" while files are encrypted. */
 export function busy(root: HTMLElement) {
-  const m = root.querySelector('.ks-msg');
+  const m = root.querySelector<HTMLElement>('.ks-msg');
   if (m) m.textContent = 'Keeping it safe…';
-  root.querySelector<HTMLButtonElement>('[data-act="ks-add"]')?.setAttribute('disabled', '');
+  const add = root.querySelector<HTMLButtonElement>('[data-act="ks-add"]');
+  // Focus waits on the status line while the button is disabled, rather than falling to the page.
+  if (add) { if (m) disableKeepingFocus(add, m); else add.disabled = true; }
 }
 
 // ---------- Composer: drafted keepsakes ----------
