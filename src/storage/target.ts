@@ -361,7 +361,12 @@ export async function downloadCopy(separate = false): Promise<boolean> {
   // A tab that quietly fell behind another tab's save first takes the newest stored copy, so a download is
   // never of an older version. With unsaved work of its own, it asks which version to keep instead.
   if (copyIsStale() && browserSaveState().status !== 'saving') {
-    if (hasUnsavedEdits() || !await useNewer()) { void showTabConflict(); return false; }
+    let caught = false;
+    if (!hasUnsavedEdits()) caught = await useNewer().catch(() => false);
+    if (!caught) {
+      if (target.kind === 'download' && !separate) { dirty = true; local.set(behindKey(), behindToken()); renderPill(); }
+      void showTabConflict(); return false;
+    }
   }
   // The download answers the "behind" mark as it is now, and is of this tab's copy as it is now.
   const answers = local.get(behindKey()), currentAtStart = browserCopyIsCurrent(), base = storedBaseline();

@@ -321,17 +321,20 @@ function saveFix(c: Card, dateRows: { key: string; label: string }[]) {
     return sheetBody.querySelector<HTMLElement>('#v-value')?.focus();
   }
 
-  // Everything is checked; now apply each correction, each one keeping what it replaced.
+  // Everything is checked; now apply each correction, each one keeping what it replaced. Only what the person
+  // changed in this form is applied (compared with what the form showed when it opened), so anything another
+  // tab saved meanwhile to the parts they didn't touch stays as it is.
   const now = nowISO();
   let changed = 0;
-  if (correctMeta(profile, id, 'kind', e.kind, now)) changed++;
+  if (e.kind !== c.kind && correctMeta(profile, id, 'kind', e.kind, now)) changed++;
   for (const k of new Set([...Object.keys(c.fields ?? {}), ...Object.keys(e.fields)])) {
-    if (setField(profile, id, k, e.fields[k] ?? '', now)) changed++;
+    if ((e.fields[k] ?? '') !== (c.fields?.[k] ?? '') && setField(profile, id, k, e.fields[k] ?? '', now)) changed++;
   }
-  if (correctValue(profile, id, value, now)) changed++;
-  if (setNote(profile, id, e.note.trim() ? e.note : '', now)) changed++;
-  if (correctMeta(profile, id, 'since', e.since, now)) changed++;
-  if (c.status !== 'active' && correctMeta(profile, id, 'until', e.until, now)) changed++;
+  if (value !== c.value && correctValue(profile, id, value, now)) changed++;
+  const note = e.note.trim() ? e.note : '';
+  if (note !== (c.note ?? '') && setNote(profile, id, note, now)) changed++;
+  if (e.since !== (c.since ?? '') && correctMeta(profile, id, 'since', e.since, now)) changed++;
+  if (c.status !== 'active' && e.until !== (c.until ?? '') && correctMeta(profile, id, 'until', e.until, now)) changed++;
   if ((e.tag ?? '') !== (c.tag ?? '') && correctMeta(profile, id, 'tag', e.tag ?? '', now)) changed++;
   for (const l of e.unlink) { removeLink(profile, l); changed++; }
   edit = undefined;

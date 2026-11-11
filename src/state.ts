@@ -64,8 +64,11 @@ let draftOpen: () => boolean = () => false;
 export const setDraftCheck = (fn: () => boolean) => { draftOpen = fn; };
 // A tab that missed another tab's save while a card was open catches up once it's idle again, so it never
 // stays quietly on an older copy (which its downloads and file writes would otherwise be made from).
+let idleAsked = false; // asked once already about a newer copy this tab can't read
 if (typeof window !== 'undefined') setInterval(() => {
-  if (vault && profile.id && guard.isStale() && queue.state().status === 'saved' && editCount === committedEdit && !draftOpen() && !lockedInPlace) void useNewer();
+  if (!guard.isStale()) { idleAsked = false; return; }
+  if (vault && profile.id && !idleAsked && queue.state().status === 'saved' && editCount === committedEdit && !draftOpen() && !lockedInPlace)
+    useNewer().catch(() => { idleAsked = true; tabConflict(); }); // can't read the newer copy (another passphrase): ask once
 }, 3000);
 const replacedListeners: (() => void)[] = [];
 /** Runs after the open record was swapped for the newer copy another tab saved, so the screen can redraw. */
@@ -125,7 +128,7 @@ channel?.addEventListener('message', async e => {
   guard.markStale();
   if (lockedInPlace) { conflictWaiting = true; return; } // settled on unlock (settleAfterUnlock)
   // Nothing unsaved here: simply show the newer copy. Otherwise the next save asks what to keep.
-  if (browserSaveState().status === 'saved' && editCount === committedEdit && !draftOpen()) await useNewer();
+  if (browserSaveState().status === 'saved' && editCount === committedEdit && !draftOpen()) await useNewer().catch(() => tabConflict()); // a copy this tab can't read: ask, don't throw
   else if (editCount !== committedEdit) tabConflict();
 });
 const storedHooks: (() => void)[] = [];
