@@ -20,9 +20,10 @@
   /* Theme toggle: shows the moon in light mode and the sun in dark mode */
   .theme {
     position: fixed; top: 16px; right: 16px;
+    z-index: 25; /* stays above content scrolling under it, so its focus ring is never hidden */
     width: 40px; height: 40px; padding: 0;
     display: grid; place-items: center;
-    background: none; border: 0; border-radius: 50%;
+    background: var(--bg); border: 0; border-radius: 50%;
     color: var(--soft); cursor: pointer;
     transition: color .2s ease, background-color .2s ease;
   }
